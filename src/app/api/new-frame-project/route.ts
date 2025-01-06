@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { Octokit } from "octokit";
 
 // Helper function to trigger a Vercel deployment
-const triggerVercelDeployment = async (projectName: string, repo: string) => {
+const triggerVercelDeployment = async (projectName: string, repoId: number) => {
   try {
     const response = await fetch(
       `https://api.vercel.com/v13/deployments`,
@@ -16,7 +16,7 @@ const triggerVercelDeployment = async (projectName: string, repo: string) => {
           name: projectName,
           gitSource: {
             type: "github",
-            repo: repo,
+            repoId: repoId,
             ref: "main",
           },
         }),
@@ -204,7 +204,7 @@ export async function POST(request: Request) {
     // Step 5: Trigger a deployment
     const deployment = await triggerVercelDeployment(
       sanitizedProjectName,
-      `${newRepoOwner}/${newRepoName}`
+      vercelProject.link.repoId
     );
     console.log("Triggered Vercel deployment:", deployment);
 
