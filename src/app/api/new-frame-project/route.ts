@@ -1,6 +1,31 @@
 import { NextResponse } from "next/server";
 import { Octokit } from "octokit";
 
+// Helper function to sanitize project names for Vercel
+const sanitizeProjectName = (name: string): string => {
+  // Convert to lowercase
+  let sanitized = name.toLowerCase();
+
+  // Replace invalid characters with '-'
+  sanitized = sanitized.replace(/[^a-z0-9._-]/g, '-');
+
+  // Remove sequences of '---' or more
+  sanitized = sanitized.replace(/---+/g, '-');
+
+  // Trim to 100 characters
+  sanitized = sanitized.substring(0, 100);
+
+  // Ensure the name doesn't start or end with a hyphen
+  sanitized = sanitized.replace(/^-+|-+$/g, '');
+
+  // If the name is empty after sanitization, use a default
+  if (!sanitized) {
+    sanitized = 'new-frame-project';
+  }
+
+  return sanitized;
+};
+
 interface VercelProject {
   id: string;
   name: string;
@@ -26,6 +51,9 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    // Sanitize the project name for Vercel
+    const sanitizedProjectName = sanitizeProjectName(projectName);
 
     // Authenticate with GitHub
     const octokit = new Octokit({
@@ -126,7 +154,7 @@ export async function POST(request: Request) {
         Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
       },
       body: JSON.stringify({
-        name: projectName,
+        name: sanitizedProjectName, // Use the sanitized project name for Vercel
         gitRepository: {
           type: "github",
           repo: `${newRepoOwner}/${newRepoName}`,
@@ -157,7 +185,7 @@ export async function POST(request: Request) {
           Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
         },
         body: JSON.stringify({
-          name: projectName,
+          name: sanitizedProjectName, // Use the sanitized project name for Vercel
           gitSource: {
             type: "github",
             repo: `${newRepoOwner}/${newRepoName}`,
