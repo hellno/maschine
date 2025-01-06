@@ -43,6 +43,7 @@ export default function Demo(
 
   const [addFrameResult, setAddFrameResult] = useState("");
   const [sendNotificationResult, setSendNotificationResult] = useState("");
+  const [inputValue, setInputValue] = useState('');
 
   useEffect(() => {
     setNotificationDetails(context?.client.notificationDetails ?? null);
@@ -447,6 +448,25 @@ export default function Demo(
               </div>
             </>
           )}
+        </div>
+
+        <div className="mt-4">
+          <h2 className="font-2xl font-bold mb-2">Chat Command</h2>
+          <div className="flex flex-col gap-2">
+            <input
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder="Enter a short command..."
+              className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <Button 
+              onClick={() => console.log('Command:', inputValue)}
+              disabled={!inputValue.trim()}
+            >
+              Let's go
+            </Button>
+          </div>
         </div>
       </div>
     </div>
