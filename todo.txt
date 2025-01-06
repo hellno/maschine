@@ -1,0 +1,10 @@
+# todo monday 06.01.2024
+
+- add text input box
+- add a button
+- trigger serverside function
+
+- write script that (???)
+    - creates new github repo (???)
+    - deploys to vercel automatically (???)
+    - return URL to user
