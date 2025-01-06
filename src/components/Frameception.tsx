@@ -45,6 +45,32 @@ export default function Demo(
   const [addFrameResult, setAddFrameResult] = useState("");
   const [sendNotificationResult, setSendNotificationResult] = useState("");
   const [inputValue, setInputValue] = useState('');
+  
+  const handleCreateProject = useCallback(async () => {
+    try {
+      const response = await fetch("/api/new-frame-project", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          projectName: inputValue,
+          description: "A new frame project",
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to create project");
+      }
+
+      const data = await response.json();
+      console.log("New project created:", data);
+      alert(`Project created: ${data.projectName}`);
+    } catch (error) {
+      console.error("Error creating project:", error);
+      alert("Failed to create project");
+    }
+  }, [inputValue]);
 
   useEffect(() => {
     setNotificationDetails(context?.client.notificationDetails ?? null);
@@ -269,7 +295,7 @@ export default function Demo(
               className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <Button 
-              onClick={() => console.log('Command:', inputValue)}
+              onClick={handleCreateProject}
               disabled={!inputValue.trim()}
             >
               Let&apos;s go
