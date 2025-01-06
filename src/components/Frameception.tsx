@@ -65,7 +65,7 @@ export default function Demo(
 
       const data = await response.json();
       console.log("New project created:", data);
-      alert(`Project created: ${data.projectName}`);
+      alert(`Project created: ${data.projectName}\nRepository URL: ${data.repoUrl}`);
     } catch (error) {
       console.error("Error creating project:", error);
       alert("Failed to create project");
