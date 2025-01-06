@@ -20,15 +20,15 @@ export async function POST(request: Request) {
       auth: process.env.GITHUB_TOKEN,
     });
 
-    // Create a new GitHub repository
-    const repoResponse = await octokit.rest.repos.createForAuthenticatedUser({
-      name: projectName,
-      description,
-      private: false, // Set to true for private repositories
-      auto_init: true, // Initialize the repository with a README
+    // Fork the frames-v2-demo repository
+    const forkResponse = await octokit.rest.repos.createFork({
+      owner: "farcasterxyz",
+      repo: "frames-v2-demo",
+      name: projectName, // Use the project name as the new repository name
+      description, // Set the repository description
     });
 
-    const repoUrl = repoResponse.data.html_url;
+    const repoUrl = forkResponse.data.html_url;
 
     // Return the created project and repository URL
     const newProject = {
