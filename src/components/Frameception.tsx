@@ -45,6 +45,7 @@ export default function Demo(
   const [addFrameResult, setAddFrameResult] = useState("");
   const [sendNotificationResult, setSendNotificationResult] = useState("");
   const [inputValue, setInputValue] = useState('');
+  const [repoUrl, setRepoUrl] = useState<string | null>(null);
   
   const handleCreateProject = useCallback(async () => {
     try {
@@ -65,7 +66,7 @@ export default function Demo(
 
       const data = await response.json();
       console.log("New project created:", data);
-      alert(`Project created: ${data.projectName}\nRepository URL: ${data.repoUrl}`);
+      setRepoUrl(data.repoUrl); // Set the repository URL
     } catch (error) {
       console.error("Error creating project:", error);
       alert("Failed to create project");
@@ -300,6 +301,16 @@ export default function Demo(
             >
               Let&apos;s go
             </Button>
+            {repoUrl && (
+              <a
+                href={repoUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:text-blue-700 text-sm text-center"
+              >
+                View your new repository on GitHub
+              </a>
+            )}
           </div>
         </div>
         <div className="mb-4">
