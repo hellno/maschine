@@ -90,8 +90,8 @@ const copyRepositoryContents = async (
             path: item.path,
           });
 
-          // Decode the base64 content
-          const content = Buffer.from((fileContent as any).content, "base64").toString("utf-8");
+          // Use the raw base64 content directly
+          const content = (fileContent as any).content;
 
           // Create the file in the new repository
           await octokit.rest.repos.createOrUpdateFileContents({
@@ -99,7 +99,7 @@ const copyRepositoryContents = async (
             repo: targetRepo,
             path: item.path,
             message: `Initial commit: Copy ${item.path} from ${sourceRepo}`,
-            content: Buffer.from(content).toString("base64"), // Re-encode as base64
+            content, // Use the raw base64 content
           });
 
           console.log(`Copied file: ${item.path}`);
