@@ -1,6 +1,43 @@
 import { NextResponse } from "next/server";
 import { Octokit } from "octokit";
 
+// Helper function to trigger a Vercel deployment
+const triggerVercelDeployment = async (projectName: string, repo: string) => {
+  try {
+    const response = await fetch(
+      `https://api.vercel.com/v13/deployments`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
+        },
+        body: JSON.stringify({
+          name: projectName,
+          gitSource: {
+            type: "github",
+            repo: repo,
+            ref: "main",
+          },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error("Failed to trigger deployment:", error);
+      throw new Error("Failed to trigger deployment");
+    }
+
+    const deployment = await response.json();
+    console.log("Deployment triggered successfully:", deployment);
+    return deployment;
+  } catch (error) {
+    console.error("Error triggering deployment:", error);
+    throw error;
+  }
+};
+
 // Helper function to sanitize project names for Vercel
 const sanitizeProjectName = (name: string): string => {
   // Convert to lowercase
@@ -26,17 +63,6 @@ const sanitizeProjectName = (name: string): string => {
   return sanitized;
 };
 
-interface VercelProject {
-  id: string;
-  name: string;
-  url: string;
-}
-
-interface VercelDeployment {
-  id: string;
-  url: string;
-  readyState: string;
-}
 
 export async function POST(request: Request) {
   try {
@@ -172,36 +198,14 @@ export async function POST(request: Request) {
       throw new Error("Failed to create Vercel project");
     }
 
-    const vercelProject: VercelProject = await vercelResponse.json();
+    const vercelProject = await vercelResponse.json();
     console.log("Created Vercel project:", vercelProject);
 
-    // Step 5: Trigger an initial deployment
-    const deploymentResponse = await fetch(
-      `https://api.vercel.com/v13/deployments`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
-        },
-        body: JSON.stringify({
-          name: sanitizedProjectName, // Use the sanitized project name for Vercel
-          gitSource: {
-            type: "github",
-            repo: `${newRepoOwner}/${newRepoName}`,
-            ref: "main",
-          },
-        }),
-      }
+    // Step 5: Trigger a deployment
+    const deployment = await triggerVercelDeployment(
+      sanitizedProjectName,
+      `${newRepoOwner}/${newRepoName}`
     );
-
-    if (!deploymentResponse.ok) {
-      const deploymentError = await deploymentResponse.json();
-      console.error("Vercel deployment failed:", deploymentError);
-      throw new Error("Failed to trigger Vercel deployment");
-    }
-
-    const deployment: VercelDeployment = await deploymentResponse.json();
     console.log("Triggered Vercel deployment:", deployment);
 
     // Return the created project, repository URL, and Vercel deployment URL
