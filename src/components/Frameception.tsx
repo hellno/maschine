@@ -66,7 +66,7 @@ export default function Demo(
 
       const data = await response.json();
       console.log("New project created:", data);
-      setRepoUrl(data.repoUrl); // Set the repository URL
+      setRepoUrl(data.repoUrl);
     } catch (error) {
       console.error("Error creating project:", error);
       alert("Failed to create project");
