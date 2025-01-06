@@ -63,6 +63,64 @@ const sanitizeProjectName = (name: string): string => {
   return sanitized;
 };
 
+// Helper function to recursively copy repository contents
+const copyRepositoryContents = async (
+  octokit: Octokit,
+  sourceOwner: string,
+  sourceRepo: string,
+  targetOwner: string,
+  targetRepo: string,
+  path: string = ""
+) => {
+  try {
+    // Get the contents of the current directory
+    const { data: contents } = await octokit.rest.repos.getContent({
+      owner: sourceOwner,
+      repo: sourceRepo,
+      path,
+    });
+
+    if (Array.isArray(contents)) {
+      for (const item of contents) {
+        if (item.type === "file") {
+          // Get the file content
+          const { data: fileContent } = await octokit.rest.repos.getContent({
+            owner: sourceOwner,
+            repo: sourceRepo,
+            path: item.path,
+          });
+
+          // Decode the base64 content
+          const content = Buffer.from((fileContent as any).content, "base64").toString("utf-8");
+
+          // Create the file in the new repository
+          await octokit.rest.repos.createOrUpdateFileContents({
+            owner: targetOwner,
+            repo: targetRepo,
+            path: item.path,
+            message: `Initial commit: Copy ${item.path} from ${sourceRepo}`,
+            content: Buffer.from(content).toString("base64"), // Re-encode as base64
+          });
+
+          console.log(`Copied file: ${item.path}`);
+        } else if (item.type === "dir") {
+          // Recursively copy directories
+          await copyRepositoryContents(
+            octokit,
+            sourceOwner,
+            sourceRepo,
+            targetOwner,
+            targetRepo,
+            item.path
+          );
+        }
+      }
+    }
+  } catch (error) {
+    console.error(`Error copying contents from ${path}:`, error);
+    throw error;
+  }
+};
 
 export async function POST(request: Request) {
   try {
@@ -101,78 +159,18 @@ export async function POST(request: Request) {
 
     console.log("Created new repository:", createRepoResponse.data);
 
-    // Step 2: Get the contents of the frames-v2-demo repository
-    const { data: sourceContents } = await octokit.rest.repos.getContent({
-      owner: "farcasterxyz",
-      repo: "frames-v2-demo",
-      path: "",
-    });
-
-    // Step 3: Copy each file/folder to the new repository
-    if (Array.isArray(sourceContents)) {
-      for (const item of sourceContents) {
-        if (item.type === "file") {
-          // Get the file content
-          const { data: fileContent } = await octokit.rest.repos.getContent({
-            owner: "farcasterxyz",
-            repo: "frames-v2-demo",
-            path: item.path,
-          });
-
-          // Decode the base64 content
-          const content = Buffer.from((fileContent as any).content, "base64").toString("utf-8");
-
-          // Create the file in the new repository
-          await octokit.rest.repos.createOrUpdateFileContents({
-            owner: newRepoOwner,
-            repo: newRepoName,
-            path: item.path,
-            message: `Initial commit: Copy ${item.path} from frames-v2-demo`,
-            content: Buffer.from(content).toString("base64"), // Re-encode as base64
-          });
-
-          console.log(`Copied file: ${item.path}`);
-        } else if (item.type === "dir") {
-          // Recursively handle directories
-          const { data: dirContents } = await octokit.rest.repos.getContent({
-            owner: "farcasterxyz",
-            repo: "frames-v2-demo",
-            path: item.path,
-          });
-
-          if (Array.isArray(dirContents)) {
-            for (const dirItem of dirContents) {
-              if (dirItem.type === "file") {
-                // Get the file content
-                const { data: dirFileContent } = await octokit.rest.repos.getContent({
-                  owner: "farcasterxyz",
-                  repo: "frames-v2-demo",
-                  path: dirItem.path,
-                });
-
-                // Decode the base64 content
-                const dirContent = Buffer.from((dirFileContent as any).content, "base64").toString("utf-8");
-
-                // Create the file in the new repository
-                await octokit.rest.repos.createOrUpdateFileContents({
-                  owner: newRepoOwner,
-                  repo: newRepoName,
-                  path: dirItem.path,
-                  message: `Initial commit: Copy ${dirItem.path} from frames-v2-demo`,
-                  content: Buffer.from(dirContent).toString("base64"), // Re-encode as base64
-                });
-
-                console.log(`Copied file: ${dirItem.path}`);
-              }
-            }
-          }
-        }
-      }
-    }
+    // Step 2: Copy the entire contents of the frames-v2-demo repository
+    await copyRepositoryContents(
+      octokit,
+      "farcasterxyz",
+      "frames-v2-demo",
+      newRepoOwner,
+      newRepoName
+    );
 
     console.log("Copied all contents to new repository");
 
-    // Step 4: Create a Vercel project linked to the new repository
+    // Step 3: Create a Vercel project linked to the new repository
     const vercelResponse = await fetch("https://api.vercel.com/v9/projects", {
       method: "POST",
       headers: {
@@ -201,12 +199,11 @@ export async function POST(request: Request) {
     const vercelProject = await vercelResponse.json();
     console.log("Created Vercel project:", vercelProject);
 
-    // Step 5: Trigger a deployment
+    // Step 4: Trigger a deployment using the repoId
     const deployment = await triggerVercelDeployment(
       sanitizedProjectName,
-      vercelProject.link.repoId
+      vercelProject.link.repoId // Use the repoId from the Vercel project creation response
     );
-    console.log("Triggered Vercel deployment:", deployment);
 
     // Return the created project, repository URL, and Vercel deployment URL
     const newProject = {
