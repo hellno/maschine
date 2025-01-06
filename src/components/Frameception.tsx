@@ -26,6 +26,7 @@ import { BaseError, UserRejectedRequestError } from "viem";
 import { useSession } from "next-auth/react"
 import { SignIn as SignInCore } from "@farcaster/frame-core";
 import { SignInResult } from "@farcaster/frame-core/dist/actions/signIn";
+import { Input } from "./ui/input";
 
 export default function Demo(
   { title }: { title?: string } = { title: "Frames v2 Demo" }
@@ -88,6 +89,10 @@ export default function Demo(
   useEffect(() => {
     const load = async () => {
       const context = await sdk.context;
+      if (!context) {
+        return;
+      }
+      
       setContext(context);
       setAdded(context.client.added);
 
@@ -253,6 +258,24 @@ export default function Demo(
       <div className="w-[300px] mx-auto py-2 px-2">
         <h1 className="text-2xl font-bold text-center mb-4">{title}</h1>
 
+        <div className="my-20">
+          <h2 className="font-2xl font-bold mb-2">Chat Command</h2>
+          <div className="flex flex-col gap-2">
+            <Input
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder="Enter a short command..."
+              className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <Button 
+              onClick={() => console.log('Command:', inputValue)}
+              disabled={!inputValue.trim()}
+            >
+              Let&apos;s go
+            </Button>
+          </div>
+        </div>
         <div className="mb-4">
           <h2 className="font-2xl font-bold">Context</h2>
           <button
@@ -448,25 +471,6 @@ export default function Demo(
               </div>
             </>
           )}
-        </div>
-
-        <div className="mt-4">
-          <h2 className="font-2xl font-bold mb-2">Chat Command</h2>
-          <div className="flex flex-col gap-2">
-            <input
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Enter a short command..."
-              className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <Button 
-              onClick={() => console.log('Command:', inputValue)}
-              disabled={!inputValue.trim()}
-            >
-              Let's go
-            </Button>
-          </div>
         </div>
       </div>
     </div>
