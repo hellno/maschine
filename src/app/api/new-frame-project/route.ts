@@ -1,6 +1,18 @@
 import { NextResponse } from "next/server";
 import { Octokit } from "octokit";
 
+interface VercelProject {
+  id: string;
+  name: string;
+  url: string;
+}
+
+interface VercelDeployment {
+  id: string;
+  url: string;
+  readyState: string;
+}
+
 export async function POST(request: Request) {
   try {
     // Parse the request body
@@ -106,11 +118,70 @@ export async function POST(request: Request) {
 
     console.log("Copied all contents to new repository");
 
-    // Return the created project and repository URL
+    // Step 4: Create a Vercel project linked to the new repository
+    const vercelResponse = await fetch("https://api.vercel.com/v9/projects", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
+      },
+      body: JSON.stringify({
+        name: projectName,
+        gitRepository: {
+          type: "github",
+          repo: `${newRepoOwner}/${newRepoName}`,
+        },
+        framework: "nextjs",
+        installCommand: "yarn install",
+        buildCommand: "yarn build",
+        outputDirectory: ".next",
+      }),
+    });
+
+    if (!vercelResponse.ok) {
+      const vercelError = await vercelResponse.json();
+      console.error("Vercel project creation failed:", vercelError);
+      throw new Error("Failed to create Vercel project");
+    }
+
+    const vercelProject: VercelProject = await vercelResponse.json();
+    console.log("Created Vercel project:", vercelProject);
+
+    // Step 5: Trigger an initial deployment
+    const deploymentResponse = await fetch(
+      `https://api.vercel.com/v13/deployments`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
+        },
+        body: JSON.stringify({
+          name: projectName,
+          gitSource: {
+            type: "github",
+            repo: `${newRepoOwner}/${newRepoName}`,
+            ref: "main",
+          },
+        }),
+      }
+    );
+
+    if (!deploymentResponse.ok) {
+      const deploymentError = await deploymentResponse.json();
+      console.error("Vercel deployment failed:", deploymentError);
+      throw new Error("Failed to trigger Vercel deployment");
+    }
+
+    const deployment: VercelDeployment = await deploymentResponse.json();
+    console.log("Triggered Vercel deployment:", deployment);
+
+    // Return the created project, repository URL, and Vercel deployment URL
     const newProject = {
       projectName,
       description,
       repoUrl: newRepoUrl,
+      vercelUrl: deployment.url,
       createdAt: new Date().toISOString(),
     };
 

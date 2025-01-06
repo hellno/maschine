@@ -302,14 +302,24 @@ export default function Demo(
               Let&apos;s go
             </Button>
             {repoUrl && (
-              <a
-                href={repoUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-500 hover:text-blue-700 text-sm text-center"
-              >
-                View your new repository on GitHub
-              </a>
+              <div className="flex flex-col gap-2">
+                <a
+                  href={repoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-500 hover:text-blue-700 text-sm text-center"
+                >
+                  View your new repository on GitHub
+                </a>
+                <a
+                  href={repoUrl.replace('github.com', 'vercel.app')}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-500 hover:text-blue-700 text-sm text-center"
+                >
+                  View your live deployment on Vercel
+                </a>
+              </div>
             )}
           </div>
         </div>
