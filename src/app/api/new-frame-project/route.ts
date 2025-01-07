@@ -91,6 +91,7 @@ const copyRepositoryContents = async (
           });
 
           // Use the raw base64 content directly
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const content = (fileContent as any).content;
 
           // Create the file in the new repository
