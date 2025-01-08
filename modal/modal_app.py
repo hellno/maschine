@@ -1,10 +1,6 @@
 import sys
-import git
 from pathlib import Path
-
-from aider.coders import Coder
-from aider.models import Model
-from aider.io import InputOutput
+import os
 
 import modal
 
@@ -14,12 +10,14 @@ env_vars = {
 
 github_repos = modal.Volume.from_name(
     "frameception-github-repos", create_if_missing=True)
-volumes = {"github-repos": github_repos}
+volumes = {"/github-repos": github_repos}
 
 image = modal.Image.debian_slim(python_version="3.12") \
+    .apt_install("git") \
     .env(env_vars) \
     .pip_install(
     "fastapi[standard]",
+    "aider-chat",
     "aider-install",
     "GitPython"
 ).run_commands("aider-install")
@@ -65,9 +63,18 @@ def main(num_iterations: int = 200):
     print(f"Total from {num_iterations} parallel executions:", total)
 
 
-@app.function(volumes=volumes)
+@app.function(volumes=volumes,
+              secrets=[modal.Secret.from_name("github-secret"),
+                       modal.Secret.from_name("llm-api-keys")]
+              )
 @modal.web_endpoint(method="POST", docs=True)
 def update_repo_code(data: dict) -> str:
+    import git
+    from aider.coders import Coder
+    from aider.models import Model
+    from aider.io import InputOutput
+    import os
+
     if not data.get("repo"):
         return "Please provide a repo name in the request body"
 
@@ -75,9 +82,12 @@ def update_repo_code(data: dict) -> str:
         return "Please provide a prompt in the request body"
 
     repo_name = data["repo"]
-    repo_url = f"https://github.com/{repo_name}.git"
-    repo_dir = f"/root/github-repos/{repo_name.split('/')[-1]}"
 
+    repo_url = f"https://{os.environ["GITHUB_TOKEN"]
+                          }@github.com/{repo_name}.git"
+    repo_dir = f"/github-repos/{repo_name.split('/')[-1]}"
+
+    print(f"Processing repository: {repo_name}, saving to {repo_dir}")
     try:
         # Clone or pull the repo
         try:
@@ -87,37 +97,38 @@ def update_repo_code(data: dict) -> str:
             repo = git.Repo(repo_dir)
             repo.remotes.origin.pull()
 
-        # Get all files in the repo
-        fnames = ["src/components/Demo.tsx"]
-
-        # Set up aider
-        io = InputOutput(yes=True)  # Equivalent to AIDER_YES
-        model = Model("deepseek/deepseek-coder", weak_model=None, "deepseek/deepseek-coder")
+        # update later if repo becomes more complex
+        fnames = [f"{repo.working_tree_dir}/src/components/Demo.tsx"]
+        io = InputOutput(yes=True, root=repo.working_tree_dir)
+        model = Model(
+            model="deepseek/deepseek-coder",
+            weak_model=None,
+            editor_model="deepseek/deepseek-coder"
+        )
         coder = Coder.create(
             main_model=model,
             fnames=fnames,
-            io=io,
-            cwd=repo.working_tree_dir
+            io=io
         )
 
+        prompt = data["prompt"]
+        print(f'Prompt for aider: {prompt}\nmodel: {model}\nfnames: {
+              fnames}\ncwd: {repo.working_tree_dir}\ncoder: {coder}')
         # Run the prompt through aider
-        result = coder.run(data["prompt"])
-
+        result = coder.run(prompt)
         # Commit changes if any were made
         if repo.is_dirty():
+            print(f"Repo is dirty, committing changes")
             repo.git.add(A=True)
             repo.git.commit(m=f"Applied changes via aider: {data['prompt']}")
             repo.git.push()
 
-
-        # Persist changes to volume
-        volumes["github-repos"].commit()
-
-        return f"Successfully updated {repo_name} with changes:\n{result}"
+            # Persist changes to volume
+            volumes["github-repos"].commit()
+        else:
+            print("No changes to commit")
+        return f"Successfully ran prompt for repo {repo_name}"
     except Exception as e:
-        return f"Error processing repository: {str(e)}"
-
-
-# before demo run:
-# - github permissions
-# - aider api keys
+        print(f"Error processing repository: {str(e)}")
+        print(f'error: {e}')
+        return f"Error processing repository: {str(e)} {e}"
