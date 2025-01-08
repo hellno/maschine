@@ -188,6 +188,14 @@ export async function POST(request: Request) {
         installCommand: "yarn install",
         buildCommand: "yarn build",
         outputDirectory: ".next",
+        environmentVariables: [
+          {
+            "key": "NEXTAUTH_SECRET",
+            "target": "production",
+            "type": "sensitive",
+            "value": "" // AI! insert random value that is roughly similar to in terminal generated value with "openssl rand -base64 32"
+          }
+        ],
       }),
     });
 
