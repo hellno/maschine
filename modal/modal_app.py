@@ -1,5 +1,10 @@
 import sys
 import git
+from pathlib import Path
+
+from aider.coders import Coder
+from aider.models import Model
+from aider.io import InputOutput
 
 import modal
 
@@ -82,9 +87,30 @@ def update_repo_code(data: dict) -> str:
             repo = git.Repo(repo_dir)
             repo.remotes.origin.pull()
 
+        # Get all files in the repo
+        fnames = [str(f) for f in Path(repo.working_tree_dir).glob("**/*") if f.is_file()]
+
+        # Set up aider
+        io = InputOutput(yes=True)  # Equivalent to AIDER_YES
+        model = Model("gpt-4-turbo")
+        coder = Coder.create(
+            main_model=model,
+            fnames=fnames,
+            io=io,
+            cwd=repo.working_tree_dir
+        )
+
+        # Run the prompt through aider
+        result = coder.run(data["prompt"])
+
+        # Commit changes if any were made
+        if repo.is_dirty():
+            repo.git.add(A=True)
+            repo.git.commit(m=f"Applied changes via aider: {data['prompt']}")
+
         # Persist changes to volume
         volumes["github-repos"].commit()
 
-        return f"Successfully updated {repo_name} at {repo_dir}"
+        return f"Successfully updated {repo_name} with changes:\n{result}"
     except Exception as e:
         return f"Error processing repository: {str(e)}"
