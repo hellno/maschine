@@ -2,15 +2,30 @@ import sys
 
 import modal
 
-app = modal.App("example-hello-world")
+env_vars = {
+    "PATH": "/root/.local/bin:/usr/local/bin:/usr/bin:/bin"
+}
+
+github_repos = modal.Volume.from_name("frameception-github-repos", create_if_missing=True)
+volumes = {"github-repos": github_repos}
+
+image = modal.Image.debian_slim(python_version="3.12") \
+.env(env_vars) \
+.pip_install(
+    "fastapi[standard]",
+    "aider-install",
+    "GitPython"
+).run_commands("aider-install")
+app = modal.App(name="frameception", image=image)
+
 
 @app.function()
 def f(i: int) -> int:
     """Square a number and print a message based on its parity.
-    
+
     Args:
         i: The input number to process
-        
+
     Returns:
         The square of the input number
     """
@@ -21,10 +36,11 @@ def f(i: int) -> int:
 
     return i * i
 
+
 @app.local_entrypoint()
 def main(num_iterations: int = 200):
     """Run the function in different modes and aggregate results.
-    
+
     Args:
         num_iterations: Number of parallel iterations to run (default: 200)
     """
@@ -40,3 +56,16 @@ def main(num_iterations: int = 200):
         total += ret
 
     print(f"Total from {num_iterations} parallel executions:", total)
+
+
+@app.function(volumes=volumes)
+@modal.web_endpoint(method="POST", docs=True)
+def update_repo_code(data: dict) -> str:
+    if not data.get("repo"):
+        return "Please provide a repo name in the request body"
+    
+    if not data.get("prompt"):
+        return "Please provide a prompt in the request body"
+
+    # use GitPython to download the repo to volumes["github-repos"] AI!
+    return "Hello world!"
