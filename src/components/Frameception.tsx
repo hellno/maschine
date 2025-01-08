@@ -28,7 +28,7 @@ import { SignIn as SignInCore } from "@farcaster/frame-core";
 import { SignInResult } from "@farcaster/frame-core/dist/actions/signIn";
 import { Input } from "./ui/input";
 
-export default function Demo(
+export default function Frameception(
   { title }: { title?: string } = { title: "Frames v2 Demo" }
 ) {
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
@@ -56,7 +56,7 @@ export default function Demo(
         },
         body: JSON.stringify({
           projectName: inputValue,
-          description: "A new frame project",
+          description: "A new frame   project",
         }),
       });
 

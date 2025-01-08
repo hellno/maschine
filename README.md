@@ -1,7 +1,8 @@
 # 🖼️² frameception
 
-# todo tuesday 07.01.2024
-- fix NEXTAUTH_URL and SECRET in env variables for vercel
+# todo wed 08.01.2024
+- fix NEXTAUTH_SECRET in env variables for vercel deployment
+
 - make unique repo name with farcaster fid and project name
 
 
