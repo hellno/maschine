@@ -7,12 +7,13 @@ env_vars = {
     "PATH": "/root/.local/bin:/usr/local/bin:/usr/bin:/bin"
 }
 
-github_repos = modal.Volume.from_name("frameception-github-repos", create_if_missing=True)
+github_repos = modal.Volume.from_name(
+    "frameception-github-repos", create_if_missing=True)
 volumes = {"github-repos": github_repos}
 
 image = modal.Image.debian_slim(python_version="3.12") \
-.env(env_vars) \
-.pip_install(
+    .env(env_vars) \
+    .pip_install(
     "fastapi[standard]",
     "aider-install",
     "GitPython"
@@ -64,14 +65,14 @@ def main(num_iterations: int = 200):
 def update_repo_code(data: dict) -> str:
     if not data.get("repo"):
         return "Please provide a repo name in the request body"
-    
+
     if not data.get("prompt"):
         return "Please provide a prompt in the request body"
 
     repo_name = data["repo"]
     repo_url = f"https://github.com/{repo_name}.git"
     repo_dir = f"/root/github-repos/{repo_name.split('/')[-1]}"
-    
+
     try:
         # Clone or pull the repo
         try:
@@ -80,10 +81,10 @@ def update_repo_code(data: dict) -> str:
             # If repo exists, pull latest changes
             repo = git.Repo(repo_dir)
             repo.remotes.origin.pull()
-        
+
         # Persist changes to volume
         volumes["github-repos"].commit()
-        
+
         return f"Successfully updated {repo_name} at {repo_dir}"
     except Exception as e:
         return f"Error processing repository: {str(e)}"
