@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { Octokit } from "octokit";
+import crypto from "crypto";
 
 // Helper function to trigger a Vercel deployment
 const triggerVercelDeployment = async (projectName: string, repoId: number) => {
@@ -36,6 +37,12 @@ const triggerVercelDeployment = async (projectName: string, repoId: number) => {
     console.error("Error triggering deployment:", error);
     throw error;
   }
+};
+
+// Helper function to generate a random NEXTAUTH_SECRET
+const generateRandomSecret = () => {
+  const randomBytes = crypto.getRandomValues(new Uint8Array(32));
+  return Buffer.from(randomBytes).toString('base64');
 };
 
 // Helper function to sanitize project names for Vercel
@@ -193,7 +200,7 @@ export async function POST(request: Request) {
             "key": "NEXTAUTH_SECRET",
             "target": "production",
             "type": "sensitive",
-            "value": "" // AI! insert random value that is roughly similar to in terminal generated value with "openssl rand -base64 32"
+            "value": generateRandomSecret()
           }
         ],
       }),
