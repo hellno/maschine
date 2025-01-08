@@ -107,7 +107,7 @@ def update_repo_code(data: dict) -> str:
         if repo.is_dirty():
             repo.git.add(A=True)
             repo.git.commit(m=f"Applied changes via aider: {data['prompt']}")
-            # AI! Push changes to remote 
+            repo.git.push()
 
 
         # Persist changes to volume
