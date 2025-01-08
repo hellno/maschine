@@ -1,4 +1,5 @@
 import sys
+import git
 
 import modal
 
@@ -67,5 +68,22 @@ def update_repo_code(data: dict) -> str:
     if not data.get("prompt"):
         return "Please provide a prompt in the request body"
 
-    # use GitPython to download the repo to volumes["github-repos"] AI!
-    return "Hello world!"
+    repo_name = data["repo"]
+    repo_url = f"https://github.com/{repo_name}.git"
+    repo_dir = f"/root/github-repos/{repo_name.split('/')[-1]}"
+    
+    try:
+        # Clone or pull the repo
+        try:
+            repo = git.Repo.clone_from(repo_url, repo_dir)
+        except git.exc.GitCommandError:
+            # If repo exists, pull latest changes
+            repo = git.Repo(repo_dir)
+            repo.remotes.origin.pull()
+        
+        # Persist changes to volume
+        volumes["github-repos"].commit()
+        
+        return f"Successfully updated {repo_name} at {repo_dir}"
+    except Exception as e:
+        return f"Error processing repository: {str(e)}"
