@@ -52,6 +52,7 @@ export default function Frameception(
   const handleCreateProject = useCallback(async () => {
     setIsCreatingProject(true);
     setCreationError(null);
+    setRepoUrl(null);
     
     try {
       const response = await fetch("/api/new-frame-project", {
@@ -62,7 +63,8 @@ export default function Frameception(
         body: JSON.stringify({
           prompt: inputValue,
           description: "A new Farcaster frame project",
-          username: context?.user?.username || "", // Add username from context
+          username: context?.user?.username || "anonymous",
+          fid: context?.user?.fid || 0,
         }),
       });
 
@@ -72,8 +74,13 @@ export default function Frameception(
       }
 
       const data = await response.json();
+      if (!data.repoUrl) {
+        throw new Error("Repository URL not returned from API");
+      }
+      
       console.log("New project created:", data);
       setRepoUrl(data.repoUrl);
+      setInputValue(''); // Clear input after successful creation
     } catch (error) {
       console.error("Error creating project:", error);
       setCreationError(error instanceof Error ? error.message : "An unknown error occurred");
