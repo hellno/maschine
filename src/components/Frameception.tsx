@@ -286,13 +286,13 @@ export default function Frameception(
         <h1 className="text-2xl font-bold text-center mb-4">{title}</h1>
 
         <div className="my-20">
-          <h2 className="font-2xl font-bold mb-2">Chat Command</h2>
+          <h2 className="font-5xl font-bold mb-2">What kind of frame can I help you build?</h2>
           <div className="flex flex-col gap-2">
             <Input
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Enter a short command..."
+              placeholder="linktree for me with the following link..."
               className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <Button 

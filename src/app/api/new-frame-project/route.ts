@@ -156,9 +156,10 @@ export async function POST(request: Request) {
 
     // Step 1: Create a new empty repository
     const createRepoResponse = await octokit.rest.repos.createForAuthenticatedUser({
+      org: "frameception",
       name: projectName,
       description,
-      private: false, // Set to true if you want private repositories
+      private: false,
     });
 
     const newRepoUrl = createRepoResponse.data.html_url;
@@ -170,8 +171,8 @@ export async function POST(request: Request) {
     // Step 2: Copy the entire contents of the frames-v2-demo repository
     await copyRepositoryContents(
       octokit,
-      "farcasterxyz",
-      "frames-v2-demo",
+      "hellno",
+      "farcaster-frames-template",
       newRepoOwner,
       newRepoName
     );
@@ -201,6 +202,18 @@ export async function POST(request: Request) {
             "target": "production",
             "type": "sensitive",
             "value": generateRandomSecret()
+          },
+          {
+            "key": "KV_REST_API_URL",
+            "target": "production",
+            "type": "sensitive",
+            "value": process.env.KV_REST_API_URL
+          },
+          {
+            "key": "KV_REST_API_TOKEN",
+            "target": "production",
+            "type": "sensitive",
+            "value": process.env.KV_REST_API_TOKEN
           }
         ],
       }),
