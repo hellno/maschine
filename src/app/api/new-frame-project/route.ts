@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Octokit } from "octokit";
 import crypto from "crypto";
+import { setTimeout } from 'timers/promises';
 
 // Helper function to trigger a Vercel deployment
 const triggerVercelDeployment = async (projectName: string, repoId: number) => {
@@ -132,6 +133,9 @@ const copyRepositoryContents = async (
 
 export async function POST(request: Request) {
   try {
+    // Simulate processing delay
+    await setTimeout(2000);
+    
     // Parse the request body
     const body = await request.json();
     const { projectName, description } = body;

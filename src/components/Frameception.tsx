@@ -46,8 +46,10 @@ export default function Frameception(
   const [sendNotificationResult, setSendNotificationResult] = useState("");
   const [inputValue, setInputValue] = useState('');
   const [repoUrl, setRepoUrl] = useState<string | null>(null);
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
   
   const handleCreateProject = useCallback(async () => {
+    setIsCreatingProject(true);
     try {
       const response = await fetch("/api/new-frame-project", {
         method: "POST",
@@ -56,7 +58,7 @@ export default function Frameception(
         },
         body: JSON.stringify({
           projectName: inputValue,
-          description: "A new frame   project",
+          description: "A new frame project",
         }),
       });
 
@@ -70,6 +72,8 @@ export default function Frameception(
     } catch (error) {
       console.error("Error creating project:", error);
       alert("Failed to create project");
+    } finally {
+      setIsCreatingProject(false);
     }
   }, [inputValue]);
 
@@ -297,9 +301,10 @@ export default function Frameception(
             />
             <Button 
               onClick={handleCreateProject}
-              disabled={!inputValue.trim()}
+              disabled={!inputValue.trim() || isCreatingProject}
+              isLoading={isCreatingProject}
             >
-              Let&apos;s go
+              {isCreatingProject ? 'Creating...' : "Let's go"}
             </Button>
             {repoUrl && (
               <div className="flex flex-col gap-2">
