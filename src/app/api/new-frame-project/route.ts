@@ -164,18 +164,20 @@ export async function POST(request: Request) {
           content: "You are a helpful assistant that generates concise, technical project names. Only respond with the project name, nothing else. No descriptions, no explanations, no additional text. Just the name.",
         },
         {
-          role: "user", 
+          role: "user",
           content: `Generate a short, technical project name based on this description: ${prompt}`,
         },
       ],
-      temperature: 0.7,
+      temperature: 0.8,
       max_tokens: 20,
     });
 
     console.log('deepseek response:', projectNameResponse);
-    const projectName = projectNameResponse.choices[0].message.content.trim();
+    const projectNameMessage = projectNameResponse.choices[0].message;
+    console.log('projectNameMessage', projectNameMessage)
+    const rawProjectName = projectNameMessage ? projectNameMessage.content?.trim() : null;
 
-    if (!projectName) {
+    if (!rawProjectName) {
       return NextResponse.json(
         { error: "Failed to generate project name" },
         { status: 500 }
@@ -183,7 +185,7 @@ export async function POST(request: Request) {
     }
 
     // Sanitize the project name for Vercel
-    const sanitizedProjectName = sanitizeProjectName(prompt);
+    const projectName = `${username ? `${username}-` : ''}${sanitizeProjectName(rawProjectName)}`;
 
     // Authenticate with GitHub
     const octokit = new Octokit({
@@ -191,16 +193,16 @@ export async function POST(request: Request) {
     });
 
     // Use username in the repository description if available
-    const fullDescription = username 
+    const fullDescription = username
       ? `${description} (created by @${username})`
       : description;
 
-    console.log("Creating new repository with data", { prompt, fullDescription });
+    console.log("Creating new repository with data", { prompt, projectName, fullDescription });
 
     // Step 1: Create a new empty repository
     const createRepoResponse = await octokit.rest.repos.createInOrg({
       org: "frameception",
-      name: sanitizedProjectName,
+      name: projectName,
       description: fullDescription, // Use the updated description
       private: false,
     });
@@ -230,7 +232,7 @@ export async function POST(request: Request) {
         Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
       },
       body: JSON.stringify({
-        name: sanitizedProjectName, // Use the sanitized project name for Vercel
+        name: projectName, // Use the sanitized project name for Vercel
         gitRepository: {
           type: "github",
           repo: `${newRepoOwner}/${newRepoName}`,
@@ -273,7 +275,7 @@ export async function POST(request: Request) {
 
     // Step 4: Trigger a deployment using the repoId
     const deployment = await triggerVercelDeployment(
-      sanitizedProjectName,
+      projectName,
       vercelProject.link.repoId // Use the repoId from the Vercel project creation response
     );
 
