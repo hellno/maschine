@@ -65,14 +65,23 @@ const commitCollectedFiles = async (
   targetOwner: string,
   targetRepo: string,
   files: FileChange[],
-  commitMessage: string
+  commitMessage: string,
+  verbose: boolean = false
 ) => {
   try {
+    if (verbose) {
+      console.log('Starting commit process...');
+    }
+
     const { data: repoData } = await octokit.rest.repos.get({
       owner: targetOwner,
       repo: targetRepo,
     });
     const defaultBranch = repoData.default_branch;
+
+    if (verbose) {
+      console.log(`Working with default branch: ${defaultBranch}`);
+    }
 
     let baseTreeSha: string | undefined;
     let parentCommits: string[] = [];
@@ -121,6 +130,10 @@ const commitCollectedFiles = async (
     console.log('baseTreeSha', baseTreeSha, 'parentCommits', parentCommits);
 
     // Create blobs for all files
+    if (verbose) {
+      console.log('Creating blobs...');
+    }
+
     const blobPromises = files.map((file) =>
       octokit.rest.git.createBlob({
         owner: targetOwner,
@@ -130,9 +143,14 @@ const commitCollectedFiles = async (
       })
     );
 
-    console.log('create all blob promises')
+    if (verbose) {
+      console.log('All blob promises created');
+    }
     const blobs = await Promise.all(blobPromises);
-    console.log('awaited all blobs');
+
+    if (verbose) {
+      console.log('All blobs created successfully');
+    }
 
     const treeElements = files.map((file, index) => ({
       path: file.path,
@@ -171,6 +189,15 @@ const commitCollectedFiles = async (
 
     console.log(`Successfully committed ${files.length} files.`);
   } catch (error) {
+    if (verbose) {
+      console.error('Detailed error during commit:', {
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined,
+        status: error.status,
+        response: error.response?.data,
+        request: error.request
+      });
+    }
     console.error("Error committing files:", error);
     throw error;
   }
@@ -257,9 +284,14 @@ const copyRepositoryContents = async (
   sourceRepo: string,
   targetOwner: string,
   targetRepo: string,
-  path: string = ""
+  path: string = "",
+  verbose: boolean = false
 ) => {
   try {
+    if (verbose) {
+      console.log('Starting to collect repository contents...');
+    }
+
     const files = await collectRepositoryContents(
       octokit,
       sourceOwner,
@@ -267,14 +299,38 @@ const copyRepositoryContents = async (
       path
     );
 
+    if (verbose) {
+      console.log(`Collected ${files.length} files from source repository`);
+    }
+
     if (files.length === 0) {
+      if (verbose) {
+        console.log("No files to copy.");
+      }
       console.log("No files to copy.");
       return;
     }
 
     const commitMessage = `Initial bulk commit: Copy contents from ${sourceRepo}`;
+    if (verbose) {
+      console.log('Starting to commit collected files...');
+    }
+
     await commitCollectedFiles(octokit, targetOwner, targetRepo, files, commitMessage);
+
+    if (verbose) {
+      console.log('Files committed successfully');
+    }
   } catch (error) {
+    if (verbose) {
+      console.error('Detailed error during repository copy:', {
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined,
+        status: error.status,
+        response: error.response?.data,
+        request: error.request
+      });
+    }
     console.error("Error copying repository contents:", error);
     throw error;
   }
@@ -284,7 +340,16 @@ export async function POST(request: Request) {
   try {
     // Parse request and validate input
     const body = await request.json();
-    const { prompt, description, username } = body;
+    const { prompt, description, username, verbose = false } = body;
+
+    if (verbose) {
+      console.log('Starting new frame project creation with parameters:', {
+        prompt,
+        description,
+        username,
+        verbose
+      });
+    }
 
     if (!prompt || !description) {
       return NextResponse.json(
@@ -319,6 +384,10 @@ export async function POST(request: Request) {
 
     const projectName = projectNameResponse.choices[0].message.content.trim();
 
+    if (verbose) {
+      console.log('Generated project name:', projectName);
+    }
+
     if (!projectName) {
       return NextResponse.json(
         { error: "Failed to generate project name" },
@@ -327,6 +396,10 @@ export async function POST(request: Request) {
     }
 
     const sanitizedProjectName = `${username ? `${username}-` : ''}${sanitizeProjectName(projectName)}`;
+
+    if (verbose) {
+      console.log('Sanitized project name:', sanitizedProjectName);
+    }
 
     // Create repository first
     const createRepoResponse = await octokit.rest.repos.createInOrg({
@@ -338,7 +411,14 @@ export async function POST(request: Request) {
       private: false,
     });
 
+    if (verbose) {
+      console.log('Repository created successfully:', createRepoResponse.data);
+    }
+
     // Wait a moment to ensure repository is fully initialized
+    if (verbose) {
+      console.log('Starting repository content copy...');
+    }
     await setTimeout(1000);
 
     // Then copy contents
@@ -347,8 +427,14 @@ export async function POST(request: Request) {
       "hellno",
       "farcaster-frames-template",
       "frameception-v2",
-      sanitizedProjectName
+      sanitizedProjectName,
+      "",
+      verbose
     );
+
+    if (verbose) {
+      console.log('Creating Vercel project...');
+    }
 
     // Create Vercel project
     const vercelResponse = await fetch(`https://api.vercel.com/v9/projects?teamId=${process.env.VERCEL_TEAM_ID}`, {
@@ -398,11 +484,20 @@ export async function POST(request: Request) {
 
     const vercelProject = await vercelResponse.json();
 
+    if (verbose) {
+      console.log('Vercel project created successfully:', vercelProject);
+      console.log('Triggering deployment...');
+    }
+
     // Trigger deployment
     const deployment = await triggerVercelDeployment(
       sanitizedProjectName,
       vercelProject.link.repoId
     );
+
+    if (verbose) {
+      console.log('Deployment triggered successfully:', deployment);
+    }
 
     return NextResponse.json({
       prompt,
@@ -412,6 +507,16 @@ export async function POST(request: Request) {
       createdAt: new Date().toISOString(),
     }, { status: 201 });
   } catch (error) {
+    if (verbose) {
+      console.error('Detailed error information:', {
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined,
+        status: error.status,
+        response: error.response?.data,
+        request: error.request
+      });
+    }
+
     console.error("Error creating new frame project:", error);
     
     // Handle specific GitHub repository name conflict
