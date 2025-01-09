@@ -60,6 +60,57 @@ const collectRepositoryContents = async (
   }
 };
 
+async function initRepoIfEmpty(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  branch = "main",
+  verbose: boolean = true
+) {
+  try {
+    if (verbose) {
+      console.log('Checking if repository is empty...');
+    }
+    await octokit.rest.repos.getCommit({
+      owner,
+      repo,
+      ref: `heads/${branch}`,
+    });
+    if (verbose) {
+      console.log('Repository is not empty');
+    }
+  } catch (err: any) {
+    if (err.status === 409) {
+      if (verbose) {
+        console.log('Repository is empty, creating initial README...');
+      }
+      await octokit.rest.repos.createOrUpdateFileContents({
+        owner,
+        repo,
+        path: "README.md",
+        message: "Initial commit: Add README",
+        content: Buffer.from("# Simple Title").toString("base64"),
+        committer: {
+          name: "Auto Commit Bot",
+          email: "bot@example.com",
+        },
+        author: {
+          name: "Auto Commit Bot",
+          email: "bot@example.com",
+        },
+      });
+      if (verbose) {
+        console.log('Repository initialized with README');
+      }
+    } else {
+      if (verbose) {
+        console.error('Error checking repository status:', err);
+      }
+      throw err;
+    }
+  }
+}
+
 const commitCollectedFiles = async (
   octokit: Octokit,
   targetOwner: string,
@@ -83,63 +134,28 @@ const commitCollectedFiles = async (
       console.log(`Working with default branch: ${defaultBranch}`);
     }
 
-    let baseTreeSha: string | undefined;
-    let parentCommits: string[] = [];
-
-    try {
-      if (verbose) {
-        console.log('Getting latest commit...');
-      }
-      // Get the latest commit to find the tree SHA
-      const commitResponse = await octokit.rest.repos.getCommit({
-        owner: targetOwner,
-        repo: targetRepo,
-        ref: `heads/${defaultBranch}`,
-      });
-      baseTreeSha = commitResponse.data.commit.tree.sha;
-      parentCommits = [commitResponse.data.sha];
-      if (verbose) {
-        console.log('Latest commit found:', commitResponse.data);
-      }
-    } catch (error) {
-      if (verbose) {
-        console.error('Error getting latest commit:', error, error.status, error.status === 409);
-      }
-      // If the repository is empty (409 Conflict), create initial empty commit
-      if (error.status === 409) {
-        console.log('create empty tree');
-        const { data: emptyTree } = await octokit.rest.git.createTree({
-          owner: targetOwner,
-          repo: targetRepo,
-          tree: [],
-        });
-
-        console.log('creating initial empty commit');
-        const { data: emptyCommit } = await octokit.rest.git.createCommit({
-          owner: targetOwner,
-          repo: targetRepo,
-          message: "Initial empty commit",
-          tree: emptyTree.sha,
-          parents: [],
-        });
-
-        console.log('updating ref');
-        await octokit.rest.git.updateRef({
-          owner: targetOwner,
-          repo: targetRepo,
-          ref: `heads/${defaultBranch}`,
-          sha: emptyCommit.sha,
-          force: true,
-        });
-
-        baseTreeSha = emptyTree.sha;
-        parentCommits = [emptyCommit.sha];
-      } else {
-        throw error;
-      }
+    // Initialize repository if empty
+    if (verbose) {
+      console.log('Checking if repository is empty...');
     }
+    await initRepoIfEmpty(octokit, targetOwner, targetRepo);
 
-    console.log('baseTreeSha', baseTreeSha, 'parentCommits', parentCommits);
+    // Get the latest commit to find the tree SHA
+    if (verbose) {
+      console.log('Getting latest commit...');
+    }
+    const commitResponse = await octokit.rest.repos.getCommit({
+      owner: targetOwner,
+      repo: targetRepo,
+      ref: `heads/${defaultBranch}`,
+    });
+
+    const baseTreeSha = commitResponse.data.commit.tree.sha;
+    const parentCommits = [commitResponse.data.sha];
+
+    if (verbose) {
+      console.log('Latest commit found:', commitResponse.data);
+    }
 
     // Create blobs for all files
     if (verbose) {
