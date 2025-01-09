@@ -98,8 +98,8 @@ const commitCollectedFiles = async (
       octokit.rest.git.createBlob({
         owner: targetOwner,
         repo: targetRepo,
-        content: Buffer.from(file.content, "base64").toString("utf-8"),
-        encoding: "utf-8",
+        content: file.content, // Use the base64 content directly
+        encoding: "base64",    // Specify base64 encoding
       })
     );
 
