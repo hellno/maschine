@@ -172,6 +172,7 @@ export async function POST(request: Request) {
       max_tokens: 20,
     });
 
+    console.log('deepseek response:', projectNameResponse);
     const projectName = projectNameResponse.choices[0].message.content.trim();
 
     if (!projectName) {
