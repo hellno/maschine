@@ -80,6 +80,7 @@ const copyRepositoryContents = async (
   targetRepo: string,
   path: string = ""
 ) => {
+  console.log(`Copying contents from ${path} in ${sourceRepo} to ${targetRepo}`);
   try {
     // Get the contents of the current directory
     const { data: contents } = await octokit.rest.repos.getContent({
@@ -135,42 +136,47 @@ export async function POST(request: Request) {
   try {
     // Simulate processing delay
     await setTimeout(2000);
-    
+
     // Parse the request body
     const body = await request.json();
-    const { projectName, description } = body;
+    const { prompt, description } = body;
 
     // Validate input
-    if (!projectName || !description) {
+    if (!prompt || !description) {
       return NextResponse.json(
         { error: "Project name and description are required" },
         { status: 400 }
       );
     }
 
+    // AI! add an API call to deepseek api to summarize the prompt into a simple github repo name
+    // force it to only respond with the project name, nothing else, no chatting, no description
+    // docs at: https://api-docs.deepseek.com/
+    const projectName = prompt;
+
     // Sanitize the project name for Vercel
-    const sanitizedProjectName = sanitizeProjectName(projectName);
+    const sanitizedProjectName = sanitizeProjectName(prompt);
 
     // Authenticate with GitHub
     const octokit = new Octokit({
       auth: process.env.GITHUB_TOKEN,
     });
 
-    console.log("Creating new repository with data", { projectName, description });
+    console.log("Creating new repository with data", { prompt, description });
 
     // Step 1: Create a new empty repository
-    const createRepoResponse = await octokit.rest.repos.createForAuthenticatedUser({
+    const createRepoResponse = await octokit.rest.repos.createInOrg({
       org: "frameception",
-      name: projectName,
+      name: sanitizedProjectName,
       description,
       private: false,
     });
 
     const newRepoUrl = createRepoResponse.data.html_url;
-    const newRepoOwner = createRepoResponse.data.owner.login;
+    const newRepoOwner = 'frameception'; // createRepoResponse.data.owner.login;
     const newRepoName = createRepoResponse.data.name;
 
-    console.log("Created new repository:", createRepoResponse.data);
+    console.log("Created new repository:", newRepoName, 'data: ', createRepoResponse.data);
 
     // Step 2: Copy the entire contents of the frames-v2-demo repository
     await copyRepositoryContents(
@@ -240,7 +246,7 @@ export async function POST(request: Request) {
 
     // Return the created project, repository URL, and Vercel deployment URL
     const newProject = {
-      projectName,
+      prompt,
       description,
       repoUrl: newRepoUrl,
       vercelUrl: deployment.url,
