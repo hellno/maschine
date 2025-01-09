@@ -413,8 +413,26 @@ export async function POST(request: Request) {
     }, { status: 201 });
   } catch (error) {
     console.error("Error creating new frame project:", error);
+    
+    // Handle specific GitHub repository name conflict
+    if (error instanceof Error && error.message.includes("name already exists on this account")) {
+      return NextResponse.json(
+        { error: "A project with this name already exists. Please try a different name." },
+        { status: 409 }
+      );
+    }
+
+    // Handle other GitHub API errors
+    if (error.status === 422) {
+      return NextResponse.json(
+        { error: "Invalid project name. Please try a different name." },
+        { status: 400 }
+      );
+    }
+
+    // Generic error fallback
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "An unexpected error occurred while creating your project. Please try again." },
       { status: 500 }
     );
   }
