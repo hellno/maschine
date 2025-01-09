@@ -26,7 +26,6 @@ import { BaseError, UserRejectedRequestError } from "viem";
 import { useSession } from "next-auth/react"
 import { SignIn as SignInCore } from "@farcaster/frame-core";
 import { SignInResult } from "@farcaster/frame-core/dist/actions/signIn";
-import { Input } from "./ui/input";
 
 export default function Frameception(
   { title }: { title?: string } = { title: "Frames v2 Demo" }
@@ -63,7 +62,7 @@ export default function Frameception(
         body: JSON.stringify({
           prompt: inputValue,
           description: "A new Farcaster frame project",
-          username: context?.user?.username || "anonymous",
+          username: context?.user?.username || null,
           fid: context?.user?.fid || 0,
         }),
       });

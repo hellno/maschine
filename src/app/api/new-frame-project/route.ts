@@ -278,14 +278,14 @@ export async function POST(request: Request) {
         messages: [
           {
             role: "system",
-            content: "You are a helpful assistant that generates concise, technical project names. Only respond with the project name, nothing else. No descriptions, no explanations, no additional text. Just the name.",
+            content: "You are a helpful assistant that generates concise, aspirational project names. Only respond with the project name, nothing else. No descriptions, no explanations, no additional text. Just the name.",
           },
           {
             role: "user",
-            content: `Generate a short, technical project name based on this description: ${prompt}`,
+            content: `Generate a short, aspirational project name based on this description: ${prompt}`,
           },
         ],
-        temperature: 0.7,
+        temperature: 0.9,
         max_tokens: 20,
       }),
     ]);
