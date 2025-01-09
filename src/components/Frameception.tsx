@@ -297,9 +297,8 @@ export default function Frameception(
         <div className="my-20">
           <h2 className="font-5xl font-bold mb-2">What kind of frame can I help you build?</h2>
           <div className="flex flex-col gap-2">
-            {/* // AI! make this input have three lines  */}
-            <Input
-              type="text"
+            <textarea
+              rows={3}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               placeholder="linktree for me with the following link..."
