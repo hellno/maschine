@@ -4,8 +4,140 @@ import crypto from "crypto";
 import { setTimeout } from 'timers/promises';
 import { OpenAI } from "openai";
 
+interface FileChange {
+  path: string;
+  content: string;
+}
+
 // Cache for repository metadata to reduce API calls
 const repoMetadataCache = new Map();
+
+const collectRepositoryContents = async (
+  octokit: Octokit,
+  sourceOwner: string,
+  sourceRepo: string,
+  path: string = "",
+  fileList: FileChange[] = []
+): Promise<FileChange[]> => {
+  console.log(`Collecting contents from ${path} in ${sourceRepo}`);
+  try {
+    const { data: contents } = await octokit.rest.repos.getContent({
+      owner: sourceOwner,
+      repo: sourceRepo,
+      path,
+    });
+
+    if (Array.isArray(contents)) {
+      for (const item of contents) {
+        if (item.type === "file") {
+          const { data: fileContent } = await octokit.rest.repos.getContent({
+            owner: sourceOwner,
+            repo: sourceRepo,
+            path: item.path,
+          });
+
+          fileList.push({
+            path: item.path,
+            content: (fileContent as any).content,
+          });
+          console.log(`Queued file: ${item.path}`);
+        } else if (item.type === "dir") {
+          await collectRepositoryContents(
+            octokit,
+            sourceOwner,
+            sourceRepo,
+            item.path,
+            fileList
+          );
+        }
+      }
+    }
+
+    return fileList;
+  } catch (error) {
+    console.error(`Error collecting contents from ${path}:`, error);
+    throw error;
+  }
+};
+
+const commitCollectedFiles = async (
+  octokit: Octokit,
+  targetOwner: string,
+  targetRepo: string,
+  files: FileChange[],
+  commitMessage: string
+) => {
+  try {
+    const { data: repoData } = await octokit.rest.repos.get({
+      owner: targetOwner,
+      repo: targetRepo,
+    });
+    const defaultBranch = repoData.default_branch;
+
+    const {
+      data: {
+        commit: { sha: latestCommitSha },
+      },
+    } = await octokit.rest.repos.getCommit({
+      owner: targetOwner,
+      repo: targetRepo,
+      ref: `heads/${defaultBranch}`,
+    });
+
+    const {
+      data: { tree: baseTree },
+    } = await octokit.rest.git.getCommit({
+      owner: targetOwner,
+      repo: targetRepo,
+      commit_sha: latestCommitSha,
+    });
+
+    const blobPromises = files.map((file) =>
+      octokit.rest.git.createBlob({
+        owner: targetOwner,
+        repo: targetRepo,
+        content: Buffer.from(file.content, "base64").toString("utf-8"),
+        encoding: "utf-8",
+      })
+    );
+
+    const blobs = await Promise.all(blobPromises);
+
+    const treeElements = files.map((file, index) => ({
+      path: file.path,
+      mode: "100644",
+      type: "blob",
+      sha: blobs[index].data.sha,
+    }));
+
+    const { data: newTree } = await octokit.rest.git.createTree({
+      owner: targetOwner,
+      repo: targetRepo,
+      tree: treeElements,
+      base_tree: baseTree.sha,
+    });
+
+    const { data: newCommit } = await octokit.rest.git.createCommit({
+      owner: targetOwner,
+      repo: targetRepo,
+      message: commitMessage,
+      tree: newTree.sha,
+      parents: [latestCommitSha],
+    });
+
+    await octokit.rest.git.updateRef({
+      owner: targetOwner,
+      repo: targetRepo,
+      ref: `heads/${defaultBranch}`,
+      sha: newCommit.sha,
+    });
+
+    console.log(`Successfully committed ${files.length} files.`);
+  } catch (error) {
+    console.error("Error committing files:", error);
+    throw error;
+  }
+};
 
 const getRepoMetadata = async (octokit: Octokit, owner: string, repo: string) => {
   const cacheKey = `${owner}/${repo}`;
@@ -96,7 +228,7 @@ const sanitizeProjectName = (name: string): string => {
   return sanitized;
 };
 
-// Helper function to recursively copy repository contents
+// Helper function to copy repository contents using bulk commit
 const copyRepositoryContents = async (
   octokit: Octokit,
   sourceOwner: string,
@@ -105,52 +237,23 @@ const copyRepositoryContents = async (
   targetRepo: string,
   path: string = ""
 ) => {
-  console.log(`Copying contents from ${path} in ${sourceRepo} to ${targetRepo}`);
-
   try {
-    // Get contents of current directory
-    const { data: contents } = await octokit.rest.repos.getContent({
-      owner: sourceOwner,
-      repo: sourceRepo,
-      path,
-    });
+    const files = await collectRepositoryContents(
+      octokit,
+      sourceOwner,
+      sourceRepo,
+      path
+    );
 
-    if (Array.isArray(contents)) {
-      // Process files and directories in parallel
-      await Promise.all(contents.map(async (item) => {
-        if (item.type === "file") {
-          // Get file content
-          const { data: fileContent } = await octokit.rest.repos.getContent({
-            owner: sourceOwner,
-            repo: sourceRepo,
-            path: item.path,
-          });
-
-          // Create file in new repository
-          await octokit.rest.repos.createOrUpdateFileContents({
-            owner: targetOwner,
-            repo: targetRepo,
-            path: item.path,
-            message: `Initial commit: Copy ${item.path} from ${sourceRepo}`,
-            content: (fileContent as any).content,
-          });
-
-          console.log(`Copied file: ${item.path}`);
-        } else if (item.type === "dir") {
-          // Recursively copy directories
-          await copyRepositoryContents(
-            octokit,
-            sourceOwner,
-            sourceRepo,
-            targetOwner,
-            targetRepo,
-            item.path
-          );
-        }
-      }));
+    if (files.length === 0) {
+      console.log("No files to copy.");
+      return;
     }
+
+    const commitMessage = `Initial bulk commit: Copy contents from ${sourceRepo}`;
+    await commitCollectedFiles(octokit, targetOwner, targetRepo, files, commitMessage);
   } catch (error) {
-    console.error(`Error copying contents from ${path}:`, error);
+    console.error("Error copying repository contents:", error);
     throw error;
   }
 };
@@ -174,23 +277,25 @@ export async function POST(request: Request) {
     });
 
     // Generate project name and get template repo data in parallel
-    const projectNameResponse = await deepseek.chat.completions.create({
-      model: "deepseek-chat",
-      messages: [
-        {
-          role: "system",
-          content: "You are a helpful assistant that generates concise, aspirational project names. Only respond with the project name, nothing else. No descriptions, no explanations, no additional text. Just the name.",
-        },
-        {
-          role: "user",
-          content: `Generate a short, aspirational project name based on this task description how it should look like: ${prompt}`,
-        },
-      ],
-      temperature: 0.7,
-      max_tokens: 20,
-    })
+    const [projectNameResponse] = await Promise.all([
+      deepseek.chat.completions.create({
+        model: "deepseek-chat",
+        messages: [
+          {
+            role: "system",
+            content: "You are a helpful assistant that generates concise, technical project names. Only respond with the project name, nothing else. No descriptions, no explanations, no additional text. Just the name.",
+          },
+          {
+            role: "user",
+            content: `Generate a short, technical project name based on this description: ${prompt}`,
+          },
+        ],
+        temperature: 0.7,
+        max_tokens: 20,
+      }),
+    ]);
 
-    const projectName = projectNameResponse.choices[0]?.message?.content?.trim();
+    const projectName = projectNameResponse.choices[0].message.content.trim();
 
     if (!projectName) {
       return NextResponse.json(
