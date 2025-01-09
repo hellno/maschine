@@ -145,7 +145,7 @@ export async function POST(request: Request) {
 
     // Parse the request body
     const body = await request.json();
-    const { prompt, description } = body;
+    const { prompt, description, username } = body; // Add username to destructuring
 
     // Validate input
     if (!prompt || !description) {
@@ -190,13 +190,18 @@ export async function POST(request: Request) {
       auth: process.env.GITHUB_TOKEN,
     });
 
-    console.log("Creating new repository with data", { prompt, description });
+    // Use username in the repository description if available
+    const fullDescription = username 
+      ? `${description} (created by @${username})`
+      : description;
+
+    console.log("Creating new repository with data", { prompt, fullDescription });
 
     // Step 1: Create a new empty repository
     const createRepoResponse = await octokit.rest.repos.createInOrg({
       org: "frameception",
       name: sanitizedProjectName,
-      description,
+      description: fullDescription, // Use the updated description
       private: false,
     });
 

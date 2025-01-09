@@ -51,7 +51,7 @@ export default function Frameception(
   
   const handleCreateProject = useCallback(async () => {
     setIsCreatingProject(true);
-    setCreationError(null); // Clear previous errors
+    setCreationError(null);
     
     try {
       const response = await fetch("/api/new-frame-project", {
@@ -62,6 +62,7 @@ export default function Frameception(
         body: JSON.stringify({
           prompt: inputValue,
           description: "A new Farcaster frame project",
+          username: context?.user?.username || "", // Add username from context
         }),
       });
 
@@ -79,7 +80,7 @@ export default function Frameception(
     } finally {
       setIsCreatingProject(false);
     }
-  }, [inputValue]);
+  }, [inputValue, context?.user?.username]); // Add context dependency
 
   useEffect(() => {
     setNotificationDetails(context?.client.notificationDetails ?? null);
