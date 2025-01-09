@@ -40,7 +40,7 @@ const collectRepositoryContents = async (
             path: item.path,
             content: (fileContent as any).content,
           });
-          console.log(`Queued file: ${item.path}`);
+          // console.log(`Queued file: ${item.path}`);
         } else if (item.type === "dir") {
           await collectRepositoryContents(
             octokit,
@@ -76,7 +76,7 @@ const commitCollectedFiles = async (
 
     let baseTreeSha: string | undefined;
     let parentCommits: string[] = [];
-    
+
     try {
       // Get the latest commit to find the tree SHA
       const commitResponse = await octokit.rest.repos.getCommit({
@@ -91,6 +91,8 @@ const commitCollectedFiles = async (
       if (error.status !== 409) throw error;
     }
 
+    console.log('baseTreeSha', baseTreeSha, 'parentCommits', parentCommits);
+
     // Create blobs for all files
     const blobPromises = files.map((file) =>
       octokit.rest.git.createBlob({
@@ -101,7 +103,9 @@ const commitCollectedFiles = async (
       })
     );
 
+    console.log('create all blob promises')
     const blobs = await Promise.all(blobPromises);
+    console.log('awaited all blobs');
 
     const treeElements = files.map((file, index) => ({
       path: file.path,
@@ -110,6 +114,7 @@ const commitCollectedFiles = async (
       sha: blobs[index].data.sha,
     }));
 
+    console.log('Create initial tree');
     // Create initial tree
     const { data: newTree } = await octokit.rest.git.createTree({
       owner: targetOwner,
@@ -118,6 +123,7 @@ const commitCollectedFiles = async (
       base_tree: baseTreeSha, // Will be undefined for empty repos
     });
 
+    console.log('created new tree');
     // Create initial commit
     const { data: newCommit } = await octokit.rest.git.createCommit({
       owner: targetOwner,
@@ -127,6 +133,7 @@ const commitCollectedFiles = async (
       parents: parentCommits, // Will be empty array for empty repos
     });
 
+    console.log('created new commit');
     // Update reference
     await octokit.rest.git.updateRef({
       owner: targetOwner,
@@ -305,7 +312,7 @@ export async function POST(request: Request) {
     });
 
     // Wait a moment to ensure repository is fully initialized
-    await setTimeout(2000);
+    await setTimeout(1000);
 
     // Then copy contents
     await copyRepositoryContents(
