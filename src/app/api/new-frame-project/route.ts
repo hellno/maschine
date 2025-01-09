@@ -74,19 +74,24 @@ const commitCollectedFiles = async (
     });
     const defaultBranch = repoData.default_branch;
 
-    let latestCommitSha: string | undefined;
+    let baseTreeSha: string | undefined;
+    let parentCommits: string[] = [];
+    
     try {
+      // Get the latest commit to find the tree SHA
       const commitResponse = await octokit.rest.repos.getCommit({
         owner: targetOwner,
         repo: targetRepo,
         ref: `heads/${defaultBranch}`,
       });
-      latestCommitSha = commitResponse.data.commit.sha;
+      baseTreeSha = commitResponse.data.commit.tree.sha;
+      parentCommits = [commitResponse.data.sha];
     } catch (error) {
-      // If the repository is empty, latestCommitSha will be undefined
+      // If the repository is empty (409 Conflict), we'll proceed without base tree or parents
       if (error.status !== 409) throw error;
     }
 
+    // Create blobs for all files
     const blobPromises = files.map((file) =>
       octokit.rest.git.createBlob({
         owner: targetOwner,
@@ -110,7 +115,7 @@ const commitCollectedFiles = async (
       owner: targetOwner,
       repo: targetRepo,
       tree: treeElements,
-      base_tree: latestCommitSha ? latestCommitSha : undefined,
+      base_tree: baseTreeSha, // Will be undefined for empty repos
     });
 
     // Create initial commit
@@ -119,7 +124,7 @@ const commitCollectedFiles = async (
       repo: targetRepo,
       message: commitMessage,
       tree: newTree.sha,
-      parents: latestCommitSha ? [latestCommitSha] : [],
+      parents: parentCommits, // Will be empty array for empty repos
     });
 
     // Update reference
