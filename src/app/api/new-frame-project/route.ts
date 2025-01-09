@@ -312,7 +312,7 @@ export async function POST(request: Request) {
             content: `Generate a short, aspirational project name based on this description: ${prompt}`,
           },
         ],
-        temperature: 0.9,
+        temperature: 1.5,
         max_tokens: 20,
       }),
     ]);
