@@ -47,9 +47,12 @@ export default function Frameception(
   const [inputValue, setInputValue] = useState('');
   const [repoUrl, setRepoUrl] = useState<string | null>(null);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [creationError, setCreationError] = useState<string | null>(null);
   
   const handleCreateProject = useCallback(async () => {
     setIsCreatingProject(true);
+    setCreationError(null); // Clear previous errors
+    
     try {
       const response = await fetch("/api/new-frame-project", {
         method: "POST",
@@ -63,7 +66,8 @@ export default function Frameception(
       });
 
       if (!response.ok) {
-        throw new Error("Failed to create project");
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to create project");
       }
 
       const data = await response.json();
@@ -71,7 +75,7 @@ export default function Frameception(
       setRepoUrl(data.repoUrl);
     } catch (error) {
       console.error("Error creating project:", error);
-      alert("Failed to create project");
+      setCreationError(error instanceof Error ? error.message : "An unknown error occurred");
     } finally {
       setIsCreatingProject(false);
     }
@@ -306,6 +310,11 @@ export default function Frameception(
             >
               {isCreatingProject ? 'Creating...' : "Let's go"}
             </Button>
+            {creationError && (
+              <div className="text-red-500 font-bold mt-2 text-center">
+                Error: {creationError}
+              </div>
+            )}
             {repoUrl && (
               <div className="flex flex-col gap-2">
                 <a
