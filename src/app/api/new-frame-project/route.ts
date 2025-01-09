@@ -4,6 +4,25 @@ import crypto from "crypto";
 import { setTimeout } from 'timers/promises';
 import { OpenAI } from "openai";
 
+// Cache for repository metadata to reduce API calls
+const repoMetadataCache = new Map();
+
+const getRepoMetadata = async (octokit: Octokit, owner: string, repo: string) => {
+  const cacheKey = `${owner}/${repo}`;
+  
+  if (repoMetadataCache.has(cacheKey)) {
+    return repoMetadataCache.get(cacheKey);
+  }
+
+  const { data } = await octokit.rest.repos.get({
+    owner,
+    repo,
+  });
+
+  repoMetadataCache.set(cacheKey, data);
+  return data;
+};
+
 const deepseek = new OpenAI({
   apiKey: process.env.DEEPSEEK_API_KEY,
   baseURL: "https://api.deepseek.com",
@@ -87,8 +106,9 @@ const copyRepositoryContents = async (
   path: string = ""
 ) => {
   console.log(`Copying contents from ${path} in ${sourceRepo} to ${targetRepo}`);
+  
   try {
-    // Get the contents of the current directory
+    // Get contents of current directory
     const { data: contents } = await octokit.rest.repos.getContent({
       owner: sourceOwner,
       repo: sourceRepo,
@@ -96,26 +116,23 @@ const copyRepositoryContents = async (
     });
 
     if (Array.isArray(contents)) {
-      for (const item of contents) {
+      // Process files and directories in parallel
+      await Promise.all(contents.map(async (item) => {
         if (item.type === "file") {
-          // Get the file content
+          // Get file content
           const { data: fileContent } = await octokit.rest.repos.getContent({
             owner: sourceOwner,
             repo: sourceRepo,
             path: item.path,
           });
 
-          // Use the raw base64 content directly
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const content = (fileContent as any).content;
-
-          // Create the file in the new repository
+          // Create file in new repository
           await octokit.rest.repos.createOrUpdateFileContents({
             owner: targetOwner,
             repo: targetRepo,
             path: item.path,
             message: `Initial commit: Copy ${item.path} from ${sourceRepo}`,
-            content, // Use the raw base64 content
+            content: (fileContent as any).content,
           });
 
           console.log(`Copied file: ${item.path}`);
@@ -130,7 +147,7 @@ const copyRepositoryContents = async (
             item.path
           );
         }
-      }
+      }));
     }
   } catch (error) {
     console.error(`Error copying contents from ${path}:`, error);
@@ -140,14 +157,10 @@ const copyRepositoryContents = async (
 
 export async function POST(request: Request) {
   try {
-    // Simulate processing delay
-    await setTimeout(2000);
-
-    // Parse the request body
+    // Parse request and validate input
     const body = await request.json();
-    const { prompt, description, username } = body; // Add username to destructuring
+    const { prompt, description, username } = body;
 
-    // Validate input
     if (!prompt || !description) {
       return NextResponse.json(
         { error: "Project name and description are required" },
@@ -155,76 +168,54 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate project name using DeepSeek API
-    const projectNameResponse = await deepseek.chat.completions.create({
-      model: "deepseek-chat",
-      messages: [
-        {
-          role: "system",
-          content: "You are a helpful assistant that generates concise, technical project names. Only respond with the project name, nothing else. No descriptions, no explanations, no additional text. Just the name.",
-        },
-        {
-          role: "user",
-          content: `Generate a short, technical project name based on this description: ${prompt}`,
-        },
-      ],
-      temperature: 0.8,
-      max_tokens: 20,
-    });
-
-    console.log('deepseek response:', projectNameResponse);
-    const projectNameMessage = projectNameResponse.choices[0].message;
-    console.log('projectNameMessage', projectNameMessage)
-    const rawProjectName = projectNameMessage ? projectNameMessage.content?.trim() : null;
-
-    if (!rawProjectName) {
-      return NextResponse.json(
-        { error: "Failed to generate project name" },
-        { status: 500 }
-      );
-    }
-
-    // Sanitize the project name for Vercel
-    const projectName = `${username ? `${username}-` : ''}${sanitizeProjectName(rawProjectName)}`;
-
-    // Authenticate with GitHub
+    // Create Octokit instance
     const octokit = new Octokit({
       auth: process.env.GITHUB_TOKEN,
     });
 
-    // Use username in the repository description if available
-    const fullDescription = username
-      ? `${description} (created by @${username})`
-      : description;
+    // Generate project name and get template repo data in parallel
+    const [projectNameResponse, templateRepoData] = await Promise.all([
+      deepseek.chat.completions.create({
+        model: "deepseek-chat",
+        messages: [
+          {
+            role: "system",
+            content: "You are a helpful assistant that generates concise, technical project names. Only respond with the project name, nothing else. No descriptions, no explanations, no additional text. Just the name.",
+          },
+          {
+            role: "user",
+            content: `Generate a short, technical project name based on this description: ${prompt}`,
+          },
+        ],
+        temperature: 0.7,
+        max_tokens: 20,
+      }),
+      getRepoMetadata(octokit, "hellno", "farcaster-frames-template")
+    ]);
 
-    console.log("Creating new repository with data", { prompt, projectName, fullDescription });
+    const projectName = projectNameResponse.choices[0].message.content.trim();
+    const sanitizedProjectName = `${username ? `${username}-` : ''}${sanitizeProjectName(projectName)}`;
 
-    // Step 1: Create a new empty repository
-    const createRepoResponse = await octokit.rest.repos.createInOrg({
-      org: "frameception",
-      name: projectName,
-      description: fullDescription, // Use the updated description
-      private: false,
-    });
+    // Create repository and copy contents in parallel
+    const [createRepoResponse] = await Promise.all([
+      octokit.rest.repos.createInOrg({
+        org: "frameception",
+        name: sanitizedProjectName,
+        description: username 
+          ? `${description} (created by @${username})`
+          : description,
+        private: false,
+      }),
+      copyRepositoryContents(
+        octokit,
+        "hellno",
+        "farcaster-frames-template",
+        "frameception",
+        sanitizedProjectName
+      )
+    ]);
 
-    const newRepoUrl = createRepoResponse.data.html_url;
-    const newRepoOwner = 'frameception'; // createRepoResponse.data.owner.login;
-    const newRepoName = createRepoResponse.data.name;
-
-    console.log("Created new repository:", newRepoName, 'data: ', createRepoResponse.data);
-
-    // Step 2: Copy the entire contents of the frames-v2-demo repository
-    await copyRepositoryContents(
-      octokit,
-      "hellno",
-      "farcaster-frames-template",
-      newRepoOwner,
-      newRepoName
-    );
-
-    console.log("Copied all contents to new repository");
-
-    // Step 3: Create a Vercel project linked to the new repository
+    // Create Vercel project
     const vercelResponse = await fetch("https://api.vercel.com/v9/projects", {
       method: "POST",
       headers: {
@@ -232,10 +223,10 @@ export async function POST(request: Request) {
         Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
       },
       body: JSON.stringify({
-        name: projectName, // Use the sanitized project name for Vercel
+        name: sanitizedProjectName,
         gitRepository: {
           type: "github",
-          repo: `${newRepoOwner}/${newRepoName}`,
+          repo: `frameception/${sanitizedProjectName}`,
         },
         framework: "nextjs",
         installCommand: "yarn install",
@@ -271,24 +262,20 @@ export async function POST(request: Request) {
     }
 
     const vercelProject = await vercelResponse.json();
-    console.log("Created Vercel project:", vercelProject);
 
-    // Step 4: Trigger a deployment using the repoId
+    // Trigger deployment
     const deployment = await triggerVercelDeployment(
-      projectName,
-      vercelProject.link.repoId // Use the repoId from the Vercel project creation response
+      sanitizedProjectName,
+      vercelProject.link.repoId
     );
 
-    // Return the created project, repository URL, and Vercel deployment URL
-    const newProject = {
+    return NextResponse.json({
       prompt,
       description,
-      repoUrl: newRepoUrl,
+      repoUrl: createRepoResponse.data.html_url,
       vercelUrl: deployment.url,
       createdAt: new Date().toISOString(),
-    };
-
-    return NextResponse.json(newProject, { status: 201 });
+    }, { status: 201 });
   } catch (error) {
     console.error("Error creating new frame project:", error);
     return NextResponse.json(
