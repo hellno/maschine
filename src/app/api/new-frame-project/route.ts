@@ -89,15 +89,7 @@ async function initRepoIfEmpty(
         repo,
         path: "README.md",
         message: "Initial commit: Add README",
-        content: Buffer.from("# Simple Title").toString("base64"),
-        committer: {
-          name: "Auto Commit Bot",
-          email: "bot@example.com",
-        },
-        author: {
-          name: "Auto Commit Bot",
-          email: "bot@example.com",
-        },
+        content: Buffer.from(`# Readme`).toString("base64"),
       });
       if (verbose) {
         console.log('Repository initialized with README');
@@ -241,7 +233,7 @@ const deepseek = new OpenAI({
 const triggerVercelDeployment = async (projectName: string, repoId: number) => {
   try {
     const response = await fetch(
-      `https://api.vercel.com/v13/deployments`,
+      `https://api.vercel.com/v13/deployments?teamId=${process.env.VERCEL_TEAM_ID}`,
       {
         method: "POST",
         headers: {
@@ -339,7 +331,7 @@ const copyRepositoryContents = async (
       return;
     }
 
-    const commitMessage = `Initial bulk commit: Copy contents from ${sourceRepo}`;
+    const commitMessage = `Copy template from ${sourceRepo}`;
     if (verbose) {
       console.log('Starting to commit collected files...');
     }
