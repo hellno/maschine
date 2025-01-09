@@ -298,7 +298,7 @@ export default function Frameception(
           <h2 className="font-5xl font-bold mb-2">What kind of frame can I help you build?</h2>
           <div className="flex flex-col gap-2">
             <textarea
-              rows={3}
+              rows={5}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               placeholder="linktree for me with the following link..."

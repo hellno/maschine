@@ -97,8 +97,12 @@ def update_repo_code(data: dict) -> str:
             repo = git.Repo(repo_dir)
             repo.remotes.origin.pull()
 
-        # update later if repo becomes more complex
-        fnames = [f"{repo.working_tree_dir}/src/components/Demo.tsx"]
+        fnames = [f"{repo.working_tree_dir}/{fname}"
+            for fname in [
+                "src/components/Frame.tsx", 
+                "src/lib/constants.ts"
+            ]
+        ]
         io = InputOutput(yes=True, root=repo.working_tree_dir)
         model = Model(
             model="deepseek/deepseek-coder",
