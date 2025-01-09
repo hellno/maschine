@@ -87,8 +87,35 @@ const commitCollectedFiles = async (
       baseTreeSha = commitResponse.data.commit.tree.sha;
       parentCommits = [commitResponse.data.sha];
     } catch (error) {
-      // If the repository is empty (409 Conflict), we'll proceed without base tree or parents
-      if (error.status !== 409) throw error;
+      // If the repository is empty (409 Conflict), create initial empty commit
+      if (error.status === 409) {
+        const { data: emptyTree } = await octokit.rest.git.createTree({
+          owner: targetOwner,
+          repo: targetRepo,
+          tree: [],
+        });
+
+        const { data: emptyCommit } = await octokit.rest.git.createCommit({
+          owner: targetOwner,
+          repo: targetRepo,
+          message: "Initial empty commit",
+          tree: emptyTree.sha,
+          parents: [],
+        });
+
+        await octokit.rest.git.updateRef({
+          owner: targetOwner,
+          repo: targetRepo,
+          ref: `heads/${defaultBranch}`,
+          sha: emptyCommit.sha,
+          force: true,
+        });
+
+        baseTreeSha = emptyTree.sha;
+        parentCommits = [emptyCommit.sha];
+      } else {
+        throw error;
+      }
     }
 
     console.log('baseTreeSha', baseTreeSha, 'parentCommits', parentCommits);
