@@ -74,23 +74,18 @@ const commitCollectedFiles = async (
     });
     const defaultBranch = repoData.default_branch;
 
-    const {
-      data: {
-        commit: { sha: latestCommitSha },
-      },
-    } = await octokit.rest.repos.getCommit({
-      owner: targetOwner,
-      repo: targetRepo,
-      ref: `heads/${defaultBranch}`,
-    });
-
-    const {
-      data: { tree: baseTree },
-    } = await octokit.rest.git.getCommit({
-      owner: targetOwner,
-      repo: targetRepo,
-      commit_sha: latestCommitSha,
-    });
+    let latestCommitSha: string | undefined;
+    try {
+      const commitResponse = await octokit.rest.repos.getCommit({
+        owner: targetOwner,
+        repo: targetRepo,
+        ref: `heads/${defaultBranch}`,
+      });
+      latestCommitSha = commitResponse.data.commit.sha;
+    } catch (error) {
+      // If the repository is empty, latestCommitSha will be undefined
+      if (error.status !== 409) throw error;
+    }
 
     const blobPromises = files.map((file) =>
       octokit.rest.git.createBlob({
@@ -110,21 +105,24 @@ const commitCollectedFiles = async (
       sha: blobs[index].data.sha,
     }));
 
+    // Create initial tree
     const { data: newTree } = await octokit.rest.git.createTree({
       owner: targetOwner,
       repo: targetRepo,
       tree: treeElements,
-      base_tree: baseTree.sha,
+      base_tree: latestCommitSha ? latestCommitSha : undefined,
     });
 
+    // Create initial commit
     const { data: newCommit } = await octokit.rest.git.createCommit({
       owner: targetOwner,
       repo: targetRepo,
       message: commitMessage,
       tree: newTree.sha,
-      parents: [latestCommitSha],
+      parents: latestCommitSha ? [latestCommitSha] : [],
     });
 
+    // Update reference
     await octokit.rest.git.updateRef({
       owner: targetOwner,
       repo: targetRepo,
@@ -306,24 +304,27 @@ export async function POST(request: Request) {
 
     const sanitizedProjectName = `${username ? `${username}-` : ''}${sanitizeProjectName(projectName)}`;
 
-    // Create repository and copy contents in parallel
-    const [createRepoResponse] = await Promise.all([
-      octokit.rest.repos.createInOrg({
-        org: "frameception-v2",
-        name: sanitizedProjectName,
-        description: username
-          ? `${description} (created by @${username})`
-          : description,
-        private: false,
-      }),
-      copyRepositoryContents(
-        octokit,
-        "hellno",
-        "farcaster-frames-template",
-        "frameception-v2",
-        sanitizedProjectName
-      )
-    ]);
+    // Create repository first
+    const createRepoResponse = await octokit.rest.repos.createInOrg({
+      org: "frameception-v2",
+      name: sanitizedProjectName,
+      description: username
+        ? `${description} (created by @${username})`
+        : description,
+      private: false,
+    });
+
+    // Wait a moment to ensure repository is fully initialized
+    await setTimeout(2000);
+
+    // Then copy contents
+    await copyRepositoryContents(
+      octokit,
+      "hellno",
+      "farcaster-frames-template",
+      "frameception-v2",
+      sanitizedProjectName
+    );
 
     // Create Vercel project
     const vercelResponse = await fetch(`https://api.vercel.com/v9/projects?teamId=${process.env.VERCEL_TEAM_ID}`, {
