@@ -66,7 +66,7 @@ const commitCollectedFiles = async (
   targetRepo: string,
   files: FileChange[],
   commitMessage: string,
-  verbose: boolean = false
+  verbose: boolean = true
 ) => {
   try {
     if (verbose) {
@@ -87,6 +87,9 @@ const commitCollectedFiles = async (
     let parentCommits: string[] = [];
 
     try {
+      if (verbose) {
+        console.log('Getting latest commit...');
+      }
       // Get the latest commit to find the tree SHA
       const commitResponse = await octokit.rest.repos.getCommit({
         owner: targetOwner,
@@ -95,15 +98,23 @@ const commitCollectedFiles = async (
       });
       baseTreeSha = commitResponse.data.commit.tree.sha;
       parentCommits = [commitResponse.data.sha];
+      if (verbose) {
+        console.log('Latest commit found:', commitResponse.data);
+      }
     } catch (error) {
+      if (verbose) {
+        console.error('Error getting latest commit:', error, error.status, error.status === 409);
+      }
       // If the repository is empty (409 Conflict), create initial empty commit
       if (error.status === 409) {
+        console.log('create empty tree');
         const { data: emptyTree } = await octokit.rest.git.createTree({
           owner: targetOwner,
           repo: targetRepo,
           tree: [],
         });
 
+        console.log('creating initial empty commit');
         const { data: emptyCommit } = await octokit.rest.git.createCommit({
           owner: targetOwner,
           repo: targetRepo,
@@ -112,6 +123,7 @@ const commitCollectedFiles = async (
           parents: [],
         });
 
+        console.log('updating ref');
         await octokit.rest.git.updateRef({
           owner: targetOwner,
           repo: targetRepo,
@@ -507,18 +519,16 @@ export async function POST(request: Request) {
       createdAt: new Date().toISOString(),
     }, { status: 201 });
   } catch (error) {
-    if (verbose) {
-      console.error('Detailed error information:', {
-        error: error instanceof Error ? error.message : error,
-        stack: error instanceof Error ? error.stack : undefined,
-        status: error.status,
-        response: error.response?.data,
-        request: error.request
-      });
-    }
+    console.error('Detailed error information:', {
+      error: error instanceof Error ? error.message : error,
+      stack: error instanceof Error ? error.stack : undefined,
+      status: error?.status,
+      response: error?.response?.data,
+      request: error?.request
+    });
 
     console.error("Error creating new frame project:", error);
-    
+
     // Handle specific GitHub repository name conflict
     if (error instanceof Error && error.message.includes("name already exists on this account")) {
       return NextResponse.json(
