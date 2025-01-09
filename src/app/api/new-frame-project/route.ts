@@ -9,7 +9,7 @@ const repoMetadataCache = new Map();
 
 const getRepoMetadata = async (octokit: Octokit, owner: string, repo: string) => {
   const cacheKey = `${owner}/${repo}`;
-  
+
   if (repoMetadataCache.has(cacheKey)) {
     return repoMetadataCache.get(cacheKey);
   }
@@ -106,7 +106,7 @@ const copyRepositoryContents = async (
   path: string = ""
 ) => {
   console.log(`Copying contents from ${path} in ${sourceRepo} to ${targetRepo}`);
-  
+
   try {
     // Get contents of current directory
     const { data: contents } = await octokit.rest.repos.getContent({
@@ -174,34 +174,39 @@ export async function POST(request: Request) {
     });
 
     // Generate project name and get template repo data in parallel
-    const [projectNameResponse, templateRepoData] = await Promise.all([
-      deepseek.chat.completions.create({
-        model: "deepseek-chat",
-        messages: [
-          {
-            role: "system",
-            content: "You are a helpful assistant that generates concise, technical project names. Only respond with the project name, nothing else. No descriptions, no explanations, no additional text. Just the name.",
-          },
-          {
-            role: "user",
-            content: `Generate a short, technical project name based on this description: ${prompt}`,
-          },
-        ],
-        temperature: 0.7,
-        max_tokens: 20,
-      }),
-      getRepoMetadata(octokit, "hellno", "farcaster-frames-template")
-    ]);
+    const projectNameResponse = await deepseek.chat.completions.create({
+      model: "deepseek-chat",
+      messages: [
+        {
+          role: "system",
+          content: "You are a helpful assistant that generates concise, aspirational project names. Only respond with the project name, nothing else. No descriptions, no explanations, no additional text. Just the name.",
+        },
+        {
+          role: "user",
+          content: `Generate a short, aspirational project name based on this task description how it should look like: ${prompt}`,
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 20,
+    })
 
-    const projectName = projectNameResponse.choices[0].message.content.trim();
+    const projectName = projectNameResponse.choices[0]?.message?.content?.trim();
+
+    if (!projectName) {
+      return NextResponse.json(
+        { error: "Failed to generate project name" },
+        { status: 500 }
+      );
+    }
+
     const sanitizedProjectName = `${username ? `${username}-` : ''}${sanitizeProjectName(projectName)}`;
 
     // Create repository and copy contents in parallel
     const [createRepoResponse] = await Promise.all([
       octokit.rest.repos.createInOrg({
-        org: "frameception",
+        org: "frameception-v2",
         name: sanitizedProjectName,
-        description: username 
+        description: username
           ? `${description} (created by @${username})`
           : description,
         private: false,
@@ -210,13 +215,13 @@ export async function POST(request: Request) {
         octokit,
         "hellno",
         "farcaster-frames-template",
-        "frameception",
+        "frameception-v2",
         sanitizedProjectName
       )
     ]);
 
     // Create Vercel project
-    const vercelResponse = await fetch("https://api.vercel.com/v9/projects", {
+    const vercelResponse = await fetch(`https://api.vercel.com/v9/projects?teamId=${process.env.VERCEL_TEAM_ID}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -226,7 +231,7 @@ export async function POST(request: Request) {
         name: sanitizedProjectName,
         gitRepository: {
           type: "github",
-          repo: `frameception/${sanitizedProjectName}`,
+          repo: `frameception-v2/${sanitizedProjectName}`,
         },
         framework: "nextjs",
         installCommand: "yarn install",
