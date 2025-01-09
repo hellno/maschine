@@ -137,21 +137,6 @@ const commitCollectedFiles = async (
   }
 };
 
-const getRepoMetadata = async (octokit: Octokit, owner: string, repo: string) => {
-  const cacheKey = `${owner}/${repo}`;
-
-  if (repoMetadataCache.has(cacheKey)) {
-    return repoMetadataCache.get(cacheKey);
-  }
-
-  const { data } = await octokit.rest.repos.get({
-    owner,
-    repo,
-  });
-
-  repoMetadataCache.set(cacheKey, data);
-  return data;
-};
 
 const deepseek = new OpenAI({
   apiKey: process.env.DEEPSEEK_API_KEY,
