@@ -57,8 +57,8 @@ export default function Frameception(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          projectName: inputValue,
-          description: "A new frame project",
+          prompt: inputValue,
+          description: "A new Farcaster frame project",
         }),
       });
 
