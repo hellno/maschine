@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { Octokit } from "octokit";
 import crypto from "crypto";
 import { setTimeout } from 'timers/promises';
+import { OpenAI } from "openai";
+
+const deepseek = new OpenAI({
+  apiKey: process.env.DEEPSEEK_API_KEY,
+  baseURL: "https://api.deepseek.com",
+});
 
 // Helper function to trigger a Vercel deployment
 const triggerVercelDeployment = async (projectName: string, repoId: number) => {
@@ -149,10 +155,31 @@ export async function POST(request: Request) {
       );
     }
 
-    // AI! add an API call to deepseek api to summarize the prompt into a simple github repo name
-    // force it to only respond with the project name, nothing else, no chatting, no description
-    // docs at: https://api-docs.deepseek.com/
-    const projectName = prompt;
+    // Generate project name using DeepSeek API
+    const projectNameResponse = await deepseek.chat.completions.create({
+      model: "deepseek-chat",
+      messages: [
+        {
+          role: "system",
+          content: "You are a helpful assistant that generates concise, technical project names. Only respond with the project name, nothing else. No descriptions, no explanations, no additional text. Just the name.",
+        },
+        {
+          role: "user", 
+          content: `Generate a short, technical project name based on this description: ${prompt}`,
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 20,
+    });
+
+    const projectName = projectNameResponse.choices[0].message.content.trim();
+
+    if (!projectName) {
+      return NextResponse.json(
+        { error: "Failed to generate project name" },
+        { status: 500 }
+      );
+    }
 
     // Sanitize the project name for Vercel
     const sanitizedProjectName = sanitizeProjectName(prompt);
