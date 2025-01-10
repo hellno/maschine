@@ -536,21 +536,40 @@ export default function Frameception(
                 {logs ? logs.join("\n") : "Waiting for logs..."}
               </pre>
             </div>
-            {/* Add debug button */}
-            <Button 
-              onClick={() => {
-                if (jobId) {
-                  console.log("Manually restarting polling for jobId:", jobId);
-                  pollJobStatus(jobId);
-                } else {
-                  console.error("No jobId found in URL parameters");
-                }
-              }}
-              size="sm"
-              className="mt-2"
-            >
-              Debug: Restart Polling
-            </Button>
+            {/* Debug section */}
+            <div className="flex flex-col gap-2 w-full max-w-xs">
+              <Button 
+                onClick={() => {
+                  const urlParams = new URLSearchParams(window.location.search);
+                  const jobId = urlParams.get('jobId');
+                  if (jobId) {
+                    console.log("Manually restarting polling for jobId:", jobId);
+                    pollJobStatus(jobId);
+                  } else {
+                    console.error("No jobId found in URL parameters");
+                  }
+                }}
+                variant="outline"
+                size="sm"
+              >
+                Debug: Restart Polling
+              </Button>
+              
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Enter Job ID manually"
+                  className="flex-1 px-3 py-1 text-sm border rounded-md"
+                  onChange={(e) => {
+                    const jobId = e.target.value.trim();
+                    if (jobId) {
+                      console.log("Manual jobId entered:", jobId);
+                      pollJobStatus(jobId);
+                    }
+                  }}
+                />
+              </div>
+            </div>
           </div>
         );
 
