@@ -10,7 +10,7 @@ import {
   CardDescription,
   CardContent,
   CardFooter,
-} from "@/components/ui/card"
+} from "~/components/ui/card";
 import sdk, {
   FrameNotificationDetails,
   type FrameContext,
@@ -66,13 +66,16 @@ export default function Frameception(
   const [creationError, setCreationError] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
+    null
+  );
 
   /**
    * 1) Single handleCustomizingTemplate definition
    */
   const handleCustomizingTemplate = useCallback(async () => {
     try {
+      console.log("handleCustomizingTemplate called with", inputValue, context);
       if (!inputValue || !context) {
         throw new Error("Missing required data for template customization");
       }
@@ -124,15 +127,16 @@ export default function Frameception(
 
         // Update logs as an array
         setLogs(data.logs || []);
-
+        console.log("job data", data);
         // Continue polling if job is still in progress
         if (data.status === "in-progress" || data.status === "pending") {
           setTimeout(() => pollJobStatus(jobId), 2000);
         } else if (data.status === "completed") {
+          console.log('Job completed:', data, flowState);
           if (flowState === "creatingProject") {
             // First job completed, now start template customization
             setFlowState("customizingTemplate");
-            await handleCustomizingTemplate();
+            handleCustomizingTemplate();
           } else if (flowState === "customizingTemplate") {
             // Second job completed, show success
             setFlowState("success");
@@ -260,9 +264,7 @@ export default function Frameception(
 
       sdk.on("frameAdded", ({ notificationDetails }) => {
         setLastEvent(
-          `frameAdded${
-            notificationDetails ? ", notifications enabled" : ""
-          }`
+          `frameAdded${notificationDetails ? ", notifications enabled" : ""}`
         );
 
         setIsFramePinned(true);
@@ -480,10 +482,11 @@ export default function Frameception(
                       >
                         <CardHeader className="pb-2">
                           <CardTitle className="text-base">
-                            {project.projectId.split("-")[0]}
+                            {project.repoUrl.split("frameception-v2/")[1]}
                           </CardTitle>
                           <CardDescription className="text-xs">
-                            Created {new Date(project.createdAt).toLocaleDateString()}
+                            Created{" "}
+                            {new Date(project.createdAt).toLocaleDateString()}
                           </CardDescription>
                         </CardHeader>
                         <CardFooter className="pt-2">
@@ -525,10 +528,12 @@ export default function Frameception(
         return (
           <div className="my-20 flex flex-col items-center gap-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-            <p className="text-center">Creating your project...</p>
+            <p className="text-center">
+              going deep into the frameception for you...
+            </p>
             <div className="w-full max-h-48 overflow-y-auto bg-gray-50 rounded-lg p-4">
               <pre className="text-sm text-gray-600 whitespace-pre-wrap">
-                {logs.join("\n")}
+                {logs ? logs.join("\n") : "Waiting for logs..."}
               </pre>
             </div>
           </div>
@@ -538,10 +543,10 @@ export default function Frameception(
         return (
           <div className="my-20 flex flex-col items-center gap-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-            <p className="text-center">Customizing your template...</p>
+            <p className="text-center">LLMs are carefully working on your frame...</p>
             <div className="w-full max-h-48 overflow-y-auto bg-gray-50 rounded-lg p-4">
               <pre className="text-sm text-gray-600 whitespace-pre-wrap">
-                {logs.join("\n")}
+                {logs ? logs.join("\n") : "Waiting for logs..."}
               </pre>
             </div>
           </div>
@@ -995,7 +1000,9 @@ function SignIn() {
 const renderError = (error: Error | null) => {
   if (!error) return null;
   if (error instanceof BaseError) {
-    const isUserRejection = error.walk((e) => e instanceof UserRejectedRequestError);
+    const isUserRejection = error.walk(
+      (e) => e instanceof UserRejectedRequestError
+    );
     if (isUserRejection) {
       return <div className="text-red-500 text-xs mt-1">Rejected by user.</div>;
     }
