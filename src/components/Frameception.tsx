@@ -2,13 +2,13 @@
 
 import { useEffect, useCallback, useState, useMemo } from "react";
 
-type FlowState =
-  | "initial"
-  | "enteringPrompt"
-  | "creatingProject"
-  | "customizingTemplate"
-  | "deploying"
-  | "success";
+type FlowState = 
+  | 'initial' 
+  | 'enteringPrompt'
+  | 'creatingProject'
+  | 'customizingTemplate'
+  | 'deploying'
+  | 'success';
 import { signIn, signOut, getCsrfToken } from "next-auth/react";
 import sdk, {
   FrameNotificationDetails,
@@ -57,6 +57,7 @@ export default function Frameception(
     useState<FrameNotificationDetails | null>(null);
 
   const [lastEvent, setLastEvent] = useState("");
+  const [flowState, setFlowState] = useState<FlowState>('initial');
   const [flowState, setFlowState] = useState<FlowState>("initial");
 
   const [addFrameResult, setAddFrameResult] = useState("");
@@ -68,10 +69,10 @@ export default function Frameception(
 
   const handleCreateProject = useCallback(async () => {
     try {
-      setFlowState("creatingProject");
+      setFlowState('creatingProject');
       setCreationError(null);
       setRepoUrl(null);
-
+      
       // Create project
       const response = await fetch("/api/new-frame-project", {
         method: "POST",
@@ -94,22 +95,20 @@ export default function Frameception(
       if (!data.repoUrl) {
         throw new Error("Repository URL not returned from API");
       }
-
-      setFlowState("customizingTemplate");
-      await new Promise((resolve) => setTimeout(resolve, 2000)); // Simulate template customization
-
-      setFlowState("deploying");
-      await new Promise((resolve) => setTimeout(resolve, 2000)); // Simulate deployment
-
+      
+      setFlowState('customizingTemplate');
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate template customization
+      
+      setFlowState('deploying');
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate deployment
+      
       setRepoUrl(data.repoUrl);
-      setFlowState("success");
-      setInputValue("");
+      setFlowState('success');
+      setInputValue('');
     } catch (error) {
       console.error("Error creating project:", error);
-      setCreationError(
-        error instanceof Error ? error.message : "An unknown error occurred"
-      );
-      setFlowState("enteringPrompt");
+      setCreationError(error instanceof Error ? error.message : "An unknown error occurred");
+      setFlowState('enteringPrompt');
     }
   }, [inputValue, context?.user?.username]);
 
@@ -310,6 +309,86 @@ export default function Frameception(
   const toggleContext = useCallback(() => {
     setIsContextOpen((prev) => !prev);
   }, []);
+
+  const renderMainContent = () => {
+    switch (flowState) {
+      case 'initial':
+        return (
+          <div className="my-20">
+            <h2 className="font-5xl font-bold mb-2">Bookmark this frame to get started</h2>
+            <Button onClick={() => setFlowState('enteringPrompt')}>
+              Get Started
+            </Button>
+          </div>
+        );
+        
+      case 'enteringPrompt':
+        return (
+          <div className="my-20">
+            <h2 className="font-5xl font-bold mb-2">What kind of frame can I help you build?</h2>
+            <div className="flex flex-col gap-2">
+              <textarea
+                rows={5}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                placeholder="linktree for me with the following link..."
+                className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <Button 
+                onClick={async () => {
+                  setFlowState('creatingProject');
+                  await handleCreateProject();
+                }}
+                disabled={!inputValue.trim()}
+              >
+                Let's go
+              </Button>
+            </div>
+          </div>
+        );
+
+      case 'creatingProject':
+      case 'customizingTemplate':
+      case 'deploying':
+        return (
+          <div className="my-20 flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+            <p className="text-center">
+              {flowState === 'creatingProject' && 'Creating your project...'}
+              {flowState === 'customizingTemplate' && 'Customizing your template...'}
+              {flowState === 'deploying' && 'Deploying your frame...'}
+            </p>
+          </div>
+        );
+
+      case 'success':
+        return (
+          <div className="my-20">
+            <h2 className="font-5xl font-bold mb-2">Your frame is ready!</h2>
+            {repoUrl && (
+              <div className="flex flex-col gap-2">
+                <a
+                  href={repoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-500 hover:text-blue-700 text-sm text-center"
+                >
+                  View your new repository on GitHub
+                </a>
+                <a
+                  href={repoUrl.replace('github.com', 'vercel.app')}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-500 hover:text-blue-700 text-sm text-center"
+                >
+                  View your live deployment on Vercel
+                </a>
+              </div>
+            )}
+          </div>
+        );
+    }
+  };
 
   if (!isSDKLoaded) {
     return <div>Loading...</div>;
