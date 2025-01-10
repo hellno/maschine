@@ -394,24 +394,32 @@ export async function POST(req: NextRequest) {
           "",
           verbose
         );
-        // AI!
-        // 1.	Call createVercelProject(...).then(...) to get the project info (e.g. id, name, etc.).
-        // 2.	Extract the repoId from that response.
-        // 3.	Call createVercelDeployment(name, repoId).then(...) to trigger the build.
-        
-        // Trigger Vercel deployment (async)
-        triggerVercelDeployment(sanitizedProjectName, repoUrl)
-          .then(async (vercelUrl) => {
-            await appendJobLog(job.jobId, 'Vercel deployment completed successfully');
-            await updateJob(job.jobId, {
-              status: 'completed'
-            });
+        // Create Vercel project and trigger deployment
+        createVercelProject(sanitizedProjectName, repoUrl)
+          .then(async (projectData) => {
+            await appendJobLog(job.jobId, 'Vercel project created successfully');
+            
+            // Extract repoId from project data
+            const repoId = projectData.gitRepository?.id;
+            if (!repoId) {
+              throw new Error('Failed to get repository ID from Vercel project');
+            }
 
-            // Update project info
-            await updateProjectInfo(projectId, { vercelUrl });
+            // Trigger deployment
+            return createVercelDeployment(sanitizedProjectName, repoId)
+              .then(async (deployment) => {
+                await appendJobLog(job.jobId, 'Vercel deployment initiated successfully');
+                await updateJob(job.jobId, {
+                  status: 'completed'
+                });
+
+                // Update project info with Vercel URL
+                const vercelUrl = `https://${deployment.url}`;
+                await updateProjectInfo(projectId, { vercelUrl });
+              });
           })
           .catch(async (error) => {
-            await appendJobLog(job.jobId, `Vercel deployment failed: ${error.message}`);
+            await appendJobLog(job.jobId, `Vercel setup failed: ${error.message}`);
             await updateJob(job.jobId, {
               status: 'failed',
               error: error.message
