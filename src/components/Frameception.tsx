@@ -137,7 +137,19 @@ export default function Frameception(
           console.log("Job completed:", data);
           setFlowState((prev) => {
             if (prev === "creatingProject") {
-              handleCustomizingTemplate();
+              // Extract repoPath from the job data and set it
+              const repoUrl = data.repoUrl;
+              if (repoUrl) {
+                // Extract repo path from the full GitHub URL
+                const repoPath = repoUrl.split('github.com/')[1];
+                console.log("Setting repoPath:", repoPath);
+                setRepoPath(repoPath);
+                handleCustomizingTemplate();
+              } else {
+                console.error("No repoUrl in completed job data");
+                setCreationError("Missing repository information");
+                return "enteringPrompt";
+              }
               return "customizingTemplate";
             } else if (prev === "customizingTemplate") {
               return "success";
