@@ -108,13 +108,14 @@ export default function Frameception(
           // Extract URLs from the final response
           const repoUrlMatch = fullResponse.match(/Repository: (https:\/\/[^\s]+)/);
           const vercelUrlMatch = fullResponse.match(/Vercel URL: (https:\/\/[^\s]+)/);
-          // AI! use vercelUrl, setVercelUrl to keep track of this 
           
           if (repoUrlMatch && repoUrlMatch[1]) {
             setRepoPath(repoUrlMatch[1]);
           }
-
-
+          
+          if (vercelUrlMatch && vercelUrlMatch[1]) {
+            setVercelUrl(vercelUrlMatch[1]);
+          }
           
           setFlowState("success");
           break;
