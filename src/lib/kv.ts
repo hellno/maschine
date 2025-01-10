@@ -8,7 +8,7 @@ interface UserInfo {
   // Add other user fields as needed
 }
 
-interface ProjectInfo {
+export interface ProjectInfo {
   projectId: string;
   repoUrl: string;
   vercelUrl: string;
