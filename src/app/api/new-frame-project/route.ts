@@ -4,16 +4,16 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 import { Octokit } from "octokit";
 import crypto from "crypto";
-import { setTimeout } from 'timers/promises';
 import { OpenAI } from "openai";
+
+export const config = {
+  maxDuration: 300, // = 5 minutes for Pro plan
+};
 
 interface FileChange {
   path: string;
   content: string;
 }
-
-// Cache for repository metadata to reduce API calls
-const repoMetadataCache = new Map();
 
 const collectRepositoryContents = async (
   octokit: Octokit,
@@ -404,8 +404,8 @@ export async function POST(req: NextRequest) {
                 content: `Generate a short, aspirational project name based on this description: ${prompt}`,
               },
             ],
-            temperature: 1.5,
-            max_tokens: 20,
+            temperature: 2,
+            max_tokens: 25,
           }),
         ]);
 
@@ -500,7 +500,7 @@ export async function POST(req: NextRequest) {
 
       } catch (error) {
         let errorMessage = 'Unknown error occurred';
-        
+
         if (error instanceof Error) {
           // Handle GitHub API errors specifically
           if (error.message.includes('https://docs.github.com')) {
