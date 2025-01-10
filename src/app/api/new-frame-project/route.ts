@@ -394,7 +394,11 @@ export async function POST(req: NextRequest) {
           "",
           verbose
         );
-
+        // AI!
+        // 1.	Call createVercelProject(...).then(...) to get the project info (e.g. id, name, etc.).
+        // 2.	Extract the repoId from that response.
+        // 3.	Call createVercelDeployment(name, repoId).then(...) to trigger the build.
+        
         // Trigger Vercel deployment (async)
         triggerVercelDeployment(sanitizedProjectName, repoUrl)
           .then(async (vercelUrl) => {
@@ -430,6 +434,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error) {
+    console.log('Error creating project:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'An unknown error occurred' },
       { status: 500 }
@@ -448,50 +453,110 @@ async function createGitHubRepository(octokit: Octokit, projectId: string, name:
   return response.data.html_url;
 }
 
-async function triggerVercelDeployment(projectName: string, repoUrl: string) {
-  const response = await fetch(`https://api.vercel.com/v9/projects?teamId=${process.env.VERCEL_TEAM_ID}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
-    },
-    body: JSON.stringify({
-      name: projectName,
-      gitRepository: {
-        type: "github",
-        repo: repoUrl.split('github.com/')[1],
+/**
+ * 1. Create (or update) a Vercel project via /v9/projects
+ */
+export async function createVercelProject(
+  projectName: string,
+  repoUrl: string
+) {
+  console.log("Creating Vercel project:", projectName, repoUrl);
+
+  const response = await fetch(
+    `https://api.vercel.com/v9/projects?teamId=${process.env.VERCEL_TEAM_ID}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
       },
-      framework: "nextjs",
-      installCommand: "yarn install",
-      buildCommand: "yarn build",
-      outputDirectory: ".next",
-      environmentVariables: [
-        {
-          key: "NEXTAUTH_SECRET",
-          target: "production",
-          type: "sensitive",
-          value: generateRandomSecret()
+      body: JSON.stringify({
+        name: projectName,
+        gitRepository: {
+          type: "github",
+          repo: repoUrl.split("github.com/")[1],
         },
-        {
-          key: "KV_REST_API_URL",
-          target: "production",
-          type: "sensitive",
-          value: process.env.KV_REST_API_URL
-        },
-        {
-          key: "KV_REST_API_TOKEN",
-          target: "production",
-          type: "sensitive",
-          value: process.env.KV_REST_API_TOKEN
-        }
-      ],
-    }),
-  });
+        framework: "nextjs",
+        installCommand: "yarn install",
+        buildCommand: "yarn build",
+        outputDirectory: ".next",
+        environmentVariables: [
+          {
+            key: "NEXTAUTH_SECRET",
+            target: "production",
+            type: "sensitive",
+            value: generateRandomSecret(),
+          },
+          {
+            key: "KV_REST_API_URL",
+            target: "production",
+            type: "sensitive",
+            value: process.env.KV_REST_API_URL ?? "",
+          },
+          {
+            key: "KV_REST_API_TOKEN",
+            target: "production",
+            type: "sensitive",
+            value: process.env.KV_REST_API_TOKEN ?? "",
+          },
+        ],
+      }),
+    }
+  );
 
   if (!response.ok) {
+    console.error(
+      "Failed to create Vercel project:",
+      response.statusText,
+      await response.text()
+    );
     throw new Error("Failed to create Vercel project");
   }
 
+  const projectData = await response.json();
+  console.log("Vercel project response:", projectData);
+  return projectData; // The project object, which includes 'id', 'name', etc.
+}
+
+/**
+ * 2. Trigger an actual deployment via /v13/deployments
+ *    Provide the projectName or ID, plus repo info if needed.
+ */
+export async function createVercelDeployment(
+  projectName: string,
+  repoId: number
+) {
+  console.log("Triggering Vercel deployment:", projectName, "repoId:", repoId);
+
+  const response = await fetch(
+    `https://api.vercel.com/v13/deployments?teamId=${process.env.VERCEL_TEAM_ID}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
+      },
+      body: JSON.stringify({
+        name: projectName,
+        gitSource: {
+          type: "github",
+          repoId,
+          ref: "main",
+        },
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    console.error(
+      "Failed to trigger Vercel deployment:",
+      response.statusText,
+      await response.text()
+    );
+    throw new Error("Failed to trigger Vercel deployment");
+  }
+
   const deployment = await response.json();
-  return deployment.url;
+  console.log("Vercel deployment triggered:", deployment);
+  return deployment; // Typically includes 'url'
 }
