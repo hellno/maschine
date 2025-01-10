@@ -22,14 +22,13 @@ import {
   useWaitForTransactionReceipt,
   useDisconnect,
   useConnect,
-  useSwitchChain,
   useChainId,
 } from "wagmi";
 
 import { config } from "~/components/providers/WagmiProvider";
 import { Button } from "~/components/ui/Button";
 import { truncateAddress } from "~/lib/truncateAddress";
-import { base, optimism } from "wagmi/chains";
+import { base } from "wagmi/chains";
 import { BaseError, UserRejectedRequestError } from "viem";
 import { useSession } from "next-auth/react";
 import { SignIn as SignInCore } from "@farcaster/frame-core";
@@ -43,7 +42,7 @@ export default function Frameception(
   const [isContextOpen, setIsContextOpen] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
 
-  const [added, setAdded] = useState(false);
+  const [isFramePinned, setIsFramePinned] = useState(false);
   const [notificationDetails, setNotificationDetails] =
     useState<FrameNotificationDetails | null>(null);
 
@@ -53,14 +52,14 @@ export default function Frameception(
   const [addFrameResult, setAddFrameResult] = useState("");
   const [sendNotificationResult, setSendNotificationResult] = useState("");
   const [inputValue, setInputValue] = useState("");
-  const [repoUrl, setRepoUrl] = useState<string | null>(null);
+  const [repoPath, setRepoPath] = useState<string | null>(null);
   const [creationError, setCreationError] = useState<string | null>(null);
 
   const handleCreateProject = useCallback(async () => {
     try {
       setFlowState("creatingProject");
       setCreationError(null);
-      setRepoUrl(null);
+      setRepoPath(null);
 
       // Create project
       const response = await fetch("/api/new-frame-project", {
@@ -77,23 +76,18 @@ export default function Frameception(
       });
 
       if (!response.ok) {
+        console.log('response:', response);
         throw new Error("Failed to create project");
       }
 
       const data = await response.json();
-      if (!data.repoUrl) {
+      console.log('data from new-frame-project endpoint:', data);
+      if (!data.repoPath) {
         throw new Error("Repository URL not returned from API");
       }
 
+      setRepoPath(data.repoPath);
       setFlowState("customizingTemplate");
-      await new Promise((resolve) => setTimeout(resolve, 2000)); // Simulate template customization
-
-      setFlowState("deploying");
-      await new Promise((resolve) => setTimeout(resolve, 2000)); // Simulate deployment
-
-      setRepoUrl(data.repoUrl);
-      setFlowState("success");
-      setInputValue("");
     } catch (error) {
       console.error("Error creating project:", error);
       setCreationError(
@@ -103,9 +97,23 @@ export default function Frameception(
     }
   }, [inputValue, context?.user?.username]);
 
+
+  const handleCustomizingTemplate = useCallback(async () => {
+    // AI!
+    // call new serverside function customize-template
+    // use prompt and repoPath and context
+    // use try catch, add logging, setFlowState to deploying if response.ok 
+  }, []);
+
   useEffect(() => {
     setNotificationDetails(context?.client.notificationDetails ?? null);
   }, [context]);
+
+  useEffect(() => {
+    if (isFramePinned){ 
+      setFlowState("enteringPrompt");
+    }
+  }, [isFramePinned]);
 
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
@@ -132,17 +140,6 @@ export default function Frameception(
   const { disconnect } = useDisconnect();
   const { connect } = useConnect();
 
-  const {
-    switchChain,
-    error: switchChainError,
-    isError: isSwitchChainError,
-    isPending: isSwitchChainPending,
-  } = useSwitchChain();
-
-  const handleSwitchChain = useCallback(() => {
-    switchChain({ chainId: chainId === base.id ? optimism.id : base.id });
-  }, [switchChain, chainId]);
-
   useEffect(() => {
     const load = async () => {
       const context = await sdk.context;
@@ -151,14 +148,14 @@ export default function Frameception(
       }
 
       setContext(context);
-      setAdded(context.client.added);
+      setIsFramePinned(context.client.added);
 
       sdk.on("frameAdded", ({ notificationDetails }) => {
         setLastEvent(
           `frameAdded${!!notificationDetails ? ", notifications enabled" : ""}`
         );
 
-        setAdded(true);
+        setIsFramePinned(true);
         if (notificationDetails) {
           setNotificationDetails(notificationDetails);
         }
@@ -170,7 +167,7 @@ export default function Frameception(
 
       sdk.on("frameRemoved", () => {
         setLastEvent("frameRemoved");
-        setAdded(false);
+        setIsFramePinned(false);
         setNotificationDetails(null);
       });
 
@@ -311,8 +308,11 @@ export default function Frameception(
         return (
           <div className="my-20">
             <h2 className="font-5xl font-bold mb-2">
-              Bookmark this frame to get started
+              Hey {context?.user.username}, bookmark this to start building your frame
             </h2>
+            <h3 className="font-2xl mb-4 text-gray-600">
+              We will notify in Warpcast when your frame is ready to use!
+            </h3>
             <Button
               onClick={async () => {
                 addFrame().then(() => setFlowState("enteringPrompt"));
@@ -327,7 +327,7 @@ export default function Frameception(
         return (
           <div className="my-20">
             <h2 className="font-5xl font-bold mb-2">
-              What kind of frame can I help you build?
+              {context?.user.username}, what kind of frame can I help you build?
             </h2>
             <div className="flex flex-col gap-2">
               <textarea
@@ -369,10 +369,10 @@ export default function Frameception(
         return (
           <div className="my-20">
             <h2 className="font-5xl font-bold mb-2">Your frame is ready!</h2>
-            {repoUrl && (
+            {repoPath && (
               <div className="flex flex-col gap-2">
                 <a
-                  href={repoUrl}
+                  href={repoPath}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-500 hover:text-blue-700 text-sm text-center"
@@ -380,7 +380,7 @@ export default function Frameception(
                   View your new repository on GitHub
                 </a>
                 <a
-                  href={repoUrl.replace("github.com", "vercel.app")}
+                  href={repoPath.replace("github.com", "vercel.app")}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-500 hover:text-blue-700 text-sm text-center"
@@ -493,7 +493,7 @@ export default function Frameception(
 
           <div className="mt-2 mb-4 text-sm">
             Client fid {context?.client.clientFid},
-            {added ? " frame added to client," : " frame not added to client,"}
+            {isFramePinned ? " frame added to client," : " frame not added to client,"}
             {notificationDetails
               ? " notifications enabled"
               : " notifications disabled"}
@@ -510,7 +510,7 @@ export default function Frameception(
                 Add frame result: {addFrameResult}
               </div>
             )}
-            <Button onClick={addFrame} disabled={added}>
+            <Button onClick={addFrame} disabled={isFramePinned}>
               Add frame to client
             </Button>
           </div>
@@ -595,16 +595,6 @@ export default function Frameception(
                   Sign Typed Data
                 </Button>
                 {isSignTypedError && renderError(signTypedError)}
-              </div>
-              <div className="mb-4">
-                <Button
-                  onClick={handleSwitchChain}
-                  disabled={isSwitchChainPending}
-                  isLoading={isSwitchChainPending}
-                >
-                  Switch to {chainId === base.id ? "Optimism" : "Base"}
-                </Button>
-                {isSwitchChainError && renderError(switchChainError)}
               </div>
             </>
           )}
