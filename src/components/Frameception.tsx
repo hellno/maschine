@@ -2,13 +2,13 @@
 
 import { useEffect, useCallback, useState, useMemo } from "react";
 
-type FlowState = 
-  | 'initial' 
-  | 'enteringPrompt'
-  | 'creatingProject'
-  | 'customizingTemplate'
-  | 'deploying'
-  | 'success';
+type FlowState =
+  | "initial"
+  | "enteringPrompt"
+  | "creatingProject"
+  | "customizingTemplate"
+  | "deploying"
+  | "success";
 import { signIn, signOut, getCsrfToken } from "next-auth/react";
 import sdk, {
   FrameNotificationDetails,
@@ -31,12 +31,12 @@ import { Button } from "~/components/ui/Button";
 import { truncateAddress } from "~/lib/truncateAddress";
 import { base, optimism } from "wagmi/chains";
 import { BaseError, UserRejectedRequestError } from "viem";
-import { useSession } from "next-auth/react"
+import { useSession } from "next-auth/react";
 import { SignIn as SignInCore } from "@farcaster/frame-core";
 import { SignInResult } from "@farcaster/frame-core/dist/actions/signIn";
 
 // AI! add proper state management to this user flow
-// we have several steps: 
+// we have several steps:
 // user start (wait for user to click a button to bookmark this frame)
 // enter prompt (user enters a prompt and clicks let's go), what we have right now
 // wait for project setup (create a repo, deploy to vercel) show a spinner, no user input
@@ -57,21 +57,21 @@ export default function Frameception(
     useState<FrameNotificationDetails | null>(null);
 
   const [lastEvent, setLastEvent] = useState("");
-  const [flowState, setFlowState] = useState<FlowState>('initial');
+  const [flowState, setFlowState] = useState<FlowState>("initial");
 
   const [addFrameResult, setAddFrameResult] = useState("");
   const [sendNotificationResult, setSendNotificationResult] = useState("");
-  const [inputValue, setInputValue] = useState('');
+  const [inputValue, setInputValue] = useState("");
   const [repoUrl, setRepoUrl] = useState<string | null>(null);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [creationError, setCreationError] = useState<string | null>(null);
-  
+
   const handleCreateProject = useCallback(async () => {
     try {
-      setFlowState('creatingProject');
+      setFlowState("creatingProject");
       setCreationError(null);
       setRepoUrl(null);
-      
+
       // Create project
       const response = await fetch("/api/new-frame-project", {
         method: "POST",
@@ -94,20 +94,22 @@ export default function Frameception(
       if (!data.repoUrl) {
         throw new Error("Repository URL not returned from API");
       }
-      
-      setFlowState('customizingTemplate');
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate template customization
-      
-      setFlowState('deploying');
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate deployment
-      
+
+      setFlowState("customizingTemplate");
+      await new Promise((resolve) => setTimeout(resolve, 2000)); // Simulate template customization
+
+      setFlowState("deploying");
+      await new Promise((resolve) => setTimeout(resolve, 2000)); // Simulate deployment
+
       setRepoUrl(data.repoUrl);
-      setFlowState('success');
-      setInputValue('');
+      setFlowState("success");
+      setInputValue("");
     } catch (error) {
       console.error("Error creating project:", error);
-      setCreationError(error instanceof Error ? error.message : "An unknown error occurred");
-      setFlowState('enteringPrompt');
+      setCreationError(
+        error instanceof Error ? error.message : "An unknown error occurred"
+      );
+      setFlowState("enteringPrompt");
     }
   }, [inputValue, context?.user?.username]);
 
@@ -157,7 +159,7 @@ export default function Frameception(
       if (!context) {
         return;
       }
-      
+
       setContext(context);
       setAdded(context.client.added);
 
@@ -223,7 +225,7 @@ export default function Frameception(
       setNotificationDetails(null);
 
       const result = await sdk.actions.addFrame();
-
+      console.log("addFrame result", result);
       if (result.added) {
         if (result.notificationDetails) {
           setNotificationDetails(result.notificationDetails);
@@ -315,20 +317,28 @@ export default function Frameception(
 
   const renderMainContent = () => {
     switch (flowState) {
-      case 'initial':
+      case "initial":
         return (
           <div className="my-20">
-            <h2 className="font-5xl font-bold mb-2">Bookmark this frame to get started</h2>
-            <Button onClick={() => setFlowState('enteringPrompt')}>
+            <h2 className="font-5xl font-bold mb-2">
+              Bookmark this frame to get started
+            </h2>
+            <Button
+              onClick={async () => {
+                addFrame().then(() => setFlowState("enteringPrompt"));
+              }}
+            >
               Get Started
             </Button>
           </div>
         );
-        
-      case 'enteringPrompt':
+
+      case "enteringPrompt":
         return (
           <div className="my-20">
-            <h2 className="font-5xl font-bold mb-2">What kind of frame can I help you build?</h2>
+            <h2 className="font-5xl font-bold mb-2">
+              What kind of frame can I help you build?
+            </h2>
             <div className="flex flex-col gap-2">
               <textarea
                 rows={5}
@@ -337,9 +347,9 @@ export default function Frameception(
                 placeholder="linktree for me with the following link..."
                 className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <Button 
+              <Button
                 onClick={async () => {
-                  setFlowState('creatingProject');
+                  setFlowState("creatingProject");
                   await handleCreateProject();
                 }}
                 disabled={!inputValue.trim()}
@@ -350,21 +360,22 @@ export default function Frameception(
           </div>
         );
 
-      case 'creatingProject':
-      case 'customizingTemplate':
-      case 'deploying':
+      case "creatingProject":
+      case "customizingTemplate":
+      case "deploying":
         return (
           <div className="my-20 flex flex-col items-center gap-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
             <p className="text-center">
-              {flowState === 'creatingProject' && 'Creating your project...'}
-              {flowState === 'customizingTemplate' && 'Customizing your template...'}
-              {flowState === 'deploying' && 'Deploying your frame...'}
+              {flowState === "creatingProject" && "Creating your project..."}
+              {flowState === "customizingTemplate" &&
+                "Customizing your template..."}
+              {flowState === "deploying" && "Deploying your frame..."}
             </p>
           </div>
         );
 
-      case 'success':
+      case "success":
         return (
           <div className="my-20">
             <h2 className="font-5xl font-bold mb-2">Your frame is ready!</h2>
@@ -379,7 +390,7 @@ export default function Frameception(
                   View your new repository on GitHub
                 </a>
                 <a
-                  href={repoUrl.replace('github.com', 'vercel.app')}
+                  href={repoUrl.replace("github.com", "vercel.app")}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-500 hover:text-blue-700 text-sm text-center"
@@ -394,15 +405,17 @@ export default function Frameception(
   };
 
   return (
-    <div style={{ 
-      paddingTop: context?.client.safeAreaInsets?.top ?? 0, 
-      paddingBottom: context?.client.safeAreaInsets?.bottom ?? 0,
-      paddingLeft: context?.client.safeAreaInsets?.left ?? 0,
-      paddingRight: context?.client.safeAreaInsets?.right ?? 0 ,
-    }}>
+    <div
+      style={{
+        paddingTop: context?.client.safeAreaInsets?.top ?? 0,
+        paddingBottom: context?.client.safeAreaInsets?.bottom ?? 0,
+        paddingLeft: context?.client.safeAreaInsets?.left ?? 0,
+        paddingRight: context?.client.safeAreaInsets?.right ?? 0,
+      }}
+    >
       <div className="w-[300px] mx-auto py-2 px-2">
         <h1 className="text-2xl font-bold text-center mb-4">{title}</h1>
-        
+
         {renderMainContent()}
 
         {creationError && (
@@ -713,7 +726,7 @@ function SignIn() {
   const [signingOut, setSigningOut] = useState(false);
   const [signInResult, setSignInResult] = useState<SignInResult>();
   const [signInFailure, setSignInFailure] = useState<string>();
-  const { data: session, status } = useSession()
+  const { data: session, status } = useSession();
 
   const getNonce = useCallback(async () => {
     const nonce = await getCsrfToken();
@@ -749,7 +762,7 @@ function SignIn() {
   const handleSignOut = useCallback(async () => {
     try {
       setSigningOut(true);
-      await signOut({ redirect: false }) 
+      await signOut({ redirect: false });
       setSignInResult(undefined);
     } finally {
       setSigningOut(false);
@@ -758,28 +771,24 @@ function SignIn() {
 
   return (
     <>
-      {status !== "authenticated" &&
-        <Button
-          onClick={handleSignIn}
-          disabled={signingIn}
-        >
+      {status !== "authenticated" && (
+        <Button onClick={handleSignIn} disabled={signingIn}>
           Sign In with Farcaster
         </Button>
-      }
-      {status === "authenticated" &&
-        <Button
-          onClick={handleSignOut}
-          disabled={signingOut}
-        >
+      )}
+      {status === "authenticated" && (
+        <Button onClick={handleSignOut} disabled={signingOut}>
           Sign out
         </Button>
-      }
-      {session &&
+      )}
+      {session && (
         <div className="my-2 p-2 text-xs overflow-x-scroll bg-gray-100 rounded-lg font-mono">
           <div className="font-semibold text-gray-500 mb-1">Session</div>
-          <div className="whitespace-pre">{JSON.stringify(session, null, 2)}</div>
+          <div className="whitespace-pre">
+            {JSON.stringify(session, null, 2)}
+          </div>
         </div>
-      }
+      )}
       {signInFailure && !signingIn && (
         <div className="my-2 p-2 text-xs overflow-x-scroll bg-gray-100 rounded-lg font-mono">
           <div className="font-semibold text-gray-500 mb-1">SIWF Result</div>
@@ -789,13 +798,14 @@ function SignIn() {
       {signInResult && !signingIn && (
         <div className="my-2 p-2 text-xs overflow-x-scroll bg-gray-100 rounded-lg font-mono">
           <div className="font-semibold text-gray-500 mb-1">SIWF Result</div>
-          <div className="whitespace-pre">{JSON.stringify(signInResult, null, 2)}</div>
+          <div className="whitespace-pre">
+            {JSON.stringify(signInResult, null, 2)}
+          </div>
         </div>
       )}
     </>
   );
 }
-
 
 const renderError = (error: Error | null) => {
   if (!error) return null;
