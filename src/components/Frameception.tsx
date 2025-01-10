@@ -118,12 +118,8 @@ export default function Frameception(
         },
         body: JSON.stringify({
           prompt: inputValue,
-          userContext: {
-            username: context.user?.username,
-            fid: context.user?.fid,
-            preferences: context.client?.preferences,
-            repoPath
-          }
+          userContext: context,
+          repoPath: repoPath,
         }),
       });
 
