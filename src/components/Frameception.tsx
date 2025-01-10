@@ -53,6 +53,7 @@ export default function Frameception(
   const [sendNotificationResult, setSendNotificationResult] = useState("");
   const [inputValue, setInputValue] = useState("");
   const [repoPath, setRepoPath] = useState<string | null>(null);
+  const [vercelUrl, setVercelUrl] = useState<string | null>(null);
   const [creationError, setCreationError] = useState<string | null>(null);
 
   const handleCreateProject = useCallback(async () => {
@@ -107,10 +108,13 @@ export default function Frameception(
           // Extract URLs from the final response
           const repoUrlMatch = fullResponse.match(/Repository: (https:\/\/[^\s]+)/);
           const vercelUrlMatch = fullResponse.match(/Vercel URL: (https:\/\/[^\s]+)/);
+          // AI! use vercelUrl, setVercelUrl to keep track of this 
           
           if (repoUrlMatch && repoUrlMatch[1]) {
             setRepoPath(repoUrlMatch[1]);
           }
+
+
           
           setFlowState("success");
           break;
