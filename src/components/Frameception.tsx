@@ -457,8 +457,8 @@ export default function Frameception(
         return (
           <div className="my-20">
             <h2 className="font-5xl font-bold mb-2">Your frame is ready!</h2>
-            {repoPath && (
-              <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2">
+              {repoPath && (
                 <a
                   href={repoPath}
                   target="_blank"
@@ -467,16 +467,18 @@ export default function Frameception(
                 >
                   View your new repository on GitHub
                 </a>
+              )}
+              {vercelUrl && (
                 <a
-                  href={repoPath.replace("github.com", "vercel.app")}
+                  href={vercelUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-500 hover:text-blue-700 text-sm text-center"
                 >
                   View your live deployment on Vercel
                 </a>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         );
     }
