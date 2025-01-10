@@ -1,6 +1,14 @@
 "use client";
 
 import { useEffect, useCallback, useState, useMemo } from "react";
+
+type FlowState = 
+  | 'initial' 
+  | 'enteringPrompt'
+  | 'creatingProject'
+  | 'customizingTemplate'
+  | 'deploying'
+  | 'success';
 import { signIn, signOut, getCsrfToken } from "next-auth/react";
 import sdk, {
   FrameNotificationDetails,
@@ -49,6 +57,7 @@ export default function Frameception(
     useState<FrameNotificationDetails | null>(null);
 
   const [lastEvent, setLastEvent] = useState("");
+  const [flowState, setFlowState] = useState<FlowState>('initial');
 
   const [addFrameResult, setAddFrameResult] = useState("");
   const [sendNotificationResult, setSendNotificationResult] = useState("");
@@ -58,11 +67,12 @@ export default function Frameception(
   const [creationError, setCreationError] = useState<string | null>(null);
   
   const handleCreateProject = useCallback(async () => {
-    setIsCreatingProject(true);
-    setCreationError(null);
-    setRepoUrl(null);
-    
     try {
+      setFlowState('creatingProject');
+      setCreationError(null);
+      setRepoUrl(null);
+      
+      // Create project
       const response = await fetch("/api/new-frame-project", {
         method: "POST",
         headers: {
@@ -77,8 +87,7 @@ export default function Frameception(
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to create project");
+        throw new Error("Failed to create project");
       }
 
       const data = await response.json();
@@ -86,16 +95,21 @@ export default function Frameception(
         throw new Error("Repository URL not returned from API");
       }
       
-      console.log("New project created:", data);
+      setFlowState('customizingTemplate');
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate template customization
+      
+      setFlowState('deploying');
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate deployment
+      
       setRepoUrl(data.repoUrl);
-      setInputValue(''); // Clear input after successful creation
+      setFlowState('success');
+      setInputValue('');
     } catch (error) {
       console.error("Error creating project:", error);
       setCreationError(error instanceof Error ? error.message : "An unknown error occurred");
-    } finally {
-      setIsCreatingProject(false);
+      setFlowState('enteringPrompt');
     }
-  }, [inputValue, context?.user?.username]); // Add context dependency
+  }, [inputValue, context?.user?.username]);
 
   useEffect(() => {
     setNotificationDetails(context?.client.notificationDetails ?? null);
@@ -299,38 +313,61 @@ export default function Frameception(
     return <div>Loading...</div>;
   }
 
-  return (
-    <div style={{ 
-      paddingTop: context?.client.safeAreaInsets?.top ?? 0, 
-      paddingBottom: context?.client.safeAreaInsets?.bottom ?? 0,
-      paddingLeft: context?.client.safeAreaInsets?.left ?? 0,
-      paddingRight: context?.client.safeAreaInsets?.right ?? 0 ,
-    }}>
-      <div className="w-[300px] mx-auto py-2 px-2">
-        <h1 className="text-2xl font-bold text-center mb-4">{title}</h1>
-
-        <div className="my-20">
-          <h2 className="font-5xl font-bold mb-2">What kind of frame can I help you build?</h2>
-          <div className="flex flex-col gap-2">
-            <textarea
-              rows={5}
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              placeholder="linktree for me with the following link..."
-              className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <Button 
-              onClick={handleCreateProject}
-              disabled={!inputValue.trim() || isCreatingProject}
-              isLoading={isCreatingProject}
-            >
-              {isCreatingProject ? 'Creating...' : "Let's go"}
+  const renderMainContent = () => {
+    switch (flowState) {
+      case 'initial':
+        return (
+          <div className="my-20">
+            <h2 className="font-5xl font-bold mb-2">Bookmark this frame to get started</h2>
+            <Button onClick={() => setFlowState('enteringPrompt')}>
+              Get Started
             </Button>
-            {creationError && (
-              <div className="text-red-500 font-bold mt-2 text-center">
-                Error: {creationError}
-              </div>
-            )}
+          </div>
+        );
+        
+      case 'enteringPrompt':
+        return (
+          <div className="my-20">
+            <h2 className="font-5xl font-bold mb-2">What kind of frame can I help you build?</h2>
+            <div className="flex flex-col gap-2">
+              <textarea
+                rows={5}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                placeholder="linktree for me with the following link..."
+                className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <Button 
+                onClick={async () => {
+                  setFlowState('creatingProject');
+                  await handleCreateProject();
+                }}
+                disabled={!inputValue.trim()}
+              >
+                Let's go
+              </Button>
+            </div>
+          </div>
+        );
+
+      case 'creatingProject':
+      case 'customizingTemplate':
+      case 'deploying':
+        return (
+          <div className="my-20 flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+            <p className="text-center">
+              {flowState === 'creatingProject' && 'Creating your project...'}
+              {flowState === 'customizingTemplate' && 'Customizing your template...'}
+              {flowState === 'deploying' && 'Deploying your frame...'}
+            </p>
+          </div>
+        );
+
+      case 'success':
+        return (
+          <div className="my-20">
+            <h2 className="font-5xl font-bold mb-2">Your frame is ready!</h2>
             {repoUrl && (
               <div className="flex flex-col gap-2">
                 <a
@@ -352,7 +389,27 @@ export default function Frameception(
               </div>
             )}
           </div>
-        </div>
+        );
+    }
+  };
+
+  return (
+    <div style={{ 
+      paddingTop: context?.client.safeAreaInsets?.top ?? 0, 
+      paddingBottom: context?.client.safeAreaInsets?.bottom ?? 0,
+      paddingLeft: context?.client.safeAreaInsets?.left ?? 0,
+      paddingRight: context?.client.safeAreaInsets?.right ?? 0 ,
+    }}>
+      <div className="w-[300px] mx-auto py-2 px-2">
+        <h1 className="text-2xl font-bold text-center mb-4">{title}</h1>
+        
+        {renderMainContent()}
+
+        {creationError && (
+          <div className="text-red-500 font-bold mt-2 text-center">
+            Error: {creationError}
+          </div>
+        )}
         <div className="mb-4">
           <h2 className="font-2xl font-bold">Context</h2>
           <button
