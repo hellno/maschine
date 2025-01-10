@@ -522,7 +522,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       prompt,
       description,
-      repoUrl: createRepoResponse.data.html_url,
+      repoPath: createRepoResponse.data.full_name,
       vercelUrl: deployment.url,
       createdAt: new Date().toISOString(),
     }, { status: 201 });
