@@ -102,6 +102,7 @@ export default function Frameception(
   const pollJobStatus = useCallback(
     async (jobId: string) => {
       try {
+        console.log("Polling job status:", jobId);
         const response = await fetch(`/api/job/${jobId}`);
         const data = await response.json();
 

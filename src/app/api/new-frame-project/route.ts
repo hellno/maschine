@@ -398,9 +398,9 @@ export async function POST(req: NextRequest) {
         createVercelProject(sanitizedProjectName, repoUrl)
           .then(async (projectData) => {
             await appendJobLog(job.jobId, 'Vercel project created successfully');
-            
+
             // Extract repoId from project data
-            const repoId = projectData.gitRepository?.id;
+            const repoId = projectData.link?.repoId;
             if (!repoId) {
               throw new Error('Failed to get repository ID from Vercel project');
             }
