@@ -75,7 +75,7 @@ export default function Frameception(
    */
   const handleCustomizingTemplate = useCallback(async () => {
     try {
-      console.log("handleCustomizingTemplate called with", inputValue, context);
+      console.log("handleCustomizingTemplate called with", inputValue, context, repoPath);
       if (!inputValue || !context || !repoPath) {
         throw new Error("Missing required data for template customization");
       }
@@ -536,7 +536,7 @@ export default function Frameception(
             </p>
             <div className="w-full max-h-48 overflow-y-auto bg-gray-50 rounded-lg p-4">
               <pre className="text-sm text-gray-600 whitespace-pre-wrap">
-                {logs ? logs.join("\n") : "Waiting for logs..."}
+                {logs.length ? logs.join("\n") : "Waiting for logs..."}
               </pre>
             </div>
             {/* Debug section */}
@@ -588,7 +588,7 @@ export default function Frameception(
             </p>
             <div className="w-full max-h-48 overflow-y-auto bg-gray-50 rounded-lg p-4">
               <pre className="text-sm text-gray-600 whitespace-pre-wrap">
-                {logs ? logs.join("\n") : "Waiting for logs..."}
+                {logs.length ? logs.join("\n") : "Waiting for logs..."}
               </pre>
             </div>
           </div>
