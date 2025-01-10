@@ -70,7 +70,9 @@ export default function Frameception(
       setProgressMessage(data.logs.join('\n'));
       
       if (data.status === 'completed') {
-        setFlowState('success');
+        // First job completed, now start template customization
+        setFlowState('customizingTemplate');
+        await handleCustomizingTemplate();
       } else if (data.status === 'failed') {
         setFlowState('enteringPrompt');
       }
@@ -82,7 +84,7 @@ export default function Frameception(
     } catch (error) {
       setCreationError(error instanceof Error ? error.message : 'Polling error');
     }
-  }, []);
+  }, [handleCustomizingTemplate]);
 
   const handleCreateProject = useCallback(async () => {
     try {
@@ -121,13 +123,13 @@ export default function Frameception(
 
   const handleCustomizingTemplate = useCallback(async () => {
     try {
-      if (!repoPath || !inputValue || !context) {
+      if (!inputValue || !context) {
         throw new Error("Missing required data for template customization");
       }
 
-      setFlowState("customizingTemplate");
       setCreationError(null);
 
+      // Create a new job for template customization
       const response = await fetch("/api/customize-template", {
         method: "POST",
         headers: {
@@ -136,41 +138,16 @@ export default function Frameception(
         body: JSON.stringify({
           prompt: inputValue,
           userContext: context,
-          repoPath: repoPath,
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to customize template");
+        throw new Error("Failed to start template customization");
       }
 
-      // Handle streaming response
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error("No response body received");
-      }
-
-      const decoder = new TextDecoder();
-      let fullResponse = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        // Process the streamed data
-        const text = decoder.decode(value);
-        fullResponse += text;
-
-        setProgressMessage(text);
-        // Update UI based on progress
-        if (text.includes("Error:")) {
-          setCreationError(text.replace("Error:", "").trim());
-          setFlowState("enteringPrompt");
-          break;
-        }
-      }
-      console.log("Customization complete:", fullResponse);
-      setFlowState("success");
+      const { jobId } = await response.json();
+      // Start polling the new job
+      pollJobStatus(jobId);
     } catch (error) {
       console.error("Error customizing template:", error);
       setCreationError(
@@ -178,7 +155,7 @@ export default function Frameception(
       );
       setFlowState("enteringPrompt");
     }
-  }, [repoPath, inputValue, context]);
+  }, [inputValue, context, pollJobStatus]);
 
   useEffect(() => {
     setNotificationDetails(context?.client.notificationDetails ?? null);
