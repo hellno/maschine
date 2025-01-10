@@ -141,11 +141,8 @@ export default function Frameception(
         throw new Error("Missing required data for template customization");
       }
 
-      console.log('Starting template customization with:', {
-        repoPath,
-        prompt: inputValue,
-        context
-      });
+      setFlowState("customizingTemplate");
+      setCreationError(null);
 
       const response = await fetch('/api/customize-template', {
         method: 'POST',
@@ -160,15 +157,42 @@ export default function Frameception(
       });
 
       if (!response.ok) {
-        throw new Error(`Template customization failed: ${response.statusText}`);
+        throw new Error("Failed to customize template");
       }
 
-      const result = await response.json();
-      console.log('Template customization successful:', result);
+      // Handle streaming response
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("No response body received");
+      }
 
-      setFlowState("deploying");
+      const decoder = new TextDecoder();
+      let fullResponse = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        // Process the streamed data
+        const text = decoder.decode(value);
+        fullResponse += text;
+
+        // Update UI based on progress
+        if (text.includes('Generating customizations')) {
+          setFlowState("customizingTemplate");
+        } else if (text.includes('Applying customizations')) {
+          setFlowState("deploying");
+        } else if (text.includes('Customization complete')) {
+          setFlowState("deploying");
+          break;
+        } else if (text.includes('Error:')) {
+          setCreationError(text.replace('Error:', '').trim());
+          setFlowState("enteringPrompt");
+          break;
+        }
+      }
     } catch (error) {
-      console.error('Error customizing template:', error);
+      console.error("Error customizing template:", error);
       setCreationError(
         error instanceof Error ? error.message : "Template customization failed"
       );
