@@ -363,10 +363,16 @@ export async function POST(req: NextRequest) {
 
     // Create project in KV
     const projectId = generateProjectId();
-
-    // Create initial job
     const job = await createJob(projectId);
     await appendJobLog(job.jobId, 'Job created - starting project setup');
+
+    // Create initial project info with required fields
+    await updateProjectInfo(projectId, {
+      projectId,
+      repoUrl: '', // Will be updated after GitHub repo creation
+      vercelUrl: '', // Will be updated after Vercel deployment
+      createdAt: Date.now()
+    });
 
     // Create GitHub repository (async)
     createGitHubRepository(octokit, projectId, sanitizedProjectName, description, username)
