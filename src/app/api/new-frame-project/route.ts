@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 import { Octokit } from "octokit";
 import crypto from "crypto";
 import { OpenAI } from "openai";
-import { appendJobLog, createJob, generateProjectId, updateJob, updateProjectInfo } from "~/lib/kv";
+import { addUserProject, appendJobLog, createJob, generateProjectId, updateJob, updateProjectInfo } from "~/lib/kv";
 
 export const config = {
   maxDuration: 300, // = 5 minutes for Pro plan
@@ -364,7 +364,7 @@ export async function POST(req: NextRequest) {
     // Create project in KV
     const projectId = generateProjectId();
     const job = await createJob(projectId);
-    await appendJobLog(job.jobId, 'Job created - starting project setup');
+    await appendJobLog(job.jobId, 'Setting up new project for you...');
 
     // Create initial project info with required fields
     const projectInfo = {
@@ -416,7 +416,6 @@ export async function POST(req: NextRequest) {
                 await updateJob(job.jobId, {
                   status: 'completed'
                 });
-
                 // Update project info with Vercel URL
                 const vercelUrl = `https://${deployment.url}`;
                 await updateProjectInfo(projectId, { vercelUrl });

@@ -129,7 +129,7 @@ export default function Frameception(
         // Update logs as an array
         setLogs(data.logs || []);
         console.log("job data", data);
-        
+
         // Continue polling if job is still in progress
         if (data.status === "in-progress" || data.status === "pending") {
           setTimeout(() => pollJobStatus(jobId), 2000);
