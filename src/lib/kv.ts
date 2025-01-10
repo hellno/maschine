@@ -197,6 +197,7 @@ export async function updateProjectInfo(projectId: string, updates: Partial<Proj
     updateData.createdAt = Date.now();
   }
 
+  // AI! I want to create new proejcts that have no repoUrl or vercelUrl yet, pls fix
   // Validate required fields if creating new project
   if (!existingInfo && (!updateData.repoUrl || !updateData.vercelUrl)) {
     throw new Error('New projects require repoUrl and vercelUrl');
