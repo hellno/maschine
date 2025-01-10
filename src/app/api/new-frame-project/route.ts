@@ -360,6 +360,7 @@ const copyRepositoryContents = async (
 };
 
 export async function POST(req: NextRequest) {
+  console.log('Received new-frame-project request:', req);
   const encoder = new TextEncoder();
 
   // Create a readable stream
@@ -367,6 +368,7 @@ export async function POST(req: NextRequest) {
     async start(controller) {
       // Helper to send updates
       function sendStatusUpdate(msg: string) {
+        console.log('Status Update', msg)
         controller.enqueue(encoder.encode(msg + '\n'));
       }
 
