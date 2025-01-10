@@ -536,6 +536,24 @@ export default function Frameception(
                 {logs ? logs.join("\n") : "Waiting for logs..."}
               </pre>
             </div>
+            {/* Add debug button */}
+            <Button 
+              onClick={() => {
+                const urlParams = new URLSearchParams(window.location.search);
+                const jobId = urlParams.get('jobId');
+                if (jobId) {
+                  console.log("Manually restarting polling for jobId:", jobId);
+                  pollJobStatus(jobId);
+                } else {
+                  console.error("No jobId found in URL parameters");
+                }
+              }}
+              variant="outline"
+              size="sm"
+              className="mt-2"
+            >
+              Debug: Restart Polling
+            </Button>
           </div>
         );
 
