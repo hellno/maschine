@@ -458,7 +458,7 @@ export default function Frameception(
 
               {projects.length > 0 && (
                 <div className="mt-6">
-                  <h3 className="text-lg font-semibold mb-2">Your Previous Projects</h3>
+                  <h3 className="text-lg font-semibold mb-2">Past Projects</h3>
                   <div className="space-y-2">
                     {projects.map((project) => (
                       <div
