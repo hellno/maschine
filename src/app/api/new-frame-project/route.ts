@@ -360,171 +360,163 @@ const copyRepositoryContents = async (
 };
 
 export async function POST(req: NextRequest) {
-  console.log('Received new-frame-project request:', req);
-  const encoder = new TextEncoder();
+  try {
+    const body = await req.json();
+    const { prompt, description, username, verbose = false } = body;
 
-  // Create a readable stream
-  const stream = new ReadableStream({
-    async start(controller) {
-      // Helper to send updates
-      function sendStatusUpdate(msg: string) {
-        console.log('Status Update', msg)
-        controller.enqueue(encoder.encode(msg + '\n'));
-      }
+    if (!prompt || !description) {
+      return NextResponse.json(
+        { error: "Project name and description are required" },
+        { status: 400 }
+      );
+    }
 
-      try {
-        // 1. Parse input
-        sendStatusUpdate('Parsing request...');
-        const body = await req.json();
-        const { prompt, description, username, verbose = false } = body;
+    // Create Octokit instance
+    const octokit = new Octokit({
+      auth: process.env.GITHUB_TOKEN,
+    });
 
-        if (!prompt || !description) {
-          sendStatusUpdate('Error: Project name and description are required');
-          controller.close();
-          return;
-        }
+    // Generate project name
+    const projectNameResponse = await deepseek.chat.completions.create({
+      model: "deepseek-chat",
+      messages: [
+        {
+          role: "system",
+          content: "You are a helpful assistant that generates concise, aspirational project names. Only respond with the project name, nothing else.",
+        },
+        {
+          role: "user",
+          content: `Generate a short, aspirational project name based on this description: ${prompt}`,
+        },
+      ],
+      temperature: 2,
+      max_tokens: 25,
+    });
 
-        // Create Octokit instance
-        const octokit = new Octokit({
-          auth: process.env.GITHUB_TOKEN,
+    const projectName = projectNameResponse.choices[0].message.content.trim();
+    const sanitizedProjectName = `${username ? `${username}-` : ''}${sanitizeProjectName(projectName)}`;
+
+    // Create project in KV
+    const projectId = generateProjectId();
+    const projectInfo: ProjectInfo = {
+      projectId,
+      repoUrl: '',
+      vercelUrl: '',
+      createdAt: Date.now()
+    };
+
+    // Create initial job
+    const job = await createJob(projectId);
+
+    // Create GitHub repository (async)
+    createGitHubRepository(octokit, projectId, sanitizedProjectName, description, username)
+      .then(async (repoUrl) => {
+        await updateJob(job.jobId, {
+          status: 'in-progress',
+          logs: ['GitHub repository created successfully']
         });
 
-        // 2. Generate project name
-        sendStatusUpdate('Generating project name...');
-        const [projectNameResponse] = await Promise.all([
-          deepseek.chat.completions.create({
-            model: "deepseek-chat",
-            messages: [
-              {
-                role: "system",
-                content: "You are a helpful assistant that generates concise, aspirational project names. Only respond with the project name, nothing else. No descriptions, no explanations, no additional text. Just the name.",
-              },
-              {
-                role: "user",
-                content: `Generate a short, aspirational project name based on this description: ${prompt}`,
-              },
-            ],
-            temperature: 2,
-            max_tokens: 25,
-          }),
-        ]);
+        // Update project info
+        await redis.hset(getProjectKey(projectId), { repoUrl });
 
-        const projectName = projectNameResponse.choices[0].message.content.trim();
-        const sanitizedProjectName = `${username ? `${username}-` : ''}${sanitizeProjectName(projectName)}`;
-        sendStatusUpdate(`Project name: ${sanitizedProjectName}`);
+        // Trigger Vercel deployment (async)
+        triggerVercelDeployment(sanitizedProjectName, repoUrl)
+          .then(async (vercelUrl) => {
+            await updateJob(job.jobId, {
+              status: 'completed',
+              logs: ['Vercel deployment completed successfully']
+            });
 
-        // 3. Create GitHub repository
-        sendStatusUpdate('Creating GitHub repository...');
-        const createRepoResponse = await octokit.rest.repos.createInOrg({
-          org: "frameception-v2",
-          name: sanitizedProjectName,
-          description: username
-            ? `${description} (created by @${username})`
-            : description,
-          private: false,
+            // Update project info
+            await redis.hset(getProjectKey(projectId), { vercelUrl });
+          })
+          .catch(async (error) => {
+            await updateJob(job.jobId, {
+              status: 'failed',
+              error: error.message,
+              logs: ['Vercel deployment failed']
+            });
+          });
+      })
+      .catch(async (error) => {
+        await updateJob(job.jobId, {
+          status: 'failed',
+          error: error.message,
+          logs: ['GitHub repository creation failed']
         });
-        sendStatusUpdate('Repository created successfully');
+      });
 
-        // 4. Copy template files
-        sendStatusUpdate('Copying template files...');
-        await copyRepositoryContents(
-          octokit,
-          "hellno",
-          "farcaster-frames-template",
-          "frameception-v2",
-          sanitizedProjectName,
-          "",
-          verbose
-        );
-        sendStatusUpdate('Template files copied successfully');
+    return NextResponse.json({
+      projectId,
+      jobId: job.jobId,
+      status: 'pending',
+      message: 'Project creation started'
+    });
 
-        // 5. Create Vercel project
-        sendStatusUpdate('Creating Vercel project...');
-        const vercelResponse = await fetch(`https://api.vercel.com/v9/projects?teamId=${process.env.VERCEL_TEAM_ID}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
-          },
-          body: JSON.stringify({
-            name: sanitizedProjectName,
-            gitRepository: {
-              type: "github",
-              repo: `frameception-v2/${sanitizedProjectName}`,
-            },
-            framework: "nextjs",
-            installCommand: "yarn install",
-            buildCommand: "yarn build",
-            outputDirectory: ".next",
-            environmentVariables: [
-              {
-                "key": "NEXTAUTH_SECRET",
-                "target": "production",
-                "type": "sensitive",
-                "value": generateRandomSecret()
-              },
-              {
-                "key": "KV_REST_API_URL",
-                "target": "production",
-                "type": "sensitive",
-                "value": process.env.KV_REST_API_URL
-              },
-              {
-                "key": "KV_REST_API_TOKEN",
-                "target": "production",
-                "type": "sensitive",
-                "value": process.env.KV_REST_API_TOKEN
-              }
-            ],
-          }),
-        });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'An unknown error occurred' },
+      { status: 500 }
+    );
+  }
+}
 
-        if (!vercelResponse.ok) {
-          throw new Error("Failed to create Vercel project");
-        }
-        sendStatusUpdate('Vercel project created successfully');
+// Helper functions moved outside main POST function
+async function createGitHubRepository(octokit: Octokit, projectId: string, name: string, description: string, username?: string) {
+  const response = await octokit.rest.repos.createInOrg({
+    org: "frameception-v2",
+    name,
+    description: username ? `${description} (created by @${username})` : description,
+    private: false,
+  });
+  return response.data.html_url;
+}
 
-        // 6. Trigger deployment
-        sendStatusUpdate('Triggering deployment...');
-        const vercelProject = await vercelResponse.json();
-        const deployment = await triggerVercelDeployment(
-          sanitizedProjectName,
-          vercelProject.link.repoId
-        );
-        sendStatusUpdate('Deployment triggered successfully');
-
-        // Final success message
-        sendStatusUpdate('Project creation complete!');
-        sendStatusUpdate(`Repository: ${createRepoResponse.data.html_url}`);
-        sendStatusUpdate(`Vercel URL: ${deployment.url}`);
-
-      } catch (error) {
-        let errorMessage = 'Unknown error occurred';
-
-        if (error instanceof Error) {
-          // Handle GitHub API errors specifically
-          if (error.message.includes('https://docs.github.com')) {
-            try {
-              const githubError = JSON.parse(error.message.split('Error: ')[1]);
-              errorMessage = `GitHub error: ${githubError.message}`;
-            } catch (parseError) {
-              errorMessage = error.message;
-            }
-          } else {
-            errorMessage = error.message;
-          }
-        }
-
-        // Send error status
-        controller.enqueue(encoder.encode(`Error: ${errorMessage}\n`));
-      } finally {
-        controller.close();
-      }
+async function triggerVercelDeployment(projectName: string, repoUrl: string) {
+  const response = await fetch(`https://api.vercel.com/v9/projects?teamId=${process.env.VERCEL_TEAM_ID}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
     },
+    body: JSON.stringify({
+      name: projectName,
+      gitRepository: {
+        type: "github",
+        repo: repoUrl.split('github.com/')[1],
+      },
+      framework: "nextjs",
+      installCommand: "yarn install",
+      buildCommand: "yarn build",
+      outputDirectory: ".next",
+      environmentVariables: [
+        {
+          key: "NEXTAUTH_SECRET",
+          target: "production",
+          type: "sensitive",
+          value: generateRandomSecret()
+        },
+        {
+          key: "KV_REST_API_URL",
+          target: "production",
+          type: "sensitive",
+          value: process.env.KV_REST_API_URL
+        },
+        {
+          key: "KV_REST_API_TOKEN",
+          target: "production",
+          type: "sensitive",
+          value: process.env.KV_REST_API_TOKEN
+        }
+      ],
+    }),
   });
 
-  // Return the stream as the response
-  return new Response(stream, {
-    headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-  });
+  if (!response.ok) {
+    throw new Error("Failed to create Vercel project");
+  }
+
+  const deployment = await response.json();
+  return deployment.url;
+}
 }

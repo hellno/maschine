@@ -15,6 +15,61 @@ interface ProjectInfo {
   createdAt: number;
 }
 
+interface JobInfo {
+  jobId: string;
+  projectId: string;
+  status: "pending" | "in-progress" | "completed" | "failed";
+  createdAt: number;
+  updatedAt: number;
+  logs?: string[];
+  error?: string;
+}
+
+function getJobKey(jobId: string): string {
+  return `job:${jobId}`;
+}
+
+function getProjectJobsKey(projectId: string): string {
+  return `project:${projectId}:jobs`;
+}
+
+export async function createJob(projectId: string): Promise<JobInfo> {
+  const jobId = generateProjectId();
+  const jobInfo: JobInfo = {
+    jobId,
+    projectId,
+    status: "pending",
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+
+  await redis.hset(getJobKey(jobId), jobInfo);
+  await redis.sadd(getProjectJobsKey(projectId), jobId);
+  
+  return jobInfo;
+}
+
+export async function updateJob(jobId: string, updates: Partial<JobInfo>): Promise<void> {
+  await redis.hset(getJobKey(jobId), {
+    ...updates,
+    updatedAt: Date.now()
+  });
+}
+
+export async function getJob(jobId: string): Promise<JobInfo | null> {
+  return await redis.hgetall(getJobKey(jobId)) as unknown as JobInfo;
+}
+
+export async function getProjectJobs(projectId: string): Promise<JobInfo[]> {
+  const jobIds = await redis.smembers(getProjectJobsKey(projectId));
+  const jobs = await Promise.all(
+    jobIds.map(async (jobId) => {
+      return await getJob(jobId);
+    })
+  );
+  return jobs.sort((a, b) => b.createdAt - a.createdAt);
+}
+
 const redis = new Redis({
   url: process.env.KV_REST_API_URL,
   token: process.env.KV_REST_API_TOKEN,
