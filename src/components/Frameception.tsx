@@ -117,7 +117,10 @@ export default function Frameception(
         // Update logs as an array
         setLogs(data.logs || []);
 
-        if (data.status === "completed") {
+        // Continue polling if job is still in progress
+        if (data.status === "in-progress" || data.status === "pending") {
+          setTimeout(() => pollJobStatus(jobId), 2000);
+        } else if (data.status === "completed") {
           if (flowState === "creatingProject") {
             // First job completed, now start template customization
             setFlowState("customizingTemplate");
@@ -128,11 +131,6 @@ export default function Frameception(
           }
         } else if (data.status === "failed") {
           setFlowState("enteringPrompt");
-        }
-
-        // Continue polling if still in progress
-        if (data.status === "in-progress") {
-          setTimeout(() => pollJobStatus(jobId), 2000);
         }
       } catch (error) {
         setCreationError(
