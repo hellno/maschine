@@ -152,6 +152,10 @@ export default function Frameception(
       setCreationError(null);
       setRepoPath(null);
 
+      if (!context?.user?.fid) {
+        throw new Error("User FID is required");
+      }
+
       // Create project (first job)
       const response = await fetch("/api/new-frame-project", {
         method: "POST",
@@ -162,7 +166,8 @@ export default function Frameception(
           prompt: inputValue,
           description: "A new Farcaster frame project",
           username: context?.user?.username || null,
-          fid: context?.user?.fid || 0,
+          fid: context.user.fid,
+          verbose: false,
         }),
       });
 

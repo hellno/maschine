@@ -13,6 +13,7 @@ export interface ProjectInfo {
   repoUrl: string;
   vercelUrl: string;
   createdAt: number;
+  fid: number;
 }
 
 interface JobInfo {

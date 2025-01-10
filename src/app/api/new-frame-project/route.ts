@@ -327,11 +327,11 @@ const copyRepositoryContents = async (
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { prompt, description, username, verbose = false } = body;
+    const { prompt, description, username, fid, verbose = false } = body;
 
-    if (!prompt || !description) {
+    if (!prompt || !description || !fid) {
       return NextResponse.json(
-        { error: "Project name and description are required" },
+        { error: "Project name, description, and FID are required" },
         { status: 400 }
       );
     }
@@ -367,12 +367,16 @@ export async function POST(req: NextRequest) {
     await appendJobLog(job.jobId, 'Job created - starting project setup');
 
     // Create initial project info with required fields
-    await updateProjectInfo(projectId, {
+    const projectInfo = {
       projectId,
       repoUrl: '', // Will be updated after GitHub repo creation
       vercelUrl: '', // Will be updated after Vercel deployment
-      createdAt: Date.now()
-    });
+      createdAt: Date.now(),
+      fid: Number(fid)
+    };
+    
+    await updateProjectInfo(projectId, projectInfo);
+    await addUserProject(Number(fid), projectInfo);
 
     // Create GitHub repository (async)
     createGitHubRepository(octokit, projectId, sanitizedProjectName, description, username)
