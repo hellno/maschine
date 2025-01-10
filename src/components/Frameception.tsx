@@ -110,7 +110,8 @@ export default function Frameception(
           return;
         }
 
-        setProgressMessage(data.logs.join("\n"));
+        // Update logs as an array
+        setLogs(data.logs || []);
 
         if (data.status === "completed") {
           if (flowState === "creatingProject") {
@@ -438,9 +439,11 @@ export default function Frameception(
           <div className="my-20 flex flex-col items-center gap-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
             <p className="text-center">Creating your project...</p>
-            <p className="text-sm text-gray-600">
-              {progressMessage || "Setting up GitHub repository"}
-            </p>
+            <div className="w-full max-h-48 overflow-y-auto bg-gray-50 rounded-lg p-4">
+              <pre className="text-sm text-gray-600 whitespace-pre-wrap">
+                {logs.join("\n")}
+              </pre>
+            </div>
           </div>
         );
 
@@ -449,9 +452,11 @@ export default function Frameception(
           <div className="my-20 flex flex-col items-center gap-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
             <p className="text-center">Customizing your template...</p>
-            <p className="text-sm text-gray-600">
-              {progressMessage || "Copying and configuring files"}
-            </p>
+            <div className="w-full max-h-48 overflow-y-auto bg-gray-50 rounded-lg p-4">
+              <pre className="text-sm text-gray-600 whitespace-pre-wrap">
+                {logs.join("\n")}
+              </pre>
+            </div>
           </div>
         );
 
