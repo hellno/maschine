@@ -129,19 +129,21 @@ export default function Frameception(
         // Update logs as an array
         setLogs(data.logs || []);
         console.log("job data", data);
+        
         // Continue polling if job is still in progress
         if (data.status === "in-progress" || data.status === "pending") {
           setTimeout(() => pollJobStatus(jobId), 2000);
         } else if (data.status === "completed") {
-          console.log("Job completed:", data, flowState);
-          if (flowState === "creatingProject") {
-            // First job completed, now start template customization
-            setFlowState("customizingTemplate");
-            handleCustomizingTemplate();
-          } else if (flowState === "customizingTemplate") {
-            // Second job completed, show success
-            setFlowState("success");
-          }
+          console.log("Job completed:", data);
+          setFlowState((prev) => {
+            if (prev === "creatingProject") {
+              handleCustomizingTemplate();
+              return "customizingTemplate";
+            } else if (prev === "customizingTemplate") {
+              return "success";
+            }
+            return prev;
+          });
         } else if (data.status === "failed") {
           setFlowState("enteringPrompt");
         }
@@ -151,7 +153,7 @@ export default function Frameception(
         );
       }
     },
-    [handleCustomizingTemplate, flowState]
+    [handleCustomizingTemplate]
   );
 
   /**
