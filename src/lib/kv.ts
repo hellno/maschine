@@ -184,25 +184,17 @@ export async function updateProjectInfo(projectId: string, updates: Partial<Proj
   }
 
   // Get existing project info
-  const existingInfo = await redis.hgetall(getProjectKey(projectId)) as unknown as ProjectInfo;
-  
-  // Prepare update data with timestamps
-  const updateData: Partial<ProjectInfo> = {
+  const existingInfo = await redis.hset(getProjectKey(projectId), {
     ...updates,
     updatedAt: Date.now()
-  };
+  });
 
   // If this is a new project, set createdAt
   if (!existingInfo?.createdAt) {
-    updateData.createdAt = Date.now();
+    await redis.hset(getProjectKey(projectId), {
+      ...updates,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    });
   }
-
-  // AI! I want to create new proejcts that have no repoUrl or vercelUrl yet, pls fix
-  // Validate required fields if creating new project
-  if (!existingInfo && (!updateData.repoUrl || !updateData.vercelUrl)) {
-    throw new Error('New projects require repoUrl and vercelUrl');
-  }
-
-  // Perform the update
-  await redis.hset(getProjectKey(projectId), updateData);
 }
