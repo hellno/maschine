@@ -12,7 +12,7 @@ import { sendFrameNotification } from "~/lib/notifs";
 
 export async function POST(request: NextRequest) {
   const requestJson = await request.json();
-
+  // AI! add a few console.log here at each step to see the data coming in and what the error is if it goes wrong
   let data;
   try {
     data = await parseWebhookEvent(requestJson, verifyAppKeyWithNeynar);
@@ -44,6 +44,7 @@ export async function POST(request: NextRequest) {
 
   const fid = data.fid;
   const event = data.event;
+  // AI! add a few console.log here at each step to see the data coming in and what the error is if it goes wrong
 
   switch (event.event) {
     case "frame_added":
