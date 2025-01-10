@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useCallback, useState, useMemo } from "react";
+import type { ProjectInfo } from "~/lib/kv";
 import { signIn, signOut, getCsrfToken } from "next-auth/react";
 import sdk, {
   FrameNotificationDetails,
@@ -56,6 +57,8 @@ export default function Frameception(
   const [vercelUrl, setVercelUrl] = useState<string | null>(null);
   const [creationError, setCreationError] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
+  const [projects, setProjects] = useState<ProjectInfo[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
   /**
    * 1) Single handleCustomizingTemplate definition
@@ -184,6 +187,24 @@ export default function Frameception(
   useEffect(() => {
     setNotificationDetails(context?.client.notificationDetails ?? null);
   }, [context]);
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      if (context?.user?.fid) {
+        try {
+          const response = await fetch(`/api/projects?fid=${context.user.fid}`);
+          const data = await response.json();
+          if (data.projects) {
+            setProjects(data.projects);
+          }
+        } catch (error) {
+          console.error("Error fetching projects:", error);
+        }
+      }
+    };
+
+    fetchProjects();
+  }, [context?.user?.fid]);
 
   useEffect(() => {
     if (isFramePinned) {
@@ -431,6 +452,61 @@ export default function Frameception(
               >
                 Let&apos;s go
               </Button>
+
+              {projects.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="text-lg font-semibold mb-2">Your Previous Projects</h3>
+                  <div className="space-y-2">
+                    {projects.map((project) => (
+                      <div
+                        key={project.projectId}
+                        className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                          selectedProjectId === project.projectId
+                            ? "border-blue-500 bg-blue-50"
+                            : "hover:border-gray-400"
+                        }`}
+                        onClick={() => setSelectedProjectId(project.projectId)}
+                      >
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <h4 className="font-medium">
+                              {project.projectId.split("-")[0]}
+                            </h4>
+                            <p className="text-sm text-gray-500">
+                              Created{" "}
+                              {new Date(project.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div className="space-x-2">
+                            {project.repoUrl && (
+                              <a
+                                href={project.repoUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-500 hover:text-blue-700"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                GitHub
+                              </a>
+                            )}
+                            {project.vercelUrl && (
+                              <a
+                                href={project.vercelUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-500 hover:text-blue-700"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                Live
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         );
