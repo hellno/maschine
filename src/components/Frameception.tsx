@@ -1,14 +1,6 @@
 "use client";
 
 import { useEffect, useCallback, useState, useMemo } from "react";
-
-type FlowState =
-  | "initial"
-  | "enteringPrompt"
-  | "creatingProject"
-  | "customizingTemplate"
-  | "deploying"
-  | "success";
 import { signIn, signOut, getCsrfToken } from "next-auth/react";
 import sdk, {
   FrameNotificationDetails,
@@ -24,15 +16,23 @@ import {
   useConnect,
   useChainId,
 } from "wagmi";
+import { BaseError, UserRejectedRequestError } from "viem";
+import { useSession } from "next-auth/react";
+import { SignIn as SignInCore } from "@farcaster/frame-core";
+import { SignInResult } from "@farcaster/frame-core/dist/actions/signIn";
 
 import { config } from "~/components/providers/WagmiProvider";
 import { Button } from "~/components/ui/Button";
 import { truncateAddress } from "~/lib/truncateAddress";
 import { base } from "wagmi/chains";
-import { BaseError, UserRejectedRequestError } from "viem";
-import { useSession } from "next-auth/react";
-import { SignIn as SignInCore } from "@farcaster/frame-core";
-import { SignInResult } from "@farcaster/frame-core/dist/actions/signIn";
+
+type FlowState =
+  | "initial"
+  | "enteringPrompt"
+  | "creatingProject"
+  | "customizingTemplate"
+  | "deploying"
+  | "success";
 
 export default function Frameception(
   { title }: { title?: string } = { title: "Frameception" }
@@ -56,7 +56,10 @@ export default function Frameception(
   const [vercelUrl, setVercelUrl] = useState<string | null>(null);
   const [creationError, setCreationError] = useState<string | null>(null);
   const [progressMessage, setProgressMessage] = useState<string | null>(null);
-  
+
+  /**
+   * 1) Single handleCustomizingTemplate definition
+   */
   const handleCustomizingTemplate = useCallback(async () => {
     try {
       if (!inputValue || !context) {
@@ -91,49 +94,60 @@ export default function Frameception(
       );
       setFlowState("enteringPrompt");
     }
-  }, [inputValue, context, pollJobStatus]);
+  }, [inputValue, context]);
 
-  const pollJobStatus = useCallback(async (jobId: string) => {
-    try {
-      const response = await fetch(`/api/job/${jobId}`);
-      const data = await response.json();
-      
-      if (data.error) {
-        setCreationError(data.error);
-        return;
-      }
+  /**
+   * 2) pollJobStatus references handleCustomizingTemplate
+   */
+  const pollJobStatus = useCallback(
+    async (jobId: string) => {
+      try {
+        const response = await fetch(`/api/job/${jobId}`);
+        const data = await response.json();
 
-      setProgressMessage(data.logs.join('\n'));
-      
-      if (data.status === 'completed') {
-        if (flowState === 'creatingProject') {
-          // First job completed, now start template customization
-          setFlowState('customizingTemplate');
-          await handleCustomizingTemplate();
-        } else if (flowState === 'customizingTemplate') {
-          // Second job completed, show success
-          setFlowState('success');
+        if (data.error) {
+          setCreationError(data.error);
+          return;
         }
-      } else if (data.status === 'failed') {
-        setFlowState("enteringPrompt");
-      }
-      
-      // Continue polling if still in progress
-      if (data.status === 'in-progress') {
-        setTimeout(() => pollJobStatus(jobId), 2000);
-      }
-    } catch (error) {
-      setCreationError(error instanceof Error ? error.message : 'Polling error');
-    }
-  }, [handleCustomizingTemplate, flowState]);
 
+        setProgressMessage(data.logs.join("\n"));
+
+        if (data.status === "completed") {
+          if (flowState === "creatingProject") {
+            // First job completed, now start template customization
+            setFlowState("customizingTemplate");
+            await handleCustomizingTemplate();
+          } else if (flowState === "customizingTemplate") {
+            // Second job completed, show success
+            setFlowState("success");
+          }
+        } else if (data.status === "failed") {
+          setFlowState("enteringPrompt");
+        }
+
+        // Continue polling if still in progress
+        if (data.status === "in-progress") {
+          setTimeout(() => pollJobStatus(jobId), 2000);
+        }
+      } catch (error) {
+        setCreationError(
+          error instanceof Error ? error.message : "Polling error"
+        );
+      }
+    },
+    [handleCustomizingTemplate, flowState]
+  );
+
+  /**
+   * 3) handleCreateProject to create the first job
+   */
   const handleCreateProject = useCallback(async () => {
     try {
       setFlowState("creatingProject");
       setCreationError(null);
       setRepoPath(null);
 
-      // Create project
+      // Create project (first job)
       const response = await fetch("/api/new-frame-project", {
         method: "POST",
         headers: {
@@ -160,44 +174,11 @@ export default function Frameception(
       );
       setFlowState("enteringPrompt");
     }
-  }, [inputValue, context?.user?.username]);
+  }, [inputValue, context?.user?.username, pollJobStatus]);
 
-  const handleCustomizingTemplate = useCallback(async () => {
-    try {
-      if (!inputValue || !context) {
-        throw new Error("Missing required data for template customization");
-      }
-
-      setCreationError(null);
-
-      // Create a new job for template customization
-      const response = await fetch("/api/customize-template", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt: inputValue,
-          userContext: context,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to start template customization");
-      }
-
-      const { jobId } = await response.json();
-      // Start polling the new job
-      pollJobStatus(jobId);
-    } catch (error) {
-      console.error("Error customizing template:", error);
-      setCreationError(
-        error instanceof Error ? error.message : "Template customization failed"
-      );
-      setFlowState("enteringPrompt");
-    }
-  }, [inputValue, context, pollJobStatus]);
-
+  /**
+   * React effects and setup
+   */
   useEffect(() => {
     setNotificationDetails(context?.client.notificationDetails ?? null);
   }, [context]);
@@ -235,17 +216,19 @@ export default function Frameception(
 
   useEffect(() => {
     const load = async () => {
-      const context = await sdk.context;
-      if (!context) {
+      const frameContext = await sdk.context;
+      if (!frameContext) {
         return;
       }
 
-      setContext(context);
-      setIsFramePinned(context.client.added);
+      setContext(frameContext);
+      setIsFramePinned(frameContext.client.added);
 
       sdk.on("frameAdded", ({ notificationDetails }) => {
         setLastEvent(
-          `frameAdded${!!notificationDetails ? ", notifications enabled" : ""}`
+          `frameAdded${
+            notificationDetails ? ", notifications enabled" : ""
+          }`
         );
 
         setIsFramePinned(true);
@@ -288,6 +271,9 @@ export default function Frameception(
     }
   }, [isSDKLoaded]);
 
+  /**
+   * Additional helpers
+   */
   const openUrl = useCallback(() => {
     sdk.actions.openUrl("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
   }, []);
@@ -395,6 +381,9 @@ export default function Frameception(
     return <div>Loading...</div>;
   }
 
+  /**
+   * Main UI flow
+   */
   const renderMainContent = () => {
     switch (flowState) {
       case "initial":
@@ -604,7 +593,7 @@ export default function Frameception(
           <h2 className="font-2xl font-bold">Add to client & notifications</h2>
 
           <div className="mt-2 mb-4 text-sm">
-            Client fid {context?.client.clientFid},
+            Client fid {context?.client.clientFid},{" "}
             {isFramePinned
               ? " frame added to client,"
               : " frame not added to client,"}
@@ -718,6 +707,9 @@ export default function Frameception(
   );
 }
 
+/**
+ * SignMessage Component
+ */
 function SignMessage() {
   const { isConnected } = useAccount();
   const { connectAsync } = useConnect();
@@ -736,7 +728,6 @@ function SignMessage() {
         connector: config.connectors[0],
       });
     }
-
     signMessage({ message: "Hello from Frames v2!" });
   }, [connectAsync, isConnected, signMessage]);
 
@@ -759,6 +750,9 @@ function SignMessage() {
   );
 }
 
+/**
+ * SendEth Component
+ */
 function SendEth() {
   const { isConnected, chainId } = useAccount();
   const {
@@ -775,7 +769,7 @@ function SendEth() {
     });
 
   const toAddr = useMemo(() => {
-    // Protocol guild address
+    // Example fallback addresses
     return chainId === base.id
       ? "0x32e3C7fD24e175701A35c224f2238d18439C7dBC"
       : "0xB3d8d7887693a9852734b4D25e9C0Bb35Ba8a830";
@@ -815,6 +809,9 @@ function SendEth() {
   );
 }
 
+/**
+ * SignIn Component
+ */
 function SignIn() {
   const [signingIn, setSigningIn] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -846,7 +843,6 @@ function SignIn() {
         setSignInFailure("Rejected by user");
         return;
       }
-
       setSignInFailure("Unknown error");
     } finally {
       setSigningIn(false);
@@ -901,17 +897,16 @@ function SignIn() {
   );
 }
 
+/**
+ * Simple Error Renderer
+ */
 const renderError = (error: Error | null) => {
   if (!error) return null;
   if (error instanceof BaseError) {
-    const isUserRejection = error.walk(
-      (e) => e instanceof UserRejectedRequestError
-    );
-
+    const isUserRejection = error.walk((e) => e instanceof UserRejectedRequestError);
     if (isUserRejection) {
       return <div className="text-red-500 text-xs mt-1">Rejected by user.</div>;
     }
   }
-
   return <div className="text-red-500 text-xs mt-1">{error.message}</div>;
 };

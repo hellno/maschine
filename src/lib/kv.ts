@@ -38,6 +38,7 @@ function getJobLogsKey(jobId: string): string {
 }
 
 export async function appendJobLog(jobId: string, message: string): Promise<void> {
+  console.log('Appending job log:', jobId, message);
   await redis.rpush(getJobLogsKey(jobId), message);
 }
 
