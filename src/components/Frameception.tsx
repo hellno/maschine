@@ -27,6 +27,15 @@ import { useSession } from "next-auth/react"
 import { SignIn as SignInCore } from "@farcaster/frame-core";
 import { SignInResult } from "@farcaster/frame-core/dist/actions/signIn";
 
+// AI! add proper state management to this user flow
+// we have several steps: 
+// user start (wait for user to click a button to bookmark this frame)
+// enter prompt (user enters a prompt and clicks let's go), what we have right now
+// wait for project setup (create a repo, deploy to vercel) show a spinner, no user input
+// customizing code template based on prompt, show a spinner, no user input
+// wait for vercel deployment from code customization, show a spinner, no user input
+// show success message with link to vercel deployment, no user input
+
 export default function Frameception(
   { title }: { title?: string } = { title: "Frames v2 Demo" }
 ) {
