@@ -499,8 +499,24 @@ export async function POST(req: NextRequest) {
         sendStatusUpdate(`Vercel URL: ${deployment.url}`);
 
       } catch (error) {
+        let errorMessage = 'Unknown error occurred';
+        
+        if (error instanceof Error) {
+          // Handle GitHub API errors specifically
+          if (error.message.includes('https://docs.github.com')) {
+            try {
+              const githubError = JSON.parse(error.message.split('Error: ')[1]);
+              errorMessage = `GitHub error: ${githubError.message}`;
+            } catch (parseError) {
+              errorMessage = error.message;
+            }
+          } else {
+            errorMessage = error.message;
+          }
+        }
+
         // Send error status
-        controller.enqueue(encoder.encode(`Error: ${error instanceof Error ? error.message : 'Unknown error'}\n`));
+        controller.enqueue(encoder.encode(`Error: ${errorMessage}\n`));
       } finally {
         controller.close();
       }

@@ -120,7 +120,9 @@ export default function Frameception(
           setFlowState("success");
           break;
         } else if (text.includes('Error:')) {
-          setCreationError(text.replace('Error:', '').trim());
+          // Extract the error message after "Error: "
+          const errorMessage = text.split('Error: ')[1].trim();
+          setCreationError(errorMessage);
           setFlowState("enteringPrompt");
           break;
         }
