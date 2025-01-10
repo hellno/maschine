@@ -7,7 +7,7 @@ const redis = new Redis({
 });
 
 function getUserNotificationDetailsKey(fid: number): string {
-  return `frames-v2-demo:user:${fid}`;
+  return `frameception:user:${fid}`;
 }
 
 export async function getUserNotificationDetails(
