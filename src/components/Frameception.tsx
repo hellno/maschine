@@ -57,6 +57,42 @@ export default function Frameception(
   const [creationError, setCreationError] = useState<string | null>(null);
   const [progressMessage, setProgressMessage] = useState<string | null>(null);
   
+  const handleCustomizingTemplate = useCallback(async () => {
+    try {
+      if (!inputValue || !context) {
+        throw new Error("Missing required data for template customization");
+      }
+
+      setCreationError(null);
+
+      // Create a new job for template customization
+      const response = await fetch("/api/customize-template", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: inputValue,
+          userContext: context,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to start template customization");
+      }
+
+      const { jobId } = await response.json();
+      // Start polling the new job
+      pollJobStatus(jobId);
+    } catch (error) {
+      console.error("Error customizing template:", error);
+      setCreationError(
+        error instanceof Error ? error.message : "Template customization failed"
+      );
+      setFlowState("enteringPrompt");
+    }
+  }, [inputValue, context, pollJobStatus]);
+
   const pollJobStatus = useCallback(async (jobId: string) => {
     try {
       const response = await fetch(`/api/job/${jobId}`);
@@ -70,11 +106,16 @@ export default function Frameception(
       setProgressMessage(data.logs.join('\n'));
       
       if (data.status === 'completed') {
-        // First job completed, now start template customization
-        setFlowState('customizingTemplate');
-        await handleCustomizingTemplate();
+        if (flowState === 'creatingProject') {
+          // First job completed, now start template customization
+          setFlowState('customizingTemplate');
+          await handleCustomizingTemplate();
+        } else if (flowState === 'customizingTemplate') {
+          // Second job completed, show success
+          setFlowState('success');
+        }
       } else if (data.status === 'failed') {
-        setFlowState('enteringPrompt');
+        setFlowState("enteringPrompt");
       }
       
       // Continue polling if still in progress
@@ -84,7 +125,7 @@ export default function Frameception(
     } catch (error) {
       setCreationError(error instanceof Error ? error.message : 'Polling error');
     }
-  }, [handleCustomizingTemplate]);
+  }, [handleCustomizingTemplate, flowState]);
 
   const handleCreateProject = useCallback(async () => {
     try {
