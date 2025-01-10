@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse, NextRequest } from "next/server";
 
 export const runtime = 'nodejs';
@@ -5,6 +6,7 @@ export const dynamic = 'force-dynamic';
 import { Octokit } from "octokit";
 import crypto from "crypto";
 import { OpenAI } from "openai";
+import { createJob, generateProjectId, updateJob } from "~/lib/kv";
 
 export const config = {
   maxDuration: 300, // = 5 minutes for Pro plan
@@ -232,43 +234,6 @@ const deepseek = new OpenAI({
   baseURL: "https://api.deepseek.com",
 });
 
-// Helper function to trigger a Vercel deployment
-const triggerVercelDeployment = async (projectName: string, repoId: number) => {
-  try {
-    const response = await fetch(
-      `https://api.vercel.com/v13/deployments?teamId=${process.env.VERCEL_TEAM_ID}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
-        },
-        body: JSON.stringify({
-          name: projectName,
-          gitSource: {
-            type: "github",
-            repoId: repoId,
-            ref: "main",
-          },
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const error = await response.json();
-      console.error("Failed to trigger deployment:", error);
-      throw new Error("Failed to trigger deployment");
-    }
-
-    const deployment = await response.json();
-    console.log("Deployment triggered successfully:", deployment);
-    return deployment;
-  } catch (error) {
-    console.error("Error triggering deployment:", error);
-    throw error;
-  }
-};
-
 // Helper function to generate a random NEXTAUTH_SECRET
 const generateRandomSecret = () => {
   const randomBytes = crypto.getRandomValues(new Uint8Array(32));
@@ -415,9 +380,18 @@ export async function POST(req: NextRequest) {
           status: 'in-progress',
           logs: ['GitHub repository created successfully']
         });
-
         // Update project info
         await redis.hset(getProjectKey(projectId), { repoUrl });
+
+        await copyRepositoryContents(
+          octokit,
+          "hellno",
+          "farcaster-frames-template",
+          "frameception-v2",
+          sanitizedProjectName,
+          "",
+          verbose
+        );
 
         // Trigger Vercel deployment (async)
         triggerVercelDeployment(sanitizedProjectName, repoUrl)
@@ -518,5 +492,4 @@ async function triggerVercelDeployment(projectName: string, repoUrl: string) {
 
   const deployment = await response.json();
   return deployment.url;
-}
 }

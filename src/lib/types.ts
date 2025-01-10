@@ -1,6 +1,8 @@
+import { FrameContext } from "@farcaster/frame-sdk"
+
 export interface TemplateCustomizationRequest {
   prompt: string
-  userContext: Record<string, any>
+  userContext: FrameContext
 }
 
 export interface TemplateCustomizationResponse {

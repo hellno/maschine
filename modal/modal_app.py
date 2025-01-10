@@ -75,17 +75,17 @@ def update_repo_code(data: dict) -> str:
     from aider.io import InputOutput
     import os
 
-    if not data.get("repo"):
-        return "Please provide a repo name in the request body"
+    if not data.get("repoPath"):
+        return "Please provide a repoPath in the request body"
 
     if not data.get("prompt"):
         return "Please provide a prompt in the request body"
 
-    repo_name = data["repo"]
+    repo_name = data["repoPath"]
 
     repo_url = f"https://{os.environ["GITHUB_TOKEN"]
                           }@github.com/{repo_name}.git"
-    repo_dir = f"/github-repos/{repo_name.split('/')[-1]}"
+    repo_dir = f"/github-repos/{repo_name}"
 
     print(f"Processing repository: {repo_name}, saving to {repo_dir}")
     try:

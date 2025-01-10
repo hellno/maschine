@@ -2,34 +2,27 @@ import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
   try {
-    const { prompt, userContext } = await request.json()
-    
+    const { repoPath, prompt, userContext } = await request.json()
+
     // Validate input
-    if (!prompt || !userContext) {
+    if (!repoPath || !prompt || !userContext) {
       return NextResponse.json(
-        { error: 'Prompt and user context are required' },
+        { error: 'Repo, prompt and user context are required' },
         { status: 400 }
       )
     }
 
-    // Get repo name from environment variables
-    const repo = process.env.REPO_NAME
-    if (!repo) {
-      return NextResponse.json(
-        { error: 'Repository not configured' },
-        { status: 500 }
-      )
-    }
-
-    // Call LLM manipulation endpoint
+    console.log('received request:', { repoPath, prompt, userContext });
+    const promptWithFullContext = `Customize the template for the repository at ${repoPath}\n\nUser Context: ${JSON.stringify(userContext)}}.\n\n${prompt}`
+    console.log('Full prompt sending to endpoint:', promptWithFullContext)
     const llmResponse = await fetch(process.env.LLM_MANIPULATION_ENDPOINT!, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        repo,
-        prompt: `${prompt}\n\nUser Context: ${JSON.stringify(userContext)}`
+        repoPath,
+        prompt: promptWithFullContext,
       }),
     })
 
@@ -38,9 +31,9 @@ export async function POST(request: Request) {
     }
 
     const result = await llmResponse.json()
-    
+
     return NextResponse.json(result)
-    
+
   } catch (error) {
     console.error('Error in template customization:', error)
     return NextResponse.json(

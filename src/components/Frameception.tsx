@@ -55,7 +55,8 @@ export default function Frameception(
   const [repoPath, setRepoPath] = useState<string | null>(null);
   const [vercelUrl, setVercelUrl] = useState<string | null>(null);
   const [creationError, setCreationError] = useState<string | null>(null);
-
+  const [progressMessage, setProgressMessage] = useState<string | null>(null);
+  
   const handleCreateProject = useCallback(async () => {
     try {
       setFlowState("creatingProject");
@@ -87,7 +88,7 @@ export default function Frameception(
       }
 
       const decoder = new TextDecoder();
-      let fullResponse = '';
+      let fullResponse = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -98,30 +99,31 @@ export default function Frameception(
         fullResponse += text;
 
         // Update UI based on progress
-        if (text.includes('Creating GitHub repository')) {
+        setProgressMessage(text);
+        if (text.includes("Creating GitHub repository")) {
           setFlowState("creatingProject");
-        } else if (text.includes('Copying template files')) {
-          setFlowState("customizingTemplate");
-        } else if (text.includes('Creating Vercel project')) {
-          setFlowState("deploying");
-        } else if (text.includes('Project creation complete')) {
+        } else if (text.includes("Project creation complete")) {
           // Extract URLs from the final response
-          const repoUrlMatch = fullResponse.match(/Repository: (https:\/\/[^\s]+)/);
-          const vercelUrlMatch = fullResponse.match(/Vercel URL: (https:\/\/[^\s]+)/);
-          
+          const repoUrlMatch = fullResponse.match(
+            /Repository: (https:\/\/[^\s]+)/
+          );
+          const vercelUrlMatch = fullResponse.match(
+            /Vercel URL: (https:\/\/[^\s]+)/
+          );
+
           if (repoUrlMatch && repoUrlMatch[1]) {
             setRepoPath(repoUrlMatch[1]);
           }
-          
+
           if (vercelUrlMatch && vercelUrlMatch[1]) {
             setVercelUrl(vercelUrlMatch[1]);
           }
-          
-          setFlowState("success");
+
+          handleCustomizingTemplate();
           break;
-        } else if (text.includes('Error:')) {
+        } else if (text.includes("Error:")) {
           // Extract the error message after "Error: "
-          const errorMessage = text.split('Error: ')[1].trim();
+          const errorMessage = text.split("Error: ")[1].trim();
           setCreationError(errorMessage);
           setFlowState("enteringPrompt");
           break;
@@ -136,7 +138,6 @@ export default function Frameception(
     }
   }, [inputValue, context?.user?.username]);
 
-
   const handleCustomizingTemplate = useCallback(async () => {
     try {
       if (!repoPath || !inputValue || !context) {
@@ -146,10 +147,10 @@ export default function Frameception(
       setFlowState("customizingTemplate");
       setCreationError(null);
 
-      const response = await fetch('/api/customize-template', {
-        method: 'POST',
+      const response = await fetch("/api/customize-template", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           prompt: inputValue,
@@ -169,7 +170,7 @@ export default function Frameception(
       }
 
       const decoder = new TextDecoder();
-      let fullResponse = '';
+      let fullResponse = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -179,20 +180,16 @@ export default function Frameception(
         const text = decoder.decode(value);
         fullResponse += text;
 
+        setProgressMessage(text);
         // Update UI based on progress
-        if (text.includes('Generating customizations')) {
-          setFlowState("customizingTemplate");
-        } else if (text.includes('Applying customizations')) {
-          setFlowState("deploying");
-        } else if (text.includes('Customization complete')) {
-          setFlowState("deploying");
-          break;
-        } else if (text.includes('Error:')) {
-          setCreationError(text.replace('Error:', '').trim());
+        if (text.includes("Error:")) {
+          setCreationError(text.replace("Error:", "").trim());
           setFlowState("enteringPrompt");
           break;
         }
       }
+      console.log("Customization complete:", fullResponse);
+      setFlowState("success");
     } catch (error) {
       console.error("Error customizing template:", error);
       setCreationError(
@@ -207,7 +204,7 @@ export default function Frameception(
   }, [context]);
 
   useEffect(() => {
-    if (isFramePinned){ 
+    if (isFramePinned) {
       setFlowState("enteringPrompt");
     }
   }, [isFramePinned]);
@@ -405,7 +402,8 @@ export default function Frameception(
         return (
           <div className="my-20">
             <h2 className="font-5xl font-bold mb-2">
-              Hey {context?.user.username}, bookmark this to start building your frame
+              Hey {context?.user.username}, bookmark this to start building your
+              frame
             </h2>
             <h3 className="font-2xl mb-4 text-gray-600">
               We will notify in Warpcast when your frame is ready to use!
@@ -451,10 +449,10 @@ export default function Frameception(
         return (
           <div className="my-20 flex flex-col items-center gap-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-            <p className="text-center">
-              Creating your project...
+            <p className="text-center">Creating your project...</p>
+            <p className="text-sm text-gray-600">
+              {progressMessage || "Setting up GitHub repository"}
             </p>
-            <p className="text-sm text-gray-600">Setting up GitHub repository</p>
           </div>
         );
 
@@ -462,10 +460,10 @@ export default function Frameception(
         return (
           <div className="my-20 flex flex-col items-center gap-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-            <p className="text-center">
-              Customizing your template...
+            <p className="text-center">Customizing your template...</p>
+            <p className="text-sm text-gray-600">
+              {progressMessage || "Copying and configuring files"}
             </p>
-            <p className="text-sm text-gray-600">Copying and configuring files</p>
           </div>
         );
 
@@ -473,9 +471,7 @@ export default function Frameception(
         return (
           <div className="my-20 flex flex-col items-center gap-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-            <p className="text-center">
-              Deploying your frame...
-            </p>
+            <p className="text-center">Deploying your frame...</p>
             <p className="text-sm text-gray-600">Setting up Vercel project</p>
           </div>
         );
@@ -610,7 +606,9 @@ export default function Frameception(
 
           <div className="mt-2 mb-4 text-sm">
             Client fid {context?.client.clientFid},
-            {isFramePinned ? " frame added to client," : " frame not added to client,"}
+            {isFramePinned
+              ? " frame added to client,"
+              : " frame not added to client,"}
             {notificationDetails
               ? " notifications enabled"
               : " notifications disabled"}
