@@ -539,8 +539,6 @@ export default function Frameception(
             {/* Add debug button */}
             <Button 
               onClick={() => {
-                const urlParams = new URLSearchParams(window.location.search);
-                const jobId = urlParams.get('jobId');
                 if (jobId) {
                   console.log("Manually restarting polling for jobId:", jobId);
                   pollJobStatus(jobId);
@@ -548,7 +546,6 @@ export default function Frameception(
                   console.error("No jobId found in URL parameters");
                 }
               }}
-              variant="outline"
               size="sm"
               className="mt-2"
             >
