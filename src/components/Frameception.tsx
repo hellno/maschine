@@ -76,19 +76,50 @@ export default function Frameception(
       });
 
       if (!response.ok) {
-        console.log('response:', response);
         throw new Error("Failed to create project");
       }
 
-      const data = await response.json();
-      console.log('data from new-frame-project endpoint:', data);
-      if (!data.repoPath) {
-        throw new Error("Repository URL not returned from API");
+      // Handle streaming response
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("No response body received");
       }
 
-      setRepoPath(data.repoPath);
-      setFlowState("customizingTemplate");
-      await handleCustomizingTemplate();
+      const decoder = new TextDecoder();
+      let fullResponse = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        // Process the streamed data
+        const text = decoder.decode(value);
+        fullResponse += text;
+
+        // Update UI based on progress
+        if (text.includes('Creating GitHub repository')) {
+          setFlowState("creatingProject");
+        } else if (text.includes('Copying template files')) {
+          setFlowState("customizingTemplate");
+        } else if (text.includes('Creating Vercel project')) {
+          setFlowState("deploying");
+        } else if (text.includes('Project creation complete')) {
+          // Extract URLs from the final response
+          const repoUrlMatch = fullResponse.match(/Repository: (https:\/\/[^\s]+)/);
+          const vercelUrlMatch = fullResponse.match(/Vercel URL: (https:\/\/[^\s]+)/);
+          
+          if (repoUrlMatch && repoUrlMatch[1]) {
+            setRepoPath(repoUrlMatch[1]);
+          }
+          
+          setFlowState("success");
+          break;
+        } else if (text.includes('Error:')) {
+          setCreationError(text.replace('Error:', '').trim());
+          setFlowState("enteringPrompt");
+          break;
+        }
+      }
     } catch (error) {
       console.error("Error creating project:", error);
       setCreationError(
