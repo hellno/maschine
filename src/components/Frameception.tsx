@@ -55,7 +55,7 @@ export default function Frameception(
   const [repoPath, setRepoPath] = useState<string | null>(null);
   const [vercelUrl, setVercelUrl] = useState<string | null>(null);
   const [creationError, setCreationError] = useState<string | null>(null);
-  const [progressMessage, setProgressMessage] = useState<string | null>(null);
+  const [logs, setLogs] = useState<string[]>([]);
 
   /**
    * 1) Single handleCustomizingTemplate definition
