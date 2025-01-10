@@ -165,3 +165,31 @@ export async function deleteUserNotificationDetails(
 ): Promise<void> {
   await redis.del(getUserNotificationDetailsKey(fid));
 }
+
+export async function updateProjectInfo(projectId: string, updates: Partial<ProjectInfo>): Promise<void> {
+  if (!projectId) {
+    throw new Error('Project ID is required');
+  }
+
+  // Get existing project info
+  const existingInfo = await redis.hgetall(getProjectKey(projectId)) as unknown as ProjectInfo;
+  
+  // Prepare update data with timestamps
+  const updateData: Partial<ProjectInfo> = {
+    ...updates,
+    updatedAt: Date.now()
+  };
+
+  // If this is a new project, set createdAt
+  if (!existingInfo?.createdAt) {
+    updateData.createdAt = Date.now();
+  }
+
+  // Validate required fields if creating new project
+  if (!existingInfo && (!updateData.repoUrl || !updateData.vercelUrl)) {
+    throw new Error('New projects require repoUrl and vercelUrl');
+  }
+
+  // Perform the update
+  await redis.hset(getProjectKey(projectId), updateData);
+}

@@ -381,7 +381,7 @@ export async function POST(req: NextRequest) {
           logs: ['GitHub repository created successfully']
         });
         // Update project info
-        await redis.hset(getProjectKey(projectId), { repoUrl });
+        await updateProjectInfo(projectId, { repoUrl });
 
         await copyRepositoryContents(
           octokit,
@@ -402,7 +402,7 @@ export async function POST(req: NextRequest) {
             });
 
             // Update project info
-            await redis.hset(getProjectKey(projectId), { vercelUrl });
+            await updateProjectInfo(projectId, { vercelUrl });
           })
           .catch(async (error) => {
             await updateJob(job.jobId, {
