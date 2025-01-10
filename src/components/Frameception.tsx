@@ -417,17 +417,35 @@ export default function Frameception(
         );
 
       case "creatingProject":
+        return (
+          <div className="my-20 flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+            <p className="text-center">
+              Creating your project...
+            </p>
+            <p className="text-sm text-gray-600">Setting up GitHub repository</p>
+          </div>
+        );
+
       case "customizingTemplate":
+        return (
+          <div className="my-20 flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+            <p className="text-center">
+              Customizing your template...
+            </p>
+            <p className="text-sm text-gray-600">Copying and configuring files</p>
+          </div>
+        );
+
       case "deploying":
         return (
           <div className="my-20 flex flex-col items-center gap-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
             <p className="text-center">
-              {flowState === "creatingProject" && "Creating your project..."}
-              {flowState === "customizingTemplate" &&
-                "Customizing your template..."}
-              {flowState === "deploying" && "Deploying your frame..."}
+              Deploying your frame...
             </p>
+            <p className="text-sm text-gray-600">Setting up Vercel project</p>
           </div>
         );
 
