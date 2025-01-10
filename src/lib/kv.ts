@@ -33,6 +33,18 @@ function getProjectJobsKey(projectId: string): string {
   return `project:${projectId}:jobs`;
 }
 
+function getJobLogsKey(jobId: string): string {
+  return `job:${jobId}:logs`;
+}
+
+export async function appendJobLog(jobId: string, message: string): Promise<void> {
+  await redis.rpush(getJobLogsKey(jobId), message);
+}
+
+export async function getJobLogs(jobId: string): Promise<string[]> {
+  return await redis.lrange(getJobLogsKey(jobId), 0, -1);
+}
+
 export async function createJob(projectId: string): Promise<JobInfo> {
   const jobId = generateProjectId();
   const jobInfo: JobInfo = {

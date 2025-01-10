@@ -57,6 +57,33 @@ export default function Frameception(
   const [creationError, setCreationError] = useState<string | null>(null);
   const [progressMessage, setProgressMessage] = useState<string | null>(null);
   
+  const pollJobStatus = useCallback(async (jobId: string) => {
+    try {
+      const response = await fetch(`/api/job/${jobId}`);
+      const data = await response.json();
+      
+      if (data.error) {
+        setCreationError(data.error);
+        return;
+      }
+
+      setProgressMessage(data.logs.join('\n'));
+      
+      if (data.status === 'completed') {
+        setFlowState('success');
+      } else if (data.status === 'failed') {
+        setFlowState('enteringPrompt');
+      }
+      
+      // Continue polling if still in progress
+      if (data.status === 'in-progress') {
+        setTimeout(() => pollJobStatus(jobId), 2000);
+      }
+    } catch (error) {
+      setCreationError(error instanceof Error ? error.message : 'Polling error');
+    }
+  }, []);
+
   const handleCreateProject = useCallback(async () => {
     try {
       setFlowState("creatingProject");
@@ -81,54 +108,8 @@ export default function Frameception(
         throw new Error("Failed to create project");
       }
 
-      // Handle streaming response
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error("No response body received");
-      }
-
-      const decoder = new TextDecoder();
-      let fullResponse = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        // Process the streamed data
-        const text = decoder.decode(value);
-        fullResponse += text;
-
-        // Update UI based on progress
-        setProgressMessage(text);
-        if (text.includes("Creating GitHub repository")) {
-          setFlowState("creatingProject");
-        } else if (text.includes("Project creation complete")) {
-          // Extract URLs from the final response
-          const repoUrlMatch = fullResponse.match(
-            /Repository: (https:\/\/[^\s]+)/
-          );
-          const vercelUrlMatch = fullResponse.match(
-            /Vercel URL: (https:\/\/[^\s]+)/
-          );
-
-          if (repoUrlMatch && repoUrlMatch[1]) {
-            setRepoPath(repoUrlMatch[1]);
-          }
-
-          if (vercelUrlMatch && vercelUrlMatch[1]) {
-            setVercelUrl(vercelUrlMatch[1]);
-          }
-
-          handleCustomizingTemplate();
-          break;
-        } else if (text.includes("Error:")) {
-          // Extract the error message after "Error: "
-          const errorMessage = text.split("Error: ")[1].trim();
-          setCreationError(errorMessage);
-          setFlowState("enteringPrompt");
-          break;
-        }
-      }
+      const { jobId } = await response.json();
+      pollJobStatus(jobId);
     } catch (error) {
       console.error("Error creating project:", error);
       setCreationError(

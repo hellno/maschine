@@ -366,17 +366,19 @@ export async function POST(req: NextRequest) {
 
     // Create initial job
     const job = await createJob(projectId);
+    await appendJobLog(job.jobId, 'Job created - starting project setup');
 
     // Create GitHub repository (async)
     createGitHubRepository(octokit, projectId, sanitizedProjectName, description, username)
       .then(async (repoUrl) => {
+        await appendJobLog(job.jobId, 'GitHub repository created successfully');
         await updateJob(job.jobId, {
-          status: 'in-progress',
-          logs: ['GitHub repository created successfully']
+          status: 'in-progress'
         });
         // Update project info
         await updateProjectInfo(projectId, { repoUrl });
 
+        await appendJobLog(job.jobId, 'Copying template files...');
         await copyRepositoryContents(
           octokit,
           "hellno",
@@ -390,27 +392,27 @@ export async function POST(req: NextRequest) {
         // Trigger Vercel deployment (async)
         triggerVercelDeployment(sanitizedProjectName, repoUrl)
           .then(async (vercelUrl) => {
+            await appendJobLog(job.jobId, 'Vercel deployment completed successfully');
             await updateJob(job.jobId, {
-              status: 'completed',
-              logs: ['Vercel deployment completed successfully']
+              status: 'completed'
             });
 
             // Update project info
             await updateProjectInfo(projectId, { vercelUrl });
           })
           .catch(async (error) => {
+            await appendJobLog(job.jobId, `Vercel deployment failed: ${error.message}`);
             await updateJob(job.jobId, {
               status: 'failed',
-              error: error.message,
-              logs: ['Vercel deployment failed']
+              error: error.message
             });
           });
       })
       .catch(async (error) => {
+        await appendJobLog(job.jobId, `GitHub repository creation failed: ${error.message}`);
         await updateJob(job.jobId, {
           status: 'failed',
-          error: error.message,
-          logs: ['GitHub repository creation failed']
+          error: error.message
         });
       });
 
