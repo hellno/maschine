@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 import { Octokit } from "octokit";
 import crypto from "crypto";
 import { OpenAI } from "openai";
-import { createJob, generateProjectId, updateJob, updateProjectInfo } from "~/lib/kv";
+import { appendJobLog, createJob, generateProjectId, updateJob, updateProjectInfo } from "~/lib/kv";
 
 export const config = {
   maxDuration: 300, // = 5 minutes for Pro plan
