@@ -88,6 +88,7 @@ export default function Frameception(
 
       setRepoPath(data.repoPath);
       setFlowState("customizingTemplate");
+      await handleCustomizingTemplate();
     } catch (error) {
       console.error("Error creating project:", error);
       setCreationError(
@@ -99,11 +100,49 @@ export default function Frameception(
 
 
   const handleCustomizingTemplate = useCallback(async () => {
-    // AI!
-    // call new serverside function customize-template
-    // use prompt and repoPath and context
-    // use try catch, add logging, setFlowState to deploying if response.ok 
-  }, []);
+    try {
+      if (!repoPath || !inputValue || !context) {
+        throw new Error("Missing required data for template customization");
+      }
+
+      console.log('Starting template customization with:', {
+        repoPath,
+        prompt: inputValue,
+        context
+      });
+
+      const response = await fetch('/api/customize-template', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: inputValue,
+          userContext: {
+            username: context.user?.username,
+            fid: context.user?.fid,
+            preferences: context.client?.preferences,
+            repoPath
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Template customization failed: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('Template customization successful:', result);
+
+      setFlowState("deploying");
+    } catch (error) {
+      console.error('Error customizing template:', error);
+      setCreationError(
+        error instanceof Error ? error.message : "Template customization failed"
+      );
+      setFlowState("enteringPrompt");
+    }
+  }, [repoPath, inputValue, context]);
 
   useEffect(() => {
     setNotificationDetails(context?.client.notificationDetails ?? null);
