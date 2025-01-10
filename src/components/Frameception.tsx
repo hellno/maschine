@@ -76,7 +76,7 @@ export default function Frameception(
   const handleCustomizingTemplate = useCallback(async () => {
     try {
       console.log("handleCustomizingTemplate called with", inputValue, context);
-      if (!inputValue || !context) {
+      if (!inputValue || !context || !repoPath) {
         throw new Error("Missing required data for template customization");
       }
 
@@ -91,6 +91,7 @@ export default function Frameception(
         body: JSON.stringify({
           prompt: inputValue,
           userContext: context,
+          repoPath,
         }),
       });
 
@@ -108,7 +109,7 @@ export default function Frameception(
       );
       setFlowState("enteringPrompt");
     }
-  }, [inputValue, context]);
+  }, [inputValue, context, repoPath]);
 
   /**
    * 2) pollJobStatus references handleCustomizingTemplate
@@ -132,7 +133,7 @@ export default function Frameception(
         if (data.status === "in-progress" || data.status === "pending") {
           setTimeout(() => pollJobStatus(jobId), 2000);
         } else if (data.status === "completed") {
-          console.log('Job completed:', data, flowState);
+          console.log("Job completed:", data, flowState);
           if (flowState === "creatingProject") {
             // First job completed, now start template customization
             setFlowState("customizingTemplate");
@@ -538,12 +539,15 @@ export default function Frameception(
             </div>
             {/* Debug section */}
             <div className="flex flex-col gap-2 w-full max-w-xs">
-              <Button 
+              <Button
                 onClick={() => {
                   const urlParams = new URLSearchParams(window.location.search);
-                  const jobId = urlParams.get('jobId');
+                  const jobId = urlParams.get("jobId");
                   if (jobId) {
-                    console.log("Manually restarting polling for jobId:", jobId);
+                    console.log(
+                      "Manually restarting polling for jobId:",
+                      jobId
+                    );
                     pollJobStatus(jobId);
                   } else {
                     console.error("No jobId found in URL parameters");
@@ -554,7 +558,7 @@ export default function Frameception(
               >
                 Debug: Restart Polling
               </Button>
-              
+
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -577,7 +581,9 @@ export default function Frameception(
         return (
           <div className="my-20 flex flex-col items-center gap-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-            <p className="text-center">LLMs are carefully working on your frame...</p>
+            <p className="text-center">
+              LLMs are carefully working on your frame...
+            </p>
             <div className="w-full max-h-48 overflow-y-auto bg-gray-50 rounded-lg p-4">
               <pre className="text-sm text-gray-600 whitespace-pre-wrap">
                 {logs ? logs.join("\n") : "Waiting for logs..."}
