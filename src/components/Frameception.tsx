@@ -3,6 +3,14 @@
 import { useEffect, useCallback, useState, useMemo } from "react";
 import type { ProjectInfo } from "~/lib/kv";
 import { signIn, signOut, getCsrfToken } from "next-auth/react";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card"
 import sdk, {
   FrameNotificationDetails,
   type FrameContext,
@@ -459,34 +467,33 @@ export default function Frameception(
               {projects.length > 0 && (
                 <div className="mt-6">
                   <h3 className="text-lg font-semibold mb-2">Past Projects</h3>
-                  <div className="space-y-2">
+                  <div className="grid grid-cols-1 gap-4">
                     {projects.map((project) => (
-                      <div
+                      <Card
                         key={project.projectId}
-                        className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                        className={`transition-colors ${
                           selectedProjectId === project.projectId
-                            ? "border-blue-500 bg-blue-50"
+                            ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
                             : "hover:border-gray-400"
                         }`}
                         onClick={() => setSelectedProjectId(project.projectId)}
                       >
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <h4 className="font-medium">
-                              {project.projectId.split("-")[0]}
-                            </h4>
-                            <p className="text-sm text-gray-500">
-                              Created{" "}
-                              {new Date(project.createdAt).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <div className="space-x-2">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">
+                            {project.projectId.split("-")[0]}
+                          </CardTitle>
+                          <CardDescription className="text-xs">
+                            Created {new Date(project.createdAt).toLocaleDateString()}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardFooter className="pt-2">
+                          <div className="flex gap-3 text-sm">
                             {project.repoUrl && (
                               <a
                                 href={project.repoUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-blue-500 hover:text-blue-700"
+                                className="text-blue-500 hover:text-blue-700 hover:underline"
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 GitHub
@@ -497,15 +504,15 @@ export default function Frameception(
                                 href={project.vercelUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-blue-500 hover:text-blue-700"
+                                className="text-blue-500 hover:text-blue-700 hover:underline"
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                Live
+                                Live Demo
                               </a>
                             )}
                           </div>
-                        </div>
-                      </div>
+                        </CardFooter>
+                      </Card>
                     ))}
                   </div>
                 </div>
