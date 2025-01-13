@@ -12,7 +12,6 @@ export async function GET(
   { params }: { params: { jobId: string } }
 ) {
   try {
-    // Destructure jobId from params
     const { jobId } = params;
     
     if (!jobId) {
@@ -21,45 +20,31 @@ export async function GET(
 
     console.log('Getting job:', jobId);
   
-    // AI! simplify this code by using one supabase client function instead of two in a promise all 
-  
-    // Get job info and logs concurrently
-    const [{ data: job, error: jobError }, { data: logs, error: logsError }] = await Promise.all([
-      // Get job details
-      supabase
-        .from('jobs')
-        .select('*')
-        .eq('id', jobId)
-        .single(),
-      
-      // Get job logs
-      supabase
-        .from('logs')
-        .select('*')
-        .eq('job_id', jobId)
-        .order('created_at', { ascending: true })
-    ]);
+    const { data, error } = await supabase
+      .from('jobs')
+      .select(`
+        *,
+        logs:logs(*)
+      `)
+      .eq('id', jobId)
+      .order('created_at', { foreignTable: 'logs', ascending: true })
+      .single();
 
-    if (jobError) {
-      console.error('Error fetching job:', jobError);
+    if (error) {
+      console.error('Error fetching job:', error);
       return NextResponse.json({ error: 'Error fetching job' }, { status: 500 });
     }
 
-    if (logsError) {
-      console.error('Error fetching logs:', logsError);
-      return NextResponse.json({ error: 'Error fetching logs' }, { status: 500 });
-    }
-
-    if (!job) {
+    if (!data) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
     return NextResponse.json({
-      status: job.status,
-      logs: logs || [],
-      error: job.data?.error,
-      createdAt: job.created_at,
-      updatedAt: job.updated_at
+      status: data.status,
+      logs: data.logs || [],
+      error: data.data?.error,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at
     });
     
   } catch (error) {
