@@ -34,12 +34,10 @@ import { Button } from "~/components/ui/Button";
 import { truncateAddress } from "~/lib/truncateAddress";
 import { base } from "wagmi/chains";
 
-type FlowState =
-  | "initial"
-  | "enteringPrompt"
-  | "creatingProject"
-  | "customizingTemplate"
-  | "deploying"
+type FlowState = 
+  | "waitForFrameToBePinned"
+  | "enteringPrompt" 
+  | "pending"
   | "success";
 
 export default function Frameception(
@@ -55,7 +53,7 @@ export default function Frameception(
     useState<FrameNotificationDetails | null>(null);
 
   const [lastEvent, setLastEvent] = useState("");
-  const [flowState, setFlowState] = useState<FlowState>("initial");
+  const [flowState, setFlowState] = useState<FlowState>("waitForFrameToBePinned");
 
   const [addFrameResult, setAddFrameResult] = useState("");
   const [sendNotificationResult, setSendNotificationResult] = useState("");
@@ -72,43 +70,6 @@ export default function Frameception(
   /**
    * 1) Single handleCustomizingTemplate definition
    */
-  const handleCustomizingTemplate = useCallback(async () => {
-    try {
-      console.log("handleCustomizingTemplate called with", inputValue, context, repoPath);
-      if (!inputValue || !context || !repoPath) {
-        throw new Error("Missing required data for template customization");
-      }
-
-      setCreationError(null);
-
-      // Create a new job for template customization
-      const response = await fetch("/api/update-code", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt: inputValue,
-          userContext: context,
-          repoPath,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to start template customization");
-      }
-
-      const { jobId } = await response.json();
-      // Start polling the new job
-      pollJobStatus(jobId);
-    } catch (error) {
-      console.error("Error customizing template:", error);
-      setCreationError(
-        error instanceof Error ? error.message : "Template customization failed"
-      );
-      setFlowState("enteringPrompt");
-    }
-  }, [inputValue, context, repoPath]);
 
   /**
    * 2) pollJobStatus references handleCustomizingTemplate
@@ -125,35 +86,25 @@ export default function Frameception(
           return;
         }
 
-        // Update logs as an array
         setLogs(data.logs || []);
         console.log("job data", data);
 
-        // Continue polling if job is still in progress
-        if (data.status === "in-progress" || data.status === "pending") {
-          setTimeout(() => pollJobStatus(jobId), 2000);
-        } else if (data.status === "completed") {
-          console.log("Job completed:", data);
-          setFlowState((prev) => {
-            if (prev === "creatingProject") {
-              // we need repo url here, come up with better solution how to handle the project Id and job ID stuff
-              handleCustomizingTemplate();
-              return "customizingTemplate";
-            } else if (prev === "customizingTemplate") {
-              return "success";
-            }
-            return prev;
-          });
+        if (data.status === "completed") {
+          setFlowState("success");
         } else if (data.status === "failed") {
+          setCreationError(data.error || "Job failed");
           setFlowState("enteringPrompt");
+        } else if (data.status === "in-progress" || data.status === "pending") {
+          setTimeout(() => pollJobStatus(jobId), 2000);
         }
       } catch (error) {
         setCreationError(
           error instanceof Error ? error.message : "Polling error"
         );
+        setFlowState("enteringPrompt");
       }
     },
-    [handleCustomizingTemplate]
+    []
   );
 
   /**
@@ -161,7 +112,7 @@ export default function Frameception(
    */
   const handleCreateProject = useCallback(async () => {
     try {
-      setFlowState("creatingProject");
+      setFlowState("pending");
       setCreationError(null);
       setRepoPath(null);
 
@@ -169,7 +120,6 @@ export default function Frameception(
         throw new Error("User FID is required");
       }
 
-      // Create project (first job)
       const response = await fetch("/api/new-frame-project", {
         method: "POST",
         headers: {
