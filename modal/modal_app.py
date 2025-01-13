@@ -262,13 +262,10 @@ def create_frame_project(data: dict) -> dict:
 
             # Copy template contents
             try:
-                # AI! fix this, hellno/farcaster-frames-template is user owned not by an organization
-                template_org = gh.get_organization("hellno")
-                template_repo = template_org.get_repo(
-                    "farcaster-frames-template")
+                # Access the template from user's repository
+                template_repo = gh.get_repo("hellno/farcaster-frames-template")
             except Exception as e:
-                raise Exception(
-                    f"Failed to access template repository: {str(e)}")
+                raise Exception(f"Failed to access template repository: {str(e)}")
 
             try:
                 contents = template_repo.get_contents("")
