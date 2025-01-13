@@ -2,6 +2,9 @@ import sys
 from pathlib import Path
 import os
 
+# Organization constants
+GITHUB_ORG_NAME = "frameception-v2"
+
 import modal
 from .db import Database
 from .db import Database
@@ -168,6 +171,30 @@ def create_frame_project(data: dict) -> dict:
             if field not in data:
                 raise ValueError(f"Missing required field: {field}")
 
+    def verify_github_setup(gh: Github, job_id: str, db: Database) -> None:
+        """Verify GitHub token and organization access"""
+        required_scopes = ['repo', 'admin:org']
+    
+        try:
+            # Check authentication
+            user = gh.get_user()
+            db.add_log(job_id, "github", f"Authenticated as GitHub user: {user.login}")
+        
+            # Check organization access
+            org = gh.get_organization(GITHUB_ORG_NAME)
+            db.add_log(job_id, "github", f"Successfully accessed organization: {GITHUB_ORG_NAME}")
+        
+            # Check if user has admin access to org
+            try:
+                membership = org.get_membership(user.login)
+                if membership.role not in ['admin', 'owner']:
+                    raise Exception(f"User {user.login} needs admin access to {GITHUB_ORG_NAME}")
+            except Exception as e:
+                raise Exception(f"Failed to verify organization membership: {str(e)}")
+            
+        except Exception as e:
+            raise Exception(f"GitHub setup verification failed: {str(e)}")
+
     def generate_random_secret() -> str:
         """Generate a random secret for NextAuth"""
         return base64.b64encode(os.urandom(32)).decode('utf-8')
@@ -195,35 +222,69 @@ def create_frame_project(data: dict) -> dict:
 
     def setup_github_repo(gh: Github, sanitized_name: str, description: str) -> tuple:
         """Create and setup GitHub repository"""
-        org = gh.get_organization("frameception-v2")
-        repo = org.create_repo(
-            name=sanitized_name,
-            description=description,
-            private=False
-        )
+        try:
+            # Try to get the organization
+            try:
+                org = gh.get_organization(GITHUB_ORG_NAME)
+                db.add_log(job_id, "github", f"Successfully connected to organization: {GITHUB_ORG_NAME}")
+            except Exception as e:
+                raise Exception(f"Unable to access organization '{GITHUB_ORG_NAME}'. Error: {str(e)}")
 
-        # Copy template contents
-        template_org = gh.get_organization("hellno")
-        template_repo = template_org.get_repo("farcaster-frames-template")
+            # Check if repo already exists
+            try:
+                existing_repo = org.get_repo(sanitized_name)
+                if existing_repo:
+                    raise Exception(f"Repository '{sanitized_name}' already exists in {GITHUB_ORG_NAME}")
+            except Exception as e:
+                if "Not Found" not in str(e):
+                    raise
 
-        contents = template_repo.get_contents("")
-        while contents:
-            file_content = contents.pop(0)
-            if file_content.type == "dir":
-                contents.extend(template_repo.get_contents(file_content.path))
-            else:
-                try:
-                    template_content = template_repo.get_contents(
-                        file_content.path).decoded_content
-                    repo.create_file(
-                        file_content.path,
-                        f"Copy template file {file_content.path}",
-                        template_content
-                    )
-                except Exception as e:
-                    print(f"Error copying {file_content.path}: {str(e)}")
+            # Create repo in the organization
+            try:
+                repo = org.create_repo(
+                    name=sanitized_name,
+                    description=description,
+                    private=False
+                )
+                db.add_log(job_id, "github", f"Created new repository: {repo.html_url}")
+            except Exception as e:
+                raise Exception(f"Failed to create repository: {str(e)}")
 
-        return repo
+            # Copy template contents
+            try:
+                template_org = gh.get_organization("hellno")
+                template_repo = template_org.get_repo("farcaster-frames-template")
+            except Exception as e:
+                raise Exception(f"Failed to access template repository: {str(e)}")
+
+            try:
+                contents = template_repo.get_contents("")
+                while contents:
+                    file_content = contents.pop(0)
+                    if file_content.type == "dir":
+                        contents.extend(template_repo.get_contents(file_content.path))
+                    else:
+                        try:
+                            template_content = template_repo.get_contents(file_content.path).decoded_content
+                            repo.create_file(
+                                file_content.path,
+                                f"Copy template file {file_content.path}",
+                                template_content
+                            )
+                        except Exception as e:
+                            db.add_log(job_id, "github", f"Warning: Failed to copy {file_content.path}: {str(e)}")
+                            # Continue with other files even if one fails
+                            continue
+            
+                db.add_log(job_id, "github", "Successfully copied template files")
+                return repo
+
+            except Exception as e:
+                raise Exception(f"Failed to copy template contents: {str(e)}")
+
+        except Exception as e:
+            db.add_log(job_id, "github", f"Error in setup_github_repo: {str(e)}")
+            raise
 
     def create_vercel_deployment(sanitized_name: str, repo: object) -> tuple:
         """Create Vercel project and trigger deployment"""
@@ -301,8 +362,17 @@ def create_frame_project(data: dict) -> dict:
         db.add_log(job_id, "backend",
                    f"Starting project creation with prompt: {data['prompt']}")
 
-        # Initialize clients
-        gh = Github(os.environ["GITHUB_TOKEN"])
+        # Initialize and verify GitHub client
+        try:
+            gh = Github(os.environ["GITHUB_TOKEN"])
+            verify_github_setup(gh, job_id, db)
+        except Exception as e:
+            error_msg = f"GitHub setup failed: {str(e)}"
+            db.add_log(job_id, "backend", error_msg)
+            db.update_job_status(job_id, "failed", error_msg)
+            return {"error": error_msg}, 500
+
+        # Initialize OpenAI client
         deepseek = OpenAI(
             api_key=os.environ["DEEPSEEK_API_KEY"],
             base_url="https://api.deepseek.com/v1"
