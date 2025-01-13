@@ -618,7 +618,8 @@ def generate_domain_association(domain: str) -> dict:
         modal.Secret.from_name("vercel-secret"),
         modal.Secret.from_name("llm-api-keys"),
         modal.Secret.from_name("supabase-secret"),
-        modal.Secret.from_name("upstash-secret")
+        modal.Secret.from_name("upstash-secret"),
+        modal.Secret.from_name("farcaster-secret")
     ]
 )
 def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
