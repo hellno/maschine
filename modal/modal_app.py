@@ -358,26 +358,36 @@ def generate_domain_association(domain: str) -> dict:
     """Generate a domain association signature for Farcaster frames.
     
     Args:
-        domain: The domain to generate association for
+        domain: The domain to generate association for (without http/https)
         
     Returns:
         Dict containing compact and JSON formats of the signed domain association
+        
+    Raises:
+        ValueError: If domain is invalid or starts with http/https
     """
     import os
     from eth_account import Account
     import json
     import base64
+    import re
 
     try:
+        # Validate domain format
+        if domain.lower().startswith(('http://', 'https://')):
+            raise ValueError("Domain should not include http:// or https:// prefix")
+            
+        # Basic domain format validation
+        domain_pattern = r'^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
+        if not re.match(domain_pattern, domain):
+            raise ValueError("Invalid domain format")
+
         # Get environment variables
         fid = int(os.environ.get("FID", 0))
         custody_address = os.environ.get("CUSTODY_ADDRESS", "")
         private_key = os.environ.get("PRIVATE_KEY", "")
 
-        # Validate inputs and configuration
-        if not domain:
-            raise ValueError("Domain is required")
-
+        # Validate configuration
         if not all([fid, custody_address, private_key]):
             raise ValueError("Server configuration incomplete")
 
