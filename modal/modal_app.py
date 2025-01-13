@@ -516,6 +516,111 @@ def create_frame_project_webhook(data: dict) -> dict:
         modal.Secret.from_name("upstash-secret")
     ]
 )
+@app.function(
+    secrets=[
+        modal.Secret.from_name("farcaster-secret")
+    ]
+)
+def generate_domain_association(domain: str) -> dict:
+    """Generate a domain association signature for Farcaster frames.
+
+    Args:
+        domain: The domain to generate association for (without http/https)
+
+    Returns:
+        Dict containing compact and JSON formats of the signed domain association
+
+    Raises:
+        ValueError: If domain is invalid or starts with http/https
+    """
+    import os
+    from eth_account import Account
+    from eth_account.messages import encode_defunct
+    import json
+    import base64
+    import re
+
+    try:
+        # Validate domain format
+        if domain.lower().startswith(('http://', 'https://')):
+            raise ValueError(
+                "Domain should not include http:// or https:// prefix")
+
+        # Basic domain format validation
+        domain_pattern = r'^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
+        if not re.match(domain_pattern, domain):
+            raise ValueError("Invalid domain format")
+
+        # Get environment variables
+        fid = int(os.environ.get("FID", 0))
+        custody_address = os.environ.get("CUSTODY_ADDRESS", "")
+        private_key = os.environ.get("PRIVATE_KEY", "")
+
+        # Validate configuration
+        if not all([fid, custody_address, private_key]):
+            raise ValueError("Server configuration incomplete")
+
+        # Create header and payload
+        header = {
+            "fid": fid,
+            "type": "custody",
+            "key": custody_address
+        }
+
+        payload = {
+            "domain": domain
+        }
+
+        # Encode components to base64url
+        def to_base64url(data: dict) -> str:
+            json_str = json.dumps(data)
+            bytes_data = json_str.encode('utf-8')
+            base64_str = base64.urlsafe_b64encode(bytes_data).decode('utf-8')
+            return base64_str.rstrip('=')  # Remove padding
+
+        encoded_header = to_base64url(header)
+        encoded_payload = to_base64url(payload)
+
+        # Create message to sign
+        message = f"{encoded_header}.{encoded_payload}"
+
+        # Create signable message using encode_defunct
+        signable_message = encode_defunct(text=message)
+
+        # Sign message using ethereum account
+        signed_message = Account.sign_message(signable_message, private_key)
+
+        # Get the signature bytes and encode to base64url
+        encoded_signature = base64.urlsafe_b64encode(
+            signed_message.signature).decode('utf-8').rstrip('=')
+
+        # Create response formats
+        compact_jfs = f"{encoded_header}.{encoded_payload}.{encoded_signature}"
+        json_jfs = {
+            "header": encoded_header,
+            "payload": encoded_payload,
+            "signature": encoded_signature
+        }
+
+        return {
+            "compact": compact_jfs,
+            "json": json_jfs
+        }
+
+    except Exception as e:
+        raise Exception(f"Failed to generate domain association: {str(e)}")
+
+@app.function(
+    volumes=volumes,
+    timeout=3600,  # 1 hour
+    secrets=[
+        modal.Secret.from_name("github-secret"),
+        modal.Secret.from_name("vercel-secret"),
+        modal.Secret.from_name("llm-api-keys"),
+        modal.Secret.from_name("supabase-secret"),
+        modal.Secret.from_name("upstash-secret")
+    ]
+)
 def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
     """Background job that handles the full project setup"""
     db = Database()
@@ -565,24 +670,45 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
             # Extract repo path from repo.full_name
             repo_path = repo.full_name  # Format: "frameception-v2/repo-name"
 
-            # Trigger initial code update
-            trigger_initial_code_update(
-                project_id=project_id,
-                repo_path=repo_path,
-                prompt=data["prompt"],
-                db=db,
-                job_id=job_id
-            )
+            # First code update
+            code_update_response = update_code.remote({
+                "projectId": project_id,
+                "repoPath": repo_path,
+                "prompt": data["prompt"],
+                "job_type": "update_code"
+            })
+            db.add_log(job_id, "backend", f"Initial code update completed: {code_update_response}")
 
-            # Setup domain association using the Vercel URL
+            # Generate domain association
             domain = deployment['url'].split('://')[1]  # Remove https:// prefix
-            setup_domain_association(
-                project_id=project_id,
-                repo_path=repo_path,
-                domain=domain,
-                db=db,
-                job_id=job_id
-            )
+            domain_assoc = generate_domain_association.remote(domain)
+            db.add_log(job_id, "backend", "Generated domain association")
+
+            # Create prompt for domain association update
+            update_prompt = f"""
+            Update the file src/app/.well-known/farcaster.json/route.ts to return the following domain association:
+
+            ```typescript
+            import {{ NextResponse }} from "next/server";
+
+            export async function GET() {{
+                return NextResponse.json({{
+                    headers: {domain_assoc['json']['header']},
+                    payload: {domain_assoc['json']['payload']},
+                    signature: {domain_assoc['json']['signature']}
+                }});
+            }}
+            ```
+            """
+
+            # Update domain association
+            domain_update_response = update_code.remote({
+                "projectId": project_id,
+                "repoPath": repo_path,
+                "prompt": update_prompt,
+                "job_type": "update_code"
+            })
+            db.add_log(job_id, "backend", f"Domain association update completed: {domain_update_response}")
 
             db.add_log(job_id, "backend", "All setup steps completed successfully")
             db.update_job_status(job_id, "completed")
@@ -598,58 +724,6 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
         db.update_job_status(job_id, "failed", str(e))
 
 
-@app.function(secrets=[modal.Secret.from_name("farcaster-secret")])
-def trigger_initial_code_update(project_id: str, repo_path: str, prompt: str, db: Database, job_id: str) -> None:
-    """Trigger initial code update with user's prompt"""
-    db.add_log(job_id, "backend", "Triggering initial code update")
-
-    update_response = update_code.remote({
-        "projectId": project_id,
-        "repoPath": repo_path,
-        "prompt": prompt,
-        "job_type": "update_code"
-    })
-
-    db.add_log(job_id, "backend",
-               f"Initial code update completed: {update_response}")
-
-
-def setup_domain_association(project_id: str, repo_path: str, domain: str, db: Database, job_id: str) -> None:
-    """Generate and insert domain association into the project"""
-    db.add_log(job_id, "backend", "Setting up domain association")
-
-    # Generate domain association
-    domain_assoc = generate_domain_association.remote(domain)
-
-    # Create prompt to update farcaster.json route
-    update_prompt = f"""
-    Update the file src/app/.well-known/farcaster.json/route.ts to return the following domain association:
-
-    ```typescript
-    import {{ NextResponse }} from "next/server";
-
-    export async function GET() {{
-        return NextResponse.json({{
-            headers: {domain_assoc['json']['header']},
-            payload: {domain_assoc['json']['payload']},
-            signature: {domain_assoc['json']['signature']}
-        }});
-    }}
-    ```
-    """
-
-    # Trigger code update with domain association
-    update_response = update_code.remote({
-        "projectId": project_id,
-        "repoPath": repo_path,
-        "prompt": update_prompt
-    })
-
-    db.add_log(job_id, "backend",
-               f"Domain association setup completed: {update_response}")
-
-
-def generate_domain_association(domain: str) -> dict:
     """Generate a domain association signature for Farcaster frames.
 
     Args:
