@@ -2,10 +2,108 @@ import modal
 import sys
 from pathlib import Path
 import os
+import requests
 from db import Database
+from github import Github
+from openai import OpenAI
 
 # Organization constants
 GITHUB_ORG_NAME = "frameception-v2"
+
+def verify_github_setup(gh: Github, job_id: str, db: Database) -> None:
+    """Verify GitHub token and organization access"""
+    required_scopes = ['repo', 'admin:org']
+
+    try:
+        # Check authentication
+        user = gh.get_user()
+        db.add_log(job_id, "github", f"Authenticated as GitHub user: {user.login}")
+
+        # Check organization access
+        org = gh.get_organization(GITHUB_ORG_NAME)
+        db.add_log(job_id, "github", f"Successfully accessed organization: {GITHUB_ORG_NAME}")
+
+    except Exception as e:
+        raise Exception(f"GitHub setup verification failed: {str(e)}")
+
+def sanitize_project_name(name: str) -> str:
+    """Sanitize project name for Vercel compatibility"""
+    import re
+    sanitized = re.sub(r'[^a-z0-9._-]', '-', name.lower())
+    sanitized = re.sub(r'-+', '-', sanitized)
+    sanitized = sanitized[:100].strip('-')
+    return sanitized or 'new-frame-project'
+
+def generate_project_name(prompt: str, deepseek: OpenAI) -> str:
+    """Generate project name using Deepseek AI"""
+    name_response = deepseek.chat.completions.create(
+        model="deepseek-chat",
+        messages=[
+            {"role": "system", "content": "Generate a concise, aspirational project name. Only respond with the name."},
+            {"role": "user", "content": f"Generate a short project name based on: {prompt}"}
+        ],
+        temperature=2,
+        max_tokens=25
+    )
+    return name_response.choices[0].message.content.strip()
+
+def setup_github_repo(gh: Github, sanitized_name: str, description: str) -> object:
+    """Create and setup GitHub repository"""
+    org = gh.get_organization(GITHUB_ORG_NAME)
+    repo = org.create_repo(
+        name=sanitized_name,
+        description=description,
+        private=False
+    )
+    return repo
+
+def create_vercel_deployment(sanitized_name: str, repo: object) -> dict:
+    """Create Vercel project and trigger deployment"""
+    vercel_headers = {
+        "Authorization": f"Bearer {os.environ['VERCEL_TOKEN']}",
+        "Content-Type": "application/json"
+    }
+
+    # Create project
+    project_data = {
+        "name": sanitized_name,
+        "framework": "nextjs",
+        "gitRepository": {
+            "type": "github",
+            "repo": repo.full_name
+        },
+        "installCommand": "yarn install",
+        "buildCommand": "yarn build",
+        "outputDirectory": ".next"
+    }
+
+    vercel_project = requests.post(
+        f"https://api.vercel.com/v9/projects?teamId={os.environ['VERCEL_TEAM_ID']}",
+        headers=vercel_headers,
+        json=project_data
+    ).json()
+
+    if "error" in vercel_project:
+        raise Exception(f"Failed to create Vercel project: {vercel_project['error']}")
+
+    # Create deployment
+    deployment = requests.post(
+        f"https://api.vercel.com/v13/deployments?teamId={os.environ['VERCEL_TEAM_ID']}",
+        headers=vercel_headers,
+        json={
+            "name": sanitized_name,
+            "gitSource": {
+                "type": "github",
+                "repoId": str(repo.id),
+                "ref": "main"
+            }
+        }
+    ).json()
+
+    if "error" in deployment:
+        raise Exception(f"Failed to create deployment: {deployment['error']}")
+
+    return deployment
 
 
 env_vars = {
