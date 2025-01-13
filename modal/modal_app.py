@@ -27,50 +27,33 @@ image = modal.Image.debian_slim(python_version="3.12") \
         "openai",
         "supabase",
         "eth-account"
-    ).run_commands("aider-install")
+).run_commands("aider-install")
 app = modal.App(name="frameception", image=image)
 
 
-@app.function()
-def f(i: int) -> int:
-    """Square a number and print a message based on its parity.
+# @app.local_entrypoint()
+# def main(num_iterations: int = 200):
+#     """Run the function in different modes and aggregate results.
 
-    Args:
-        i: The input number to process
+#     Args:
+#         num_iterations: Number of parallel iterations to run (default: 200)
+#     """
+#     # run the function locally
+#     print("Local result:", f.local(1000))
 
-    Returns:
-        The square of the input number
-    """
-    if i % 2 == 0:
-        print("hello", i)
-    else:
-        print("world", i, file=sys.stderr)
+#     # run the function remotely on Modal
+#     print("Remote result:", f.remote(1000))
 
-    return i * i
+#     # run the function in parallel and remotely on Modal
+#     total = 0
+#     for ret in f.map(range(num_iterations)):
+#         total += ret
 
-
-@app.local_entrypoint()
-def main(num_iterations: int = 200):
-    """Run the function in different modes and aggregate results.
-
-    Args:
-        num_iterations: Number of parallel iterations to run (default: 200)
-    """
-    # run the function locally
-    print("Local result:", f.local(1000))
-
-    # run the function remotely on Modal
-    print("Remote result:", f.remote(1000))
-
-    # run the function in parallel and remotely on Modal
-    total = 0
-    for ret in f.map(range(num_iterations)):
-        total += ret
-
-    print(f"Total from {num_iterations} parallel executions:", total)
+#     print(f"Total from {num_iterations} parallel executions:", total)
 
 
 @app.function(volumes=volumes,
+              timeout=600,  # 10 mins
               secrets=[
                   modal.Secret.from_name("github-secret"),
                   modal.Secret.from_name("vercel-secret"),
@@ -89,7 +72,8 @@ def update_code(data: dict) -> str:
     db = Database()
     # Create a job to track this update
     job_id = db.create_job(data.get("projectId"))
-    db.add_log(job_id, "backend", f"Starting code update for repo: {data.get('repoPath')}")
+    db.add_log(job_id, "backend", f"Starting code update for repo: {
+               data.get('repoPath')}")
 
     if not data.get("repoPath"):
         return "Please provide a repoPath in the request body"
@@ -114,10 +98,10 @@ def update_code(data: dict) -> str:
             repo.remotes.origin.pull()
 
         fnames = [f"{repo.working_tree_dir}/{fname}"
-            for fname in [
-                "src/components/Frame.tsx", 
-                "src/lib/constants.ts"
-            ]
+                  for fname in [
+            "src/components/Frame.tsx",
+            "src/lib/constants.ts"
+        ]
         ]
         io = InputOutput(yes=True, root=repo.working_tree_dir)
         model = Model(
@@ -138,7 +122,8 @@ def update_code(data: dict) -> str:
         result = coder.run(prompt)
         # Commit changes if any were made
         if repo.is_dirty():
-            db.add_log(job_id, "github", "Changes detected, committing and pushing")
+            db.add_log(job_id, "github",
+                       "Changes detected, committing and pushing")
             repo.git.add(A=True)
             repo.git.commit(m=f"Applied changes via aider: {data['prompt']}")
             repo.git.push()
@@ -149,7 +134,7 @@ def update_code(data: dict) -> str:
         else:
             db.add_log(job_id, "github", "No changes to commit")
             db.update_job_status(job_id, "completed")
-            
+
         return f"Successfully ran prompt for repo {repo_name}"
     except Exception as e:
         error_msg = f"Error processing repository: {str(e)}"
@@ -157,13 +142,15 @@ def update_code(data: dict) -> str:
         db.update_job_status(job_id, "failed", str(e))
         return error_msg
 
+
 @app.function(volumes=volumes,
-                secrets=[
-                    modal.Secret.from_name("github-secret"),
-                    modal.Secret.from_name("vercel-secret"),
-                    modal.Secret.from_name("llm-api-keys"),
-                    modal.Secret.from_name("supabase-secret")
-                ])
+              timeout=3600,  # 1 hour
+              secrets=[
+                  modal.Secret.from_name("github-secret"),
+                  modal.Secret.from_name("vercel-secret"),
+                  modal.Secret.from_name("llm-api-keys"),
+                  modal.Secret.from_name("supabase-secret")
+              ])
 @modal.web_endpoint(label="create-frame-project", method="POST", docs=True)
 def create_frame_project(data: dict) -> dict:
     """Create a new frame project with GitHub repo and Vercel deployment."""
@@ -214,11 +201,11 @@ def create_frame_project(data: dict) -> dict:
             description=description,
             private=False
         )
-        
+
         # Copy template contents
         template_org = gh.get_organization("hellno")
         template_repo = template_org.get_repo("farcaster-frames-template")
-        
+
         contents = template_repo.get_contents("")
         while contents:
             file_content = contents.pop(0)
@@ -226,7 +213,8 @@ def create_frame_project(data: dict) -> dict:
                 contents.extend(template_repo.get_contents(file_content.path))
             else:
                 try:
-                    template_content = template_repo.get_contents(file_content.path).decoded_content
+                    template_content = template_repo.get_contents(
+                        file_content.path).decoded_content
                     repo.create_file(
                         file_content.path,
                         f"Copy template file {file_content.path}",
@@ -234,7 +222,7 @@ def create_frame_project(data: dict) -> dict:
                     )
                 except Exception as e:
                     print(f"Error copying {file_content.path}: {str(e)}")
-        
+
         return repo
 
     def create_vercel_deployment(sanitized_name: str, repo: object) -> tuple:
@@ -243,7 +231,7 @@ def create_frame_project(data: dict) -> dict:
             "Authorization": f"Bearer {os.environ['VERCEL_TOKEN']}",
             "Content-Type": "application/json"
         }
-        
+
         project_data = {
             "name": sanitized_name,
             "framework": "nextjs",
@@ -265,7 +253,7 @@ def create_frame_project(data: dict) -> dict:
                     "type": "secret"
                 },
                 {
-                    "key": "KV_REST_API_TOKEN", 
+                    "key": "KV_REST_API_TOKEN",
                     "value": os.environ["KV_REST_API_TOKEN"],
                     "target": ["production"],
                     "type": "secret"
@@ -274,13 +262,15 @@ def create_frame_project(data: dict) -> dict:
         }
 
         vercel_project = requests.post(
-            f"https://api.vercel.com/v9/projects?teamId={os.environ['VERCEL_TEAM_ID']}",
+            f"https://api.vercel.com/v9/projects?teamId={
+                os.environ['VERCEL_TEAM_ID']}",
             headers=vercel_headers,
             json=project_data
         ).json()
 
         deployment = requests.post(
-            f"https://api.vercel.com/v13/deployments?teamId={os.environ['VERCEL_TEAM_ID']}",
+            f"https://api.vercel.com/v13/deployments?teamId={
+                os.environ['VERCEL_TEAM_ID']}",
             headers=vercel_headers,
             json={
                 "name": sanitized_name,
@@ -298,17 +288,18 @@ def create_frame_project(data: dict) -> dict:
     db = Database()
     try:
         validate_input(data)
-        
+
         # Initialize project record
         project_id = db.create_project(
             fid_owner=int(data["fid"]),
             repo_url="",
             frontend_url=""
         )
-        
+
         # Create job to track progress
         job_id = db.create_job(project_id)
-        db.add_log(job_id, "backend", f"Starting project creation with prompt: {data['prompt']}")
+        db.add_log(job_id, "backend",
+                   f"Starting project creation with prompt: {data['prompt']}")
 
         # Initialize clients
         gh = Github(os.environ["GITHUB_TOKEN"])
@@ -320,29 +311,30 @@ def create_frame_project(data: dict) -> dict:
         # Generate and sanitize project name
         project_name = generate_project_name(data["prompt"], deepseek)
         sanitized_name = sanitize_project_name(project_name)
-        
+
         # Setup GitHub repository
-        db.add_log(job_id, "github", f"Creating GitHub repository: {sanitized_name}")
+        db.add_log(job_id, "github",
+                   f"Creating GitHub repository: {sanitized_name}")
         repo = setup_github_repo(gh, sanitized_name, data["description"])
         db.add_log(job_id, "github", f"Created GitHub repo: {repo.html_url}")
 
         # Create Vercel deployment
         db.add_log(job_id, "vercel", "Creating Vercel project")
         deployment = create_vercel_deployment(sanitized_name, repo)
-        
+
         # Update project with final URLs
         frontend_url = f"https://{deployment['url']}"
         db.client.table('projects').update({
             'repo_url': repo.html_url,
             'frontend_url': frontend_url
         }).eq('id', project_id).execute()
-        
+
         db.add_log(job_id, "vercel", f"Deployment created at: {frontend_url}")
 
         try:
             # Extract repo path from repo.full_name
             repo_path = repo.full_name  # Format: "frameception-v2/repo-name"
-            
+
             # Trigger initial code update
             trigger_initial_code_update(
                 project_id=project_id,
@@ -351,9 +343,10 @@ def create_frame_project(data: dict) -> dict:
                 db=db,
                 job_id=job_id
             )
-            
+
             # Setup domain association using the Vercel URL
-            domain = deployment['url'].split('://')[1]  # Remove https:// prefix
+            domain = deployment['url'].split(
+                '://')[1]  # Remove https:// prefix
             setup_domain_association(
                 project_id=project_id,
                 repo_path=repo_path,
@@ -361,9 +354,10 @@ def create_frame_project(data: dict) -> dict:
                 db=db,
                 job_id=job_id
             )
-            
-            db.add_log(job_id, "backend", "All setup steps completed successfully")
-            
+
+            db.add_log(job_id, "backend",
+                       "All setup steps completed successfully")
+
         except Exception as e:
             error_msg = f"Error during post-deployment setup: {str(e)}"
             db.add_log(job_id, "backend", error_msg)
@@ -386,30 +380,33 @@ def create_frame_project(data: dict) -> dict:
             db.update_job_status(job_id, "failed", str(e))
         return {"error": error_msg}, 500
 
+
 @app.function(secrets=[modal.Secret.from_name("farcaster-secret")])
 def trigger_initial_code_update(project_id: str, repo_path: str, prompt: str, db: Database, job_id: str) -> None:
     """Trigger initial code update with user's prompt"""
     db.add_log(job_id, "backend", "Triggering initial code update")
-    
+
     update_response = update_code.remote({
         "projectId": project_id,
         "repoPath": repo_path,
         "prompt": prompt
     })
-    
-    db.add_log(job_id, "backend", f"Initial code update completed: {update_response}")
+
+    db.add_log(job_id, "backend",
+               f"Initial code update completed: {update_response}")
+
 
 def setup_domain_association(project_id: str, repo_path: str, domain: str, db: Database, job_id: str) -> None:
     """Generate and insert domain association into the project"""
     db.add_log(job_id, "backend", "Setting up domain association")
-    
+
     # Generate domain association
     domain_assoc = generate_domain_association.remote(domain)
-    
+
     # Create prompt to update farcaster.json route
     update_prompt = f"""
     Update the file src/app/.well-known/farcaster.json/route.ts to return the following domain association:
-    
+
     ```typescript
     import {{ NextResponse }} from "next/server";
 
@@ -422,25 +419,27 @@ def setup_domain_association(project_id: str, repo_path: str, domain: str, db: D
     }}
     ```
     """
-    
+
     # Trigger code update with domain association
     update_response = update_code.remote({
         "projectId": project_id,
         "repoPath": repo_path,
         "prompt": update_prompt
     })
-    
-    db.add_log(job_id, "backend", f"Domain association setup completed: {update_response}")
+
+    db.add_log(job_id, "backend",
+               f"Domain association setup completed: {update_response}")
+
 
 def generate_domain_association(domain: str) -> dict:
     """Generate a domain association signature for Farcaster frames.
-    
+
     Args:
         domain: The domain to generate association for (without http/https)
-        
+
     Returns:
         Dict containing compact and JSON formats of the signed domain association
-        
+
     Raises:
         ValueError: If domain is invalid or starts with http/https
     """
@@ -454,8 +453,9 @@ def generate_domain_association(domain: str) -> dict:
     try:
         # Validate domain format
         if domain.lower().startswith(('http://', 'https://')):
-            raise ValueError("Domain should not include http:// or https:// prefix")
-            
+            raise ValueError(
+                "Domain should not include http:// or https:// prefix")
+
         # Basic domain format validation
         domain_pattern = r'^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
         if not re.match(domain_pattern, domain):
@@ -476,7 +476,7 @@ def generate_domain_association(domain: str) -> dict:
             "type": "custody",
             "key": custody_address
         }
-        
+
         payload = {
             "domain": domain
         }
@@ -493,15 +493,16 @@ def generate_domain_association(domain: str) -> dict:
 
         # Create message to sign
         message = f"{encoded_header}.{encoded_payload}"
-        
+
         # Create signable message using encode_defunct
         signable_message = encode_defunct(text=message)
-        
+
         # Sign message using ethereum account
         signed_message = Account.sign_message(signable_message, private_key)
-        
+
         # Get the signature bytes and encode to base64url
-        encoded_signature = base64.urlsafe_b64encode(signed_message.signature).decode('utf-8').rstrip('=')
+        encoded_signature = base64.urlsafe_b64encode(
+            signed_message.signature).decode('utf-8').rstrip('=')
 
         # Create response formats
         compact_jfs = f"{encoded_header}.{encoded_payload}.{encoded_signature}"
