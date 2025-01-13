@@ -65,7 +65,7 @@ export default function Frameception(
   const [repoPath, setRepoPath] = useState<string | null>(null);
   const [vercelUrl, setVercelUrl] = useState<string | null>(null);
   const [creationError, setCreationError] = useState<string | null>(null);
-  const [logs, setLogs] = useState<string[]>([]);
+  const [logs, setLogs] = useState<{ text: string }[]>([]);
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
     null
@@ -363,7 +363,8 @@ export default function Frameception(
         return (
           <div className="my-20">
             <h2 className="font-5xl font-bold mb-2">
-              Hey {context?.user.username}, bookmark this to start building your frame
+              Hey {context?.user.username}, bookmark this to start building your
+              frame
             </h2>
             <h3 className="font-2xl mb-4 text-gray-600">
               We will notify in Warpcast when your frame is ready to use!
@@ -407,13 +408,16 @@ export default function Frameception(
                       {projects.map((project) => (
                         <ProjectOverviewCard
                           key={project.projectId}
-                          projectId={project.projectId}
-                          name={project.repoUrl.split("frameception-v2/")[1]}
-                          repoUrl={project.repoUrl}
-                          frontendUrl={project.vercelUrl}
-                          createdAt={project.createdAt}
-                          selected={selectedProjectId === project.projectId}
-                          onClick={() => setSelectedProjectId(project.projectId)}
+                          projectId={project.id}
+                          name={
+                            project?.repo_url?.split("frameception-v2/")[1] ||
+                            project.id?.split("-")[0]
+                          }
+                          repoUrl={project.repo_url}
+                          frontendUrl={project.frontend_url}
+                          createdAt={project.created_at}
+                          selected={selectedProjectId === project.id}
+                          onClick={() => setSelectedProjectId(project.id)}
                         />
                       ))}
                     </div>
@@ -428,7 +432,6 @@ export default function Frameception(
             </div>
           </div>
         );
-
       case "pending":
         return (
           <div className="my-20 flex flex-col items-center gap-4">
@@ -436,7 +439,9 @@ export default function Frameception(
             <p className="text-center">Creating your frame...</p>
             <div className="w-full max-h-48 overflow-y-auto bg-gray-50 rounded-lg p-4">
               <pre className="text-sm text-gray-600 whitespace-pre-wrap">
-                {logs.length ? logs.join("\n") : "Waiting for logs..."}
+                {logs.length
+                  ? logs.map((l) => l.text).join("\n")
+                  : "Waiting for logs..."}
               </pre>
             </div>
           </div>
