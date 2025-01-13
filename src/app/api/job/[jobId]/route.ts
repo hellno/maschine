@@ -12,7 +12,7 @@ export async function GET(
   { params }: { params: { jobId: string } }
 ) {
   try {
-    const { jobId } = params;
+    const { jobId } = await params;
     
     if (!jobId) {
       return NextResponse.json({ error: 'Job ID is required' }, { status: 400 });

@@ -14,7 +14,7 @@ export function LogViewer({ logs, isLoading = false }: LogViewerProps) {
         <div className="text-center text-gray-600">Loading logs...</div>
       ) : (
         <pre className="text-sm text-gray-600 whitespace-pre-wrap">
-          {logs.length ? logs.map((l) => l.text).join("\n") : "Waiting for logs..."}
+          {logs.length ? [...logs].reverse().map((l) => l.text).join("\n") : "Waiting for logs..."}
         </pre>
       )}
     </div>

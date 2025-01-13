@@ -53,81 +53,9 @@ def sanitize_project_name(name: str) -> str:
     return sanitized or 'new-frame-project'
 
 
-def generate_project_name(prompt: str, deepseek: OpenAI) -> str:
-    """Generate project name using Deepseek AI"""
-    name_response = deepseek.chat.completions.create(
-        model="deepseek-chat",
-        messages=[
-            {"role": "system", "content": "Generate a concise, aspirational project name. Only respond with the name."},
-            {"role": "user", "content": f"Generate a short project name based on: {prompt}"}
-        ],
-        temperature=2,
-        max_tokens=25
-    )
-    return name_response.choices[0].message.content.strip()
-
-
-def setup_github_repo(gh: Github, sanitized_name: str, description: str) -> object:
-    """Create and setup GitHub repository"""
-    org = gh.get_organization(GITHUB_ORG_NAME)
-    repo = org.create_repo(
-        name=sanitized_name,
-        description=description,
-        private=False
-    )
-    return repo
-
-
-def create_vercel_deployment(sanitized_name: str, repo: object) -> dict:
-    """Create Vercel project and trigger deployment"""
-    vercel_headers = {
-        "Authorization": f"Bearer {os.environ['VERCEL_TOKEN']}",
-        "Content-Type": "application/json"
-    }
-
-    # Create project
-    project_data = {
-        "name": sanitized_name,
-        "framework": "nextjs",
-        "gitRepository": {
-            "type": "github",
-            "repo": repo.full_name
-        },
-        "installCommand": "yarn install",
-        "buildCommand": "yarn build",
-        "outputDirectory": ".next"
-    }
-
-    vercel_project = requests.post(
-        f"https://api.vercel.com/v9/projects?teamId={
-            os.environ['VERCEL_TEAM_ID']}",
-        headers=vercel_headers,
-        json=project_data
-    ).json()
-
-    if "error" in vercel_project:
-        raise Exception(f"Failed to create Vercel project: {
-                        vercel_project['error']}")
-
-    # Create deployment
-    deployment = requests.post(
-        f"https://api.vercel.com/v13/deployments?teamId={
-            os.environ['VERCEL_TEAM_ID']}",
-        headers=vercel_headers,
-        json={
-            "name": sanitized_name,
-            "gitSource": {
-                "type": "github",
-                "repoId": str(repo.id),
-                "ref": "main"
-            }
-        }
-    ).json()
-
-    if "error" in deployment:
-        raise Exception(f"Failed to create deployment: {deployment['error']}")
-
-    return deployment
+def generate_random_secret() -> str:
+    """Generate a random secret for NextAuth"""
+    return base64.b64encode(os.urandom(32)).decode('utf-8')
 
 
 def verify_github_setup(gh: Github, job_id: str, db: Database) -> None:
@@ -137,8 +65,7 @@ def verify_github_setup(gh: Github, job_id: str, db: Database) -> None:
     try:
         # Check authentication
         user = gh.get_user()
-        db.add_log(job_id, "github",
-                   f"Authenticated as GitHub user: {user.login}")
+        print(f"Authenticated as GitHub user: {user.login}")
 
         # Check organization access
         org = gh.get_organization(GITHUB_ORG_NAME)
@@ -277,23 +204,165 @@ def create_frame_project_webhook(data: dict) -> dict:
     import base64
     import time
 
+    # Main execution flow
+    db = Database()
+
+    try:
+        # Basic validation
+        required_fields = ["prompt", "description", "fid", "username"]
+        for field in required_fields:
+            if field not in data:
+                return {"error": f"Missing required field: {field}"}, 400
+
+        # Create initial project record
+        project_id = db.create_project(
+            fid_owner=int(data["fid"]),
+            repo_url="",
+            frontend_url=""
+        )
+
+        # Create job to track progress
+        job_id = db.create_job(project_id, job_type="setup_project")
+        db.add_log(job_id, "backend", "Project creation initiated")
+
+        # Trigger background job
+        setup_frame_project.spawn(data, project_id, job_id)
+
+        # Return immediately with project and job IDs
+        return {
+            "status": "pending",
+            "projectId": project_id,
+            "jobId": job_id,
+            "message": "Project creation started"
+        }
+
+    except Exception as e:
+        error_msg = f"Error initiating project creation: {str(e)}"
+        return {"error": error_msg}, 500
+
+
+@app.function(
+    secrets=[
+        modal.Secret.from_name("farcaster-secret")
+    ]
+)
+def generate_domain_association(domain: str) -> dict:
+    """Generate a domain association signature for Farcaster frames.
+
+    Args:
+        domain: The domain to generate association for (without http/https)
+
+    Returns:
+        Dict containing compact and JSON formats of the signed domain association
+
+    Raises:
+        ValueError: If domain is invalid or starts with http/https
+    """
+    import os
+    from eth_account import Account
+    from eth_account.messages import encode_defunct
+    import json
+    import base64
+    import re
+
+    try:
+        # Validate domain format
+        if domain.lower().startswith(('http://', 'https://')):
+            raise ValueError(
+                "Domain should not include http:// or https:// prefix")
+
+        # Basic domain format validation
+        domain_pattern = r'^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
+        if not re.match(domain_pattern, domain):
+            raise ValueError("Invalid domain format")
+
+        # Get environment variables
+        fid = int(os.environ.get("FID", 0))
+        custody_address = os.environ.get("CUSTODY_ADDRESS", "")
+        private_key = os.environ.get("PRIVATE_KEY", "")
+
+        # Validate configuration
+        if not all([fid, custody_address, private_key]):
+            raise ValueError("Server configuration incomplete")
+
+        # Create header and payload
+        header = {
+            "fid": fid,
+            "type": "custody",
+            "key": custody_address
+        }
+
+        payload = {
+            "domain": domain
+        }
+
+        # Encode components to base64url
+        def to_base64url(data: dict) -> str:
+            json_str = json.dumps(data)
+            bytes_data = json_str.encode('utf-8')
+            base64_str = base64.urlsafe_b64encode(bytes_data).decode('utf-8')
+            return base64_str.rstrip('=')  # Remove padding
+
+        encoded_header = to_base64url(header)
+        encoded_payload = to_base64url(payload)
+
+        # Create message to sign
+        message = f"{encoded_header}.{encoded_payload}"
+
+        # Create signable message using encode_defunct
+        signable_message = encode_defunct(text=message)
+
+        # Sign message using ethereum account
+        signed_message = Account.sign_message(signable_message, private_key)
+
+        # Get the signature bytes and encode to base64url
+        encoded_signature = base64.urlsafe_b64encode(
+            signed_message.signature).decode('utf-8').rstrip('=')
+
+        # Create response formats
+        compact_jfs = f"{encoded_header}.{encoded_payload}.{encoded_signature}"
+        json_jfs = {
+            "header": encoded_header,
+            "payload": encoded_payload,
+            "signature": encoded_signature
+        }
+
+        return {
+            "compact": compact_jfs,
+            "json": json_jfs
+        }
+
+    except Exception as e:
+        raise Exception(f"Failed to generate domain association: {str(e)}")
+
+
+@app.function(
+    volumes=volumes,
+    timeout=3600,  # 1 hour
+    secrets=[
+        modal.Secret.from_name("github-secret"),
+        modal.Secret.from_name("vercel-secret"),
+        modal.Secret.from_name("llm-api-keys"),
+        modal.Secret.from_name("supabase-secret"),
+        modal.Secret.from_name("upstash-secret"),
+        modal.Secret.from_name("farcaster-secret")
+    ]
+)
+def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
+    """Background job that handles the full project setup"""
+    import os
+    from github import Github
+    import requests
+    from openai import OpenAI
+    import uuid
+    import base64
+    import time
+
     def validate_input(data: dict) -> None:
         required_fields = ["prompt", "description", "fid", "username"]
         for field in required_fields:
             if field not in data:
                 raise ValueError(f"Missing required field: {field}")
-
-    def generate_random_secret() -> str:
-        """Generate a random secret for NextAuth"""
-        return base64.b64encode(os.urandom(32)).decode('utf-8')
-
-    def sanitize_project_name(name: str) -> str:
-        """Sanitize project name for Vercel compatibility"""
-        import re
-        sanitized = re.sub(r'[^a-z0-9._-]', '-', name.lower())
-        sanitized = re.sub(r'-+', '-', sanitized)
-        sanitized = sanitized[:100].strip('-')
-        return sanitized or 'new-frame-project'
 
     def generate_project_name(prompt: str, deepseek: OpenAI) -> str:
         """Generate project name using Deepseek AI"""
@@ -475,152 +544,6 @@ def create_frame_project_webhook(data: dict) -> dict:
 
         return deployment
 
-    # Main execution flow
-    db = Database()
-
-    try:
-        # Basic validation
-        required_fields = ["prompt", "description", "fid", "username"]
-        for field in required_fields:
-            if field not in data:
-                return {"error": f"Missing required field: {field}"}, 400
-
-        # Create initial project record
-        project_id = db.create_project(
-            fid_owner=int(data["fid"]),
-            repo_url="",
-            frontend_url=""
-        )
-
-        # Create job to track progress
-        job_id = db.create_job(project_id, job_type="setup_project")
-        db.add_log(job_id, "backend", "Project creation initiated")
-
-        # Trigger background job
-        setup_frame_project.spawn(data, project_id, job_id)
-
-        # Return immediately with project and job IDs
-        return {
-            "status": "pending",
-            "projectId": project_id,
-            "jobId": job_id,
-            "message": "Project creation started"
-        }
-
-    except Exception as e:
-        error_msg = f"Error initiating project creation: {str(e)}"
-        return {"error": error_msg}, 500
-
-
-@app.function(
-    secrets=[
-        modal.Secret.from_name("farcaster-secret")
-    ]
-)
-def generate_domain_association(domain: str) -> dict:
-    """Generate a domain association signature for Farcaster frames.
-
-    Args:
-        domain: The domain to generate association for (without http/https)
-
-    Returns:
-        Dict containing compact and JSON formats of the signed domain association
-
-    Raises:
-        ValueError: If domain is invalid or starts with http/https
-    """
-    import os
-    from eth_account import Account
-    from eth_account.messages import encode_defunct
-    import json
-    import base64
-    import re
-
-    try:
-        # Validate domain format
-        if domain.lower().startswith(('http://', 'https://')):
-            raise ValueError(
-                "Domain should not include http:// or https:// prefix")
-
-        # Basic domain format validation
-        domain_pattern = r'^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
-        if not re.match(domain_pattern, domain):
-            raise ValueError("Invalid domain format")
-
-        # Get environment variables
-        fid = int(os.environ.get("FID", 0))
-        custody_address = os.environ.get("CUSTODY_ADDRESS", "")
-        private_key = os.environ.get("PRIVATE_KEY", "")
-
-        # Validate configuration
-        if not all([fid, custody_address, private_key]):
-            raise ValueError("Server configuration incomplete")
-
-        # Create header and payload
-        header = {
-            "fid": fid,
-            "type": "custody",
-            "key": custody_address
-        }
-
-        payload = {
-            "domain": domain
-        }
-
-        # Encode components to base64url
-        def to_base64url(data: dict) -> str:
-            json_str = json.dumps(data)
-            bytes_data = json_str.encode('utf-8')
-            base64_str = base64.urlsafe_b64encode(bytes_data).decode('utf-8')
-            return base64_str.rstrip('=')  # Remove padding
-
-        encoded_header = to_base64url(header)
-        encoded_payload = to_base64url(payload)
-
-        # Create message to sign
-        message = f"{encoded_header}.{encoded_payload}"
-
-        # Create signable message using encode_defunct
-        signable_message = encode_defunct(text=message)
-
-        # Sign message using ethereum account
-        signed_message = Account.sign_message(signable_message, private_key)
-
-        # Get the signature bytes and encode to base64url
-        encoded_signature = base64.urlsafe_b64encode(
-            signed_message.signature).decode('utf-8').rstrip('=')
-
-        # Create response formats
-        compact_jfs = f"{encoded_header}.{encoded_payload}.{encoded_signature}"
-        json_jfs = {
-            "header": encoded_header,
-            "payload": encoded_payload,
-            "signature": encoded_signature
-        }
-
-        return {
-            "compact": compact_jfs,
-            "json": json_jfs
-        }
-
-    except Exception as e:
-        raise Exception(f"Failed to generate domain association: {str(e)}")
-
-
-@app.function(
-    volumes=volumes,
-    timeout=3600,  # 1 hour
-    secrets=[
-        modal.Secret.from_name("github-secret"),
-        modal.Secret.from_name("vercel-secret"),
-        modal.Secret.from_name("llm-api-keys"),
-        modal.Secret.from_name("supabase-secret"),
-        modal.Secret.from_name("upstash-secret"),
-        modal.Secret.from_name("farcaster-secret")
-    ]
-)
-def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
-    """Background job that handles the full project setup"""
     db = Database()
 
     try:

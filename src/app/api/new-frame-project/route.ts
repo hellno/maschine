@@ -3,7 +3,7 @@ import { NextResponse, NextRequest } from "next/server";
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const CREATE_NEW_PROJECT_ENDPOINT = 'https://herocast--create-frame-project.modal.run';
+const CREATE_NEW_PROJECT_ENDPOINT = 'https://herocast--create-frame-project-webhook.modal.run';
 
 
 export async function POST(req: NextRequest) {
