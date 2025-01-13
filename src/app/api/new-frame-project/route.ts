@@ -10,12 +10,12 @@ export async function POST(req: NextRequest) {
   try {
     // Get request body
     const body = await req.json();
-    const { prompt, description, fid } = body;
+    const { prompt, description, fid, username } = body;
 
     // Validate required fields
-    if (!prompt || !description || !fid) {
+    if (!prompt || !description || !fid || !username) {
       return NextResponse.json(
-        { error: "Project name, description, and FID are required" },
+        { error: "Project name, description, FID and username are required" },
         { status: 400 }
       );
     }
@@ -29,7 +29,8 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         prompt,
         description,
-        fid
+        fid,
+        username
       })
     });
 
