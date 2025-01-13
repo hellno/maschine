@@ -4,6 +4,7 @@ from typing import Optional, List
 import uuid
 from datetime import datetime
 
+# AI! add print messages to all DB write functions to see if they are working
 class Database:
     def __init__(self):
         url = os.environ["SUPABASE_URL"]
