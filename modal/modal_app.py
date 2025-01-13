@@ -25,7 +25,8 @@ image = modal.Image.debian_slim(python_version="3.12") \
         "PyGithub",
         "requests",
         "openai",
-        "supabase"
+        "supabase",
+        "eth-account"
     ).run_commands("aider-install")
 app = modal.App(name="frameception", image=image)
 
@@ -351,3 +352,80 @@ def create_frame_project(data: dict) -> dict:
             db.add_log(job_id, "backend", error_msg)
             db.update_job_status(job_id, "failed", str(e))
         return {"error": error_msg}, 500
+
+@app.function(secrets=[modal.Secret.from_name("farcaster-secret")])
+def generate_domain_association(domain: str) -> dict:
+    """Generate a domain association signature for Farcaster frames.
+    
+    Args:
+        domain: The domain to generate association for
+        
+    Returns:
+        Dict containing compact and JSON formats of the signed domain association
+    """
+    import os
+    from eth_account import Account
+    import json
+    import base64
+
+    try:
+        # Get environment variables
+        fid = int(os.environ.get("FID", 0))
+        custody_address = os.environ.get("CUSTODY_ADDRESS", "")
+        private_key = os.environ.get("PRIVATE_KEY", "")
+
+        # Validate inputs and configuration
+        if not domain:
+            raise ValueError("Domain is required")
+
+        if not all([fid, custody_address, private_key]):
+            raise ValueError("Server configuration incomplete")
+
+        # Create header and payload
+        header = {
+            "fid": fid,
+            "type": "custody",
+            "key": custody_address
+        }
+        
+        payload = {
+            "domain": domain
+        }
+
+        # Encode components to base64url
+        def to_base64url(data: dict) -> str:
+            json_str = json.dumps(data)
+            bytes_data = json_str.encode('utf-8')
+            base64_str = base64.urlsafe_b64encode(bytes_data).decode('utf-8')
+            return base64_str.rstrip('=')  # Remove padding
+
+        encoded_header = to_base64url(header)
+        encoded_payload = to_base64url(payload)
+
+        # Create message to sign
+        message = f"{encoded_header}.{encoded_payload}"
+
+        # Sign message using ethereum account
+        account = Account.from_key(private_key)
+        signature_bytes = Account.sign_message(
+            Account,
+            message.encode('utf-8'),
+            private_key
+        ).signature
+        encoded_signature = base64.urlsafe_b64encode(signature_bytes).decode('utf-8').rstrip('=')
+
+        # Create response formats
+        compact_jfs = f"{encoded_header}.{encoded_payload}.{encoded_signature}"
+        json_jfs = {
+            "header": encoded_header,
+            "payload": encoded_payload,
+            "signature": encoded_signature
+        }
+
+        return {
+            "compact": compact_jfs,
+            "json": json_jfs
+        }
+
+    except Exception as e:
+        raise Exception(f"Failed to generate domain association: {str(e)}")
