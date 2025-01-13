@@ -146,19 +146,13 @@ def update_code(data: dict) -> str:
 
 
 @app.function(
-    volumes=volumes,
-    timeout=3600,  # 1 hour
     secrets=[
-        modal.Secret.from_name("github-secret"),
-        modal.Secret.from_name("vercel-secret"),
-        modal.Secret.from_name("llm-api-keys"),
-        modal.Secret.from_name("supabase-secret"),
-        modal.Secret.from_name("upstash-secret")
+        modal.Secret.from_name("supabase-secret")
     ]
 )
-@modal.web_endpoint(label="create-frame-project", method="POST", docs=True)
-def create_frame_project(data: dict) -> dict:
-    """Create a new frame project with GitHub repo and Vercel deployment."""
+@app.web_endpoint(label="create-frame-project-webhook", method="POST", docs=True)
+def create_frame_project_webhook(data: dict) -> dict:
+    """Quick webhook endpoint that creates project record and triggers background job"""
     import os
     from github import Github
     import requests
@@ -379,10 +373,15 @@ def create_frame_project(data: dict) -> dict:
 
     # Main execution flow
     db = Database()
+    
     try:
-        validate_input(data)
+        # Basic validation
+        required_fields = ["prompt", "description", "fid", "username"]
+        for field in required_fields:
+            if field not in data:
+                return {"error": f"Missing required field: {field}"}, 400
 
-        # Initialize project record
+        # Create initial project record
         project_id = db.create_project(
             fid_owner=int(data["fid"]),
             repo_url="",
@@ -391,9 +390,39 @@ def create_frame_project(data: dict) -> dict:
 
         # Create job to track progress
         job_id = db.create_job(project_id, job_type="setup_project")
-        db.add_log(job_id, "backend",
-                   f"Starting project creation with prompt: {data['prompt']}")
+        db.add_log(job_id, "backend", "Project creation initiated")
 
+        # Trigger background job
+        setup_frame_project.spawn(data, project_id, job_id)
+
+        # Return immediately with project and job IDs
+        return {
+            "status": "pending",
+            "projectId": project_id,
+            "jobId": job_id,
+            "message": "Project creation started"
+        }
+
+    except Exception as e:
+        error_msg = f"Error initiating project creation: {str(e)}"
+        return {"error": error_msg}, 500
+
+@app.function(
+    volumes=volumes,
+    timeout=3600,  # 1 hour
+    secrets=[
+        modal.Secret.from_name("github-secret"),
+        modal.Secret.from_name("vercel-secret"),
+        modal.Secret.from_name("llm-api-keys"),
+        modal.Secret.from_name("supabase-secret"),
+        modal.Secret.from_name("upstash-secret")
+    ]
+)
+def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
+    """Background job that handles the full project setup"""
+    db = Database()
+    
+    try:
         # Initialize and verify GitHub client
         try:
             gh = Github(os.environ["GITHUB_TOKEN"])
@@ -402,7 +431,7 @@ def create_frame_project(data: dict) -> dict:
             error_msg = f"GitHub setup failed: {str(e)}"
             db.add_log(job_id, "backend", error_msg)
             db.update_job_status(job_id, "failed", error_msg)
-            return {"error": error_msg}, 500
+            return
 
         # Initialize OpenAI client
         deepseek = OpenAI(
@@ -416,16 +445,14 @@ def create_frame_project(data: dict) -> dict:
         sanitized_name = f'{username}-{sanitize_project_name(project_name)}'
 
         # Setup GitHub repository
-        db.add_log(job_id, "github",
-                   f"Creating GitHub repository: {sanitized_name}")
+        db.add_log(job_id, "github", f"Creating GitHub repository: {sanitized_name}")
         repo = setup_github_repo(gh, sanitized_name, data["description"])
         db.add_log(job_id, "github", f"Created GitHub repo: {repo.html_url}")
 
         # Create Vercel deployment
         db.add_log(job_id, "vercel", "Creating Vercel project")
         deployment = create_vercel_deployment(sanitized_name, repo)
-        db.add_log(job_id, "vercel",
-                   f"Created Vercel deployment: {deployment}")
+        db.add_log(job_id, "vercel", f"Created Vercel deployment: {deployment}")
 
         # Update project with final URLs
         frontend_url = f"https://{deployment['url']}"
@@ -450,8 +477,7 @@ def create_frame_project(data: dict) -> dict:
             )
 
             # Setup domain association using the Vercel URL
-            domain = deployment['url'].split(
-                '://')[1]  # Remove https:// prefix
+            domain = deployment['url'].split('://')[1]  # Remove https:// prefix
             setup_domain_association(
                 project_id=project_id,
                 repo_path=repo_path,
@@ -460,30 +486,18 @@ def create_frame_project(data: dict) -> dict:
                 job_id=job_id
             )
 
-            db.add_log(job_id, "backend",
-                       "All setup steps completed successfully")
+            db.add_log(job_id, "backend", "All setup steps completed successfully")
+            db.update_job_status(job_id, "completed")
 
         except Exception as e:
             error_msg = f"Error during post-deployment setup: {str(e)}"
             db.add_log(job_id, "backend", error_msg)
             db.update_job_status(job_id, "failed", str(e))
-            return {"error": error_msg}, 500
-
-        db.update_job_status(job_id, "completed")
-        return {
-            "status": "success",
-            "projectId": project_id,
-            "repoUrl": repo.html_url,
-            "vercelUrl": frontend_url,
-            "projectName": sanitized_name
-        }
 
     except Exception as e:
         error_msg = f"Error creating project: {str(e)}"
-        if 'job_id' in locals():
-            db.add_log(job_id, "backend", error_msg)
-            db.update_job_status(job_id, "failed", str(e))
-        return {"error": error_msg}, 500
+        db.add_log(job_id, "backend", error_msg)
+        db.update_job_status(job_id, "failed", str(e))
 
 
 @app.function(secrets=[modal.Secret.from_name("farcaster-secret")])
