@@ -34,3 +34,13 @@
 
 
 
+## Dev
+### Install frontend
+yarn install
+
+### Run frontend locally
+yarn dev
+
+### Deploy backend
+modal deploy modal/modal_app.py
+

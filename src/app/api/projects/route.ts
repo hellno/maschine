@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { getUserProjects } from "~/lib/kv";
 
 export async function GET(request: Request) {
   try {
@@ -10,6 +9,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "FID is required" }, { status: 400 });
     }
 
+    // AI! Fetch projects for the user via supabase
     const projects = await getUserProjects(Number(fid));
     return NextResponse.json({ projects });
   } catch (error) {

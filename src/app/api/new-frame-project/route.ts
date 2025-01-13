@@ -3,9 +3,8 @@ import { NextResponse, NextRequest } from "next/server";
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-if (!process.env.BACKEND_ENDPOINT) {
-  throw new Error('BACKEND_ENDPOINT environment variable is not set');
-}
+const CREATE_NEW_PROJECT_ENDPOINT = 'https://herocast--create-frame-project.modal.run';
+
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,7 +21,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Forward request to Modal backend
-    const response = await fetch(process.env.BACKEND_ENDPOINT + '/create_frame_project', {
+    const response = await fetch(CREATE_NEW_PROJECT_ENDPOINT, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
