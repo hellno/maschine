@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-const LLM_MANIPULATION_ENDPOINT = 'https://herocast--update-code.modal.run';
+const UPDATE_CODE_ENDPOINT = 'https://herocast--update-code.modal.run';
 
 export async function POST(request: Request) {
   try {
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     console.log('received request:', { repoPath, prompt, userContext });
     const promptWithFullContext = `Customize the template for the repository at ${repoPath}\n\nUser Context: ${JSON.stringify(userContext)}}.\n\n${prompt}`
     console.log('Full prompt sending to endpoint:', promptWithFullContext)
-    const llmResponse = await fetch(LLM_MANIPULATION_ENDPOINT, {
+    const llmResponse = await fetch(UPDATE_CODE_ENDPOINT, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
