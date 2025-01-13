@@ -34,9 +34,9 @@ import { Button } from "~/components/ui/Button";
 import { truncateAddress } from "~/lib/truncateAddress";
 import { base } from "wagmi/chains";
 
-type FlowState = 
+type FlowState =
   | "waitForFrameToBePinned"
-  | "enteringPrompt" 
+  | "enteringPrompt"
   | "pending"
   | "success";
 
@@ -53,7 +53,9 @@ export default function Frameception(
     useState<FrameNotificationDetails | null>(null);
 
   const [lastEvent, setLastEvent] = useState("");
-  const [flowState, setFlowState] = useState<FlowState>("waitForFrameToBePinned");
+  const [flowState, setFlowState] = useState<FlowState>(
+    "waitForFrameToBePinned"
+  );
 
   const [addFrameResult, setAddFrameResult] = useState("");
   const [sendNotificationResult, setSendNotificationResult] = useState("");
@@ -67,49 +69,36 @@ export default function Frameception(
     null
   );
 
-  /**
-   * 1) Single handleCustomizingTemplate definition
-   */
+  const pollJobStatus = useCallback(async (jobId: string) => {
+    try {
+      console.log("Polling job status:", jobId);
+      const response = await fetch(`/api/job/${jobId}`);
+      const data = await response.json();
 
-  /**
-   * 2) pollJobStatus references handleCustomizingTemplate
-   */
-  const pollJobStatus = useCallback(
-    async (jobId: string) => {
-      try {
-        console.log("Polling job status:", jobId);
-        const response = await fetch(`/api/job/${jobId}`);
-        const data = await response.json();
-
-        if (data.error) {
-          setCreationError(data.error);
-          return;
-        }
-
-        setLogs(data.logs || []);
-        console.log("job data", data);
-
-        if (data.status === "completed") {
-          setFlowState("success");
-        } else if (data.status === "failed") {
-          setCreationError(data.error || "Job failed");
-          setFlowState("enteringPrompt");
-        } else if (data.status === "in-progress" || data.status === "pending") {
-          setTimeout(() => pollJobStatus(jobId), 2000);
-        }
-      } catch (error) {
-        setCreationError(
-          error instanceof Error ? error.message : "Polling error"
-        );
-        setFlowState("enteringPrompt");
+      if (data.error) {
+        setCreationError(data.error);
+        return;
       }
-    },
-    []
-  );
 
-  /**
-   * 3) handleCreateProject to create the first job
-   */
+      setLogs(data.logs || []);
+      console.log("job data", data);
+
+      if (data.status === "completed") {
+        setFlowState("success");
+      } else if (data.status === "failed") {
+        setCreationError(data.error || "Job failed");
+        setFlowState("enteringPrompt");
+      } else if (data.status === "in-progress" || data.status === "pending") {
+        setTimeout(() => pollJobStatus(jobId), 2000);
+      }
+    } catch (error) {
+      setCreationError(
+        error instanceof Error ? error.message : "Polling error"
+      );
+      setFlowState("enteringPrompt");
+    }
+  }, []);
+
   const handleCreateProject = useCallback(async () => {
     try {
       setFlowState("pending");
@@ -370,9 +359,7 @@ export default function Frameception(
     return <div>Loading...</div>;
   }
 
-  /**
-   * Main UI flow
-   */
+  // AI! fix this renderMainContent function to include the new flow states
   const renderMainContent = () => {
     switch (flowState) {
       case "initial":
