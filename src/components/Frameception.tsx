@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useCallback, useState, useMemo } from "react";
+import { ProjectOverviewCard } from "./ProjectOverviewCard";
 import { signIn, signOut, getCsrfToken } from "next-auth/react";
 import {
   Card,
@@ -402,51 +403,16 @@ export default function Frameception(
                   <h3 className="text-lg font-semibold mb-2">Past Projects</h3>
                   <div className="grid grid-cols-1 gap-4">
                     {projects.map((project) => (
-                      <Card
+                      <ProjectOverviewCard
                         key={project.projectId}
-                        className={`transition-colors ${
-                          selectedProjectId === project.projectId
-                            ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-                            : "hover:border-gray-400"
-                        }`}
+                        projectId={project.projectId}
+                        name={project.repoUrl.split("frameception-v2/")[1]}
+                        repoUrl={project.repoUrl}
+                        frontendUrl={project.vercelUrl}
+                        createdAt={project.createdAt}
+                        selected={selectedProjectId === project.projectId}
                         onClick={() => setSelectedProjectId(project.projectId)}
-                      >
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-base">
-                            {project.repoUrl.split("frameception-v2/")[1]}
-                          </CardTitle>
-                          <CardDescription className="text-xs">
-                            Created{" "}
-                            {new Date(project.createdAt).toLocaleDateString()}
-                          </CardDescription>
-                        </CardHeader>
-                        <CardFooter className="pt-2">
-                          <div className="flex gap-3 text-sm">
-                            {project.repoUrl && (
-                              <a
-                                href={project.repoUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-500 hover:text-blue-700 hover:underline"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                GitHub
-                              </a>
-                            )}
-                            {project.vercelUrl && (
-                              <a
-                                href={project.vercelUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-500 hover:text-blue-700 hover:underline"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                Live Demo
-                              </a>
-                            )}
-                          </div>
-                        </CardFooter>
-                      </Card>
+                      />
                     ))}
                   </div>
                 </div>
