@@ -466,6 +466,8 @@ def create_frame_project(data: dict) -> dict:
         return {"error": error_msg}, 500
 
 
+from .db import Database
+
 @app.function(secrets=[modal.Secret.from_name("farcaster-secret")])
 def trigger_initial_code_update(project_id: str, repo_path: str, prompt: str, db: Database, job_id: str) -> None:
     """Trigger initial code update with user's prompt"""
