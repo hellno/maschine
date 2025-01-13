@@ -9,7 +9,7 @@ interface LogViewerProps {
 
 export function LogViewer({ logs, isLoading = false }: LogViewerProps) {
   return (
-    <div className="w-full max-h-48 overflow-y-auto bg-gray-50 rounded-lg p-4">
+    <div className="relative w-full h-56 bg-gray-50 rounded-lg p-4">
       {isLoading ? (
         <div className="text-center text-gray-600">Loading logs...</div>
       ) : (
@@ -17,6 +17,7 @@ export function LogViewer({ logs, isLoading = false }: LogViewerProps) {
           {logs.length ? [...logs].reverse().map((l) => l.text).join("\n") : "Waiting for logs..."}
         </pre>
       )}
+      <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-gray-50 to-transparent pointer-events-none" />
     </div>
   );
 }
