@@ -96,6 +96,12 @@ def verify_github_setup(gh: Github, job_id: str, db: Database) -> None:
 
 #     print(f"Total from {num_iterations} parallel executions:", total)
 
+@app.function()
+@modal.web_endpoint(label="update-code", method="POST", docs=True)
+def update_code_webhook(data: dict) -> str:
+    update_code.remote(data)
+    return "Code update initiated"
+
 
 @app.function(volumes=volumes,
               timeout=600,  # 10 mins
@@ -106,7 +112,6 @@ def verify_github_setup(gh: Github, job_id: str, db: Database) -> None:
                   modal.Secret.from_name("supabase-secret")
               ]
               )
-@modal.web_endpoint(label="update-code", method="POST", docs=True)
 def update_code(data: dict) -> str:
     import git
     from aider.coders import Coder
@@ -137,6 +142,8 @@ def update_code(data: dict) -> str:
         # Clone or pull the repo
         try:
             repo = git.Repo.clone_from(repo_url, repo_dir)
+            repo.config_writer().set_value("user", "name", "hellno").release()
+            repo.config_writer().set_value("user", "email", "686075+hellno@users.noreply.github.com.").release()
         except git.exc.GitCommandError:
             # If repo exists, pull latest changes
             repo = git.Repo(repo_dir)
@@ -493,7 +500,7 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
             {
                 "key": "NEXTAUTH_SECRET",
                 "value": generate_random_secret(),
-                "type": "secret",
+                "type": "encrypted",
                 "target": ["production", "preview", "development"]
             },
             {
@@ -577,9 +584,6 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
         # Create Vercel deployment
         db.add_log(job_id, "vercel", "Creating Vercel project")
         deployment = create_vercel_deployment(sanitized_name, repo)
-        db.add_log(job_id, "vercel",
-                   f"Created Vercel deployment: {deployment}")
-
         # Update project with final URLs
         frontend_url = f"https://{deployment['url']}"
         db.client.table('projects').update({
@@ -603,6 +607,7 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
             db.add_log(job_id, "backend", f"Initial code update completed: {
                        code_update_response}")
 
+            print("Starting post-deployment setup with deployment data", deployment)
             # Generate domain association
             domain = deployment['url'].split(
                 '://')[1]  # Remove https:// prefix
