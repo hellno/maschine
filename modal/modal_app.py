@@ -73,7 +73,7 @@ def update_code(data: dict) -> str:
 
     db = Database()
     # Create a job to track this update
-    job_id = db.create_job(data.get("projectId"))
+    job_id = db.create_job(data.get("projectId"), job_type="update_code")
     db.add_log(job_id, "backend", f"Starting code update for repo: {
                data.get('repoPath')}")
 
@@ -372,7 +372,7 @@ def create_frame_project(data: dict) -> dict:
         )
 
         # Create job to track progress
-        job_id = db.create_job(project_id)
+        job_id = db.create_job(project_id, job_type="setup_project")
         db.add_log(job_id, "backend",
                    f"Starting project creation with prompt: {data['prompt']}")
 
@@ -473,7 +473,8 @@ def trigger_initial_code_update(project_id: str, repo_path: str, prompt: str, db
     update_response = update_code.remote({
         "projectId": project_id,
         "repoPath": repo_path,
-        "prompt": prompt
+        "prompt": prompt,
+        "job_type": "update_code"
     })
 
     db.add_log(job_id, "backend",

@@ -22,13 +22,14 @@ class Database:
         }).execute()
         return project_id
 
-    def create_job(self, project_id: str, status: str = 'pending') -> str:
+    def create_job(self, project_id: str, job_type: str, status: str = 'pending') -> str:
         """Create a new job record"""
         job_id = str(uuid.uuid4())
         self.client.table('jobs').insert({
             'id': job_id,
             'created_at': datetime.utcnow().isoformat(),
             'project_id': project_id,
+            'type': job_type,
             'status': status,
             'data': {}
         }).execute()
