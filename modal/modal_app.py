@@ -338,8 +338,39 @@ def create_frame_project(data: dict) -> dict:
         }).eq('id', project_id).execute()
         
         db.add_log(job_id, "vercel", f"Deployment created at: {frontend_url}")
-        db.update_job_status(job_id, "completed")
 
+        try:
+            # Extract repo path from repo.full_name
+            repo_path = repo.full_name  # Format: "frameception-v2/repo-name"
+            
+            # Trigger initial code update
+            trigger_initial_code_update(
+                project_id=project_id,
+                repo_path=repo_path,
+                prompt=data["prompt"],
+                db=db,
+                job_id=job_id
+            )
+            
+            # Setup domain association using the Vercel URL
+            domain = deployment['url'].split('://')[1]  # Remove https:// prefix
+            setup_domain_association(
+                project_id=project_id,
+                repo_path=repo_path,
+                domain=domain,
+                db=db,
+                job_id=job_id
+            )
+            
+            db.add_log(job_id, "backend", "All setup steps completed successfully")
+            
+        except Exception as e:
+            error_msg = f"Error during post-deployment setup: {str(e)}"
+            db.add_log(job_id, "backend", error_msg)
+            db.update_job_status(job_id, "failed", str(e))
+            return {"error": error_msg}, 500
+
+        db.update_job_status(job_id, "completed")
         return {
             "status": "success",
             "projectId": project_id,
@@ -356,6 +387,51 @@ def create_frame_project(data: dict) -> dict:
         return {"error": error_msg}, 500
 
 @app.function(secrets=[modal.Secret.from_name("farcaster-secret")])
+def trigger_initial_code_update(project_id: str, repo_path: str, prompt: str, db: Database, job_id: str) -> None:
+    """Trigger initial code update with user's prompt"""
+    db.add_log(job_id, "backend", "Triggering initial code update")
+    
+    update_response = update_code.remote({
+        "projectId": project_id,
+        "repoPath": repo_path,
+        "prompt": prompt
+    })
+    
+    db.add_log(job_id, "backend", f"Initial code update completed: {update_response}")
+
+def setup_domain_association(project_id: str, repo_path: str, domain: str, db: Database, job_id: str) -> None:
+    """Generate and insert domain association into the project"""
+    db.add_log(job_id, "backend", "Setting up domain association")
+    
+    # Generate domain association
+    domain_assoc = generate_domain_association.remote(domain)
+    
+    # Create prompt to update farcaster.json route
+    update_prompt = f"""
+    Update the file src/app/.well-known/farcaster.json/route.ts to return the following domain association:
+    
+    ```typescript
+    import {{ NextResponse }} from "next/server";
+
+    export async function GET() {{
+        return NextResponse.json({{
+            headers: {domain_assoc['json']['header']},
+            payload: {domain_assoc['json']['payload']},
+            signature: {domain_assoc['json']['signature']}
+        }});
+    }}
+    ```
+    """
+    
+    # Trigger code update with domain association
+    update_response = update_code.remote({
+        "projectId": project_id,
+        "repoPath": repo_path,
+        "prompt": update_prompt
+    })
+    
+    db.add_log(job_id, "backend", f"Domain association setup completed: {update_response}")
+
 def generate_domain_association(domain: str) -> dict:
     """Generate a domain association signature for Farcaster frames.
     
