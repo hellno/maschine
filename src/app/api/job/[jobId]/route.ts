@@ -21,6 +21,8 @@ export async function GET(
 
     console.log('Getting job:', jobId);
   
+    // AI! simplify this code by using one supabase client function instead of two in a promise all 
+  
     // Get job info and logs concurrently
     const [{ data: job, error: jobError }, { data: logs, error: logsError }] = await Promise.all([
       // Get job details
