@@ -4,6 +4,7 @@ import os
 
 import modal
 from .db import Database
+from .db import Database
 
 env_vars = {
     "PATH": "/root/.local/bin:/usr/local/bin:/usr/bin:/bin"
@@ -72,7 +73,8 @@ def main(num_iterations: int = 200):
               secrets=[
                   modal.Secret.from_name("github-secret"),
                   modal.Secret.from_name("vercel-secret"),
-                  modal.Secret.from_name("llm-api-keys")
+                  modal.Secret.from_name("llm-api-keys"),
+                  modal.Secret.from_name("supabase-secret")
               ]
               )
 @modal.web_endpoint(label="update-code", method="POST", docs=True)
@@ -82,6 +84,11 @@ def update_code(data: dict) -> str:
     from aider.models import Model
     from aider.io import InputOutput
     import os
+
+    db = Database()
+    # Create a job to track this update
+    job_id = db.create_job(data.get("projectId"))
+    db.add_log(job_id, "backend", f"Starting code update for repo: {data.get('repoPath')}")
 
     if not data.get("repoPath"):
         return "Please provide a repoPath in the request body"
@@ -130,26 +137,31 @@ def update_code(data: dict) -> str:
         result = coder.run(prompt)
         # Commit changes if any were made
         if repo.is_dirty():
-            print(f"Repo is dirty, committing changes")
+            db.add_log(job_id, "github", "Changes detected, committing and pushing")
             repo.git.add(A=True)
             repo.git.commit(m=f"Applied changes via aider: {data['prompt']}")
             repo.git.push()
 
             # Persist changes to volume
             volumes["github-repos"].commit()
+            db.update_job_status(job_id, "completed")
         else:
-            print("No changes to commit")
+            db.add_log(job_id, "github", "No changes to commit")
+            db.update_job_status(job_id, "completed")
+            
         return f"Successfully ran prompt for repo {repo_name}"
     except Exception as e:
-        print(f"Error processing repository: {str(e)}")
-        print(f'error: {e}')
-        return f"Error processing repository: {str(e)} {e}"
+        error_msg = f"Error processing repository: {str(e)}"
+        db.add_log(job_id, "backend", error_msg)
+        db.update_job_status(job_id, "failed", str(e))
+        return error_msg
 
 @app.function(volumes=volumes,
                 secrets=[
                     modal.Secret.from_name("github-secret"),
                     modal.Secret.from_name("vercel-secret"),
-                    modal.Secret.from_name("llm-api-keys")
+                    modal.Secret.from_name("llm-api-keys"),
+                    modal.Secret.from_name("supabase-secret")
                 ])
 @modal.web_endpoint(label="create-frame-project", method="POST", docs=True)
 def create_frame_project(data: dict) -> dict:
@@ -167,6 +179,8 @@ def create_frame_project(data: dict) -> dict:
     import uuid
     import base64
     import time
+
+    db = Database()
 
     # Validate input
     required_fields = ["prompt", "description", "fid"]
@@ -201,6 +215,17 @@ def create_frame_project(data: dict) -> dict:
         return sanitized or 'new-frame-project'
 
     try:
+        # Create project record first
+        project_id = db.create_project(
+            fid_owner=int(data["fid"]),
+            repo_url="",  # Will update later
+            frontend_url=""  # Will update later
+        )
+        
+        # Create job to track progress
+        job_id = db.create_job(project_id)
+        db.add_log(job_id, "backend", f"Starting project creation with prompt: {data['prompt']}")
+
         # Generate project name using Deepseek
         name_response = deepseek.chat.completions.create(
             model="deepseek-chat",
@@ -215,15 +240,17 @@ def create_frame_project(data: dict) -> dict:
         sanitized_name = sanitize_project_name(project_name)
     
         # Create GitHub repository
+        db.add_log(job_id, "github", f"Creating GitHub repository: {sanitized_name}")
         org = gh.get_organization("frameception-v2")
         repo = org.create_repo(
             name=sanitized_name,
             description=description,
             private=False
         )
-        print(f"Created GitHub repo: {repo.html_url}")
+        db.add_log(job_id, "github", f"Created GitHub repo: {repo.html_url}")
 
         # Copy template repository contents
+        db.add_log(job_id, "github", "Copying template repository contents")
         template_org = gh.get_organization("hellno")
         template_repo = template_org.get_repo("farcaster-frames-template")
     
@@ -245,6 +272,7 @@ def create_frame_project(data: dict) -> dict:
                     print(f"Error copying {file_content.path}: {str(e)}")
 
         # Create Vercel project
+        db.add_log(job_id, "vercel", "Creating Vercel project")
         vercel_headers = {
             "Authorization": f"Bearer {os.environ['VERCEL_TOKEN']}",
             "Content-Type": "application/json"
@@ -299,15 +327,27 @@ def create_frame_project(data: dict) -> dict:
             }
         ).json()
 
-        # Return success response
+        # Update project with final URLs
+        frontend_url = f"https://{deployment['url']}"
+        db.client.table('projects').update({
+            'repo_url': repo.html_url,
+            'frontend_url': frontend_url
+        }).eq('id', project_id).execute()
+        
+        db.add_log(job_id, "vercel", f"Deployment created at: {frontend_url}")
+        db.update_job_status(job_id, "completed")
+
         return {
             "status": "success",
-            "projectId": str(uuid.uuid4()),
+            "projectId": project_id,
             "repoUrl": repo.html_url,
-            "vercelUrl": f"https://{deployment['url']}",
+            "vercelUrl": frontend_url,
             "projectName": sanitized_name
         }
 
     except Exception as e:
-        print(f"Error creating project: {str(e)}")
-        return {"error": str(e)}, 500
+        error_msg = f"Error creating project: {str(e)}"
+        if 'job_id' in locals():
+            db.add_log(job_id, "backend", error_msg)
+            db.update_job_status(job_id, "failed", str(e))
+        return {"error": error_msg}, 500
