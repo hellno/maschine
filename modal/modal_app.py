@@ -384,81 +384,82 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
         )
         return name_response.choices[0].message.content.strip()
 
-    def setup_github_repo(gh: Github, sanitized_name: str, description: str) -> tuple:
-        """Create and setup GitHub repository"""
+    def setup_github_repo(gh: Github, sanitized_name: str, description: str) -> object:
+        """Create and setup GitHub repository with template contents"""
+        import tempfile
+        import shutil
+        import git
+        
+        db = Database()
+        
         try:
-            # Try to get the organization
-            try:
-                org = gh.get_organization(GITHUB_ORG_NAME)
-                db.add_log(job_id, "github", f"Successfully connected to organization: {
-                           GITHUB_ORG_NAME}")
-            except Exception as e:
-                raise Exception(f"Unable to access organization '{
-                                GITHUB_ORG_NAME}'. Error: {str(e)}")
-
-            # Check if repo already exists
+            # Get organization
+            org = gh.get_organization(GITHUB_ORG_NAME)
+            db.add_log(job_id, "github", f"Connected to organization: {GITHUB_ORG_NAME}")
+            
+            # Check if repo exists
             try:
                 existing_repo = org.get_repo(sanitized_name)
                 if existing_repo:
-                    raise Exception(f"Repository '{sanitized_name}' already exists in {
-                                    GITHUB_ORG_NAME}")
+                    raise Exception(f"Repository '{sanitized_name}' already exists")
             except Exception as e:
                 if "Not Found" not in str(e):
                     raise
 
-            # Create repo in the organization
-            try:
-                repo = org.create_repo(
-                    name=sanitized_name,
-                    description=description,
-                    private=False
-                )
-                db.add_log(job_id, "github",
-                           f"Created new repository: {repo.html_url}")
-            except Exception as e:
-                raise Exception(f"Failed to create repository: {str(e)}")
+            # Create new repo
+            repo = org.create_repo(
+                name=sanitized_name,
+                description=description,
+                private=False
+            )
+            db.add_log(job_id, "github", f"Created repository: {repo.html_url}")
 
-            # Copy template contents
-            try:
-                db.add_log(job_id, "github", "Copying template contents")
-                # Access the template from user's repository
-                template_repo = gh.get_repo("hellno/farcaster-frames-template")
-            except Exception as e:
-                raise Exception(
-                    f"Failed to access template repository: {str(e)}")
+            # Create temporary directory for local operations
+            with tempfile.TemporaryDirectory() as temp_dir:
+                try:
+                    # Clone template repository
+                    template_url = "https://github.com/hellno/farcaster-frames-template.git"
+                    template_path = os.path.join(temp_dir, "template")
+                    git.Repo.clone_from(template_url, template_path)
+                    db.add_log(job_id, "github", "Cloned template repository")
 
-            try:
-                contents = template_repo.get_contents("")
-                while contents:
-                    file_content = contents.pop(0)
-                    if file_content.type == "dir":
-                        contents.extend(
-                            template_repo.get_contents(file_content.path))
-                    else:
-                        try:
-                            template_content = template_repo.get_contents(
-                                file_content.path).decoded_content
-                            repo.create_file(
-                                file_content.path,
-                                f"Copy template file {file_content.path}",
-                                template_content
-                            )
-                        except Exception as e:
-                            db.add_log(job_id, "github", f"Warning: Failed to copy {
-                                       file_content.path}: {str(e)}")
-                            # Continue with other files even if one fails
-                            continue
+                    # Clone new repository
+                    new_repo_url = f"https://{os.environ['GITHUB_TOKEN']}@github.com/{repo.full_name}.git"
+                    new_repo_path = os.path.join(temp_dir, "new-repo")
+                    new_repo = git.Repo.clone_from(new_repo_url, new_repo_path)
+                    db.add_log(job_id, "github", "Cloned new repository")
 
-                db.add_log(job_id, "github",
-                           "Successfully copied template files")
-                return repo
+                    # Configure git user
+                    new_repo.config_writer().set_value("user", "name", "hellno").release()
+                    new_repo.config_writer().set_value("user", "email", "686075+hellno@users.noreply.github.com").release()
 
-            except Exception as e:
-                raise Exception(f"Failed to copy template contents: {str(e)}")
+                    # Copy template contents to new repo
+                    for item in os.listdir(template_path):
+                        if item != '.git':  # Skip .git directory
+                            src = os.path.join(template_path, item)
+                            dst = os.path.join(new_repo_path, item)
+                            if os.path.isdir(src):
+                                shutil.copytree(src, dst)
+                            else:
+                                shutil.copy2(src, dst)
+
+                    # Stage all files
+                    new_repo.git.add(A=True)
+                    
+                    # Commit all changes
+                    new_repo.index.commit("Initial bulk copy from template")
+                    
+                    # Push to GitHub
+                    new_repo.git.push('origin', 'main')
+                    
+                    db.add_log(job_id, "github", "Successfully copied template files")
+                    return repo
+
+                except Exception as e:
+                    raise Exception(f"Failed during repository setup: {str(e)}")
 
         except Exception as e:
-            db.add_log(job_id, "github",
-                       f"Error in setup_github_repo: {str(e)}")
+            db.add_log(job_id, "github", f"Error in setup_github_repo: {str(e)}")
             raise
 
     def create_vercel_deployment(sanitized_name: str, repo: object) -> tuple:
