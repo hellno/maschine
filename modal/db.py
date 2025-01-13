@@ -43,6 +43,7 @@ class Database:
 
     def add_log(self, job_id: str, source: str, text: str):
         """Add a log entry"""
+        print(f'[{source}] {text}')
         self.client.table('logs').insert({
             'id': str(uuid.uuid4()),
             'created_at': datetime.utcnow().isoformat(),

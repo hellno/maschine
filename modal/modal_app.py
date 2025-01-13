@@ -2,6 +2,7 @@ import modal
 import sys
 from pathlib import Path
 import os
+from db import Database
 
 # Organization constants
 GITHUB_ORG_NAME = "frameception-v2"
@@ -64,7 +65,6 @@ app = modal.App(name="frameception", image=image)
 )
 @modal.web_endpoint(label="update-code", method="POST", docs=True)
 def update_code(data: dict) -> str:
-    from .db import Database
     import git
     from aider.coders import Coder
     from aider.models import Model
@@ -159,7 +159,6 @@ def update_code(data: dict) -> str:
 def create_frame_project(data: dict) -> dict:
     """Create a new frame project with GitHub repo and Vercel deployment."""
     import os
-    from .db import Database
     from github import Github
     import requests
     from openai import OpenAI
@@ -465,8 +464,6 @@ def create_frame_project(data: dict) -> dict:
             db.update_job_status(job_id, "failed", str(e))
         return {"error": error_msg}, 500
 
-
-from .db import Database
 
 @app.function(secrets=[modal.Secret.from_name("farcaster-secret")])
 def trigger_initial_code_update(project_id: str, repo_path: str, prompt: str, db: Database, job_id: str) -> None:
