@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getJob, getJobLogs } from '~/lib/kv';
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_API_KEY!
+);
 
 export async function GET(
   request: Request,
@@ -7,7 +13,7 @@ export async function GET(
 ) {
   try {
     // Destructure jobId from params
-    const { jobId } = await params;
+    const { jobId } = params;
     
     if (!jobId) {
       return NextResponse.json({ error: 'Job ID is required' }, { status: 400 });
@@ -16,10 +22,31 @@ export async function GET(
     console.log('Getting job:', jobId);
   
     // Get job info and logs concurrently
-    const [job, logs] = await Promise.all([
-      getJob(jobId),
-      getJobLogs(jobId)
+    const [{ data: job, error: jobError }, { data: logs, error: logsError }] = await Promise.all([
+      // Get job details
+      supabase
+        .from('jobs')
+        .select('*')
+        .eq('id', jobId)
+        .single(),
+      
+      // Get job logs
+      supabase
+        .from('logs')
+        .select('*')
+        .eq('job_id', jobId)
+        .order('created_at', { ascending: true })
     ]);
+
+    if (jobError) {
+      console.error('Error fetching job:', jobError);
+      return NextResponse.json({ error: 'Error fetching job' }, { status: 500 });
+    }
+
+    if (logsError) {
+      console.error('Error fetching logs:', logsError);
+      return NextResponse.json({ error: 'Error fetching logs' }, { status: 500 });
+    }
 
     if (!job) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
@@ -27,13 +54,14 @@ export async function GET(
 
     return NextResponse.json({
       status: job.status,
-      logs,
-      error: job.error,
-      createdAt: job.createdAt,
-      updatedAt: job.updatedAt
+      logs: logs || [],
+      error: job.data?.error,
+      createdAt: job.created_at,
+      updatedAt: job.updated_at
     });
     
   } catch (error) {
+    console.error('Error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
