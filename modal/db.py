@@ -14,6 +14,7 @@ class Database:
     def create_project(self, fid_owner: int, repo_url: str, frontend_url: str) -> str:
         """Create a new project record"""
         project_id = str(uuid.uuid4())
+        print(f'Creating project: fid={fid_owner}, repo={repo_url}, frontend={frontend_url}')
         self.client.table('projects').insert({
             'id': project_id,
             'created_at': datetime.utcnow().isoformat(),
@@ -26,6 +27,7 @@ class Database:
     def create_job(self, project_id: str, job_type: str, status: str = 'pending') -> str:
         """Create a new job record"""
         job_id = str(uuid.uuid4())
+        print(f'Creating job: project={project_id}, type={job_type}, status={status}')
         self.client.table('jobs').insert({
             'id': job_id,
             'created_at': datetime.utcnow().isoformat(),
@@ -38,6 +40,7 @@ class Database:
 
     def update_job_status(self, job_id: str, status: str, error: Optional[str] = None):
         """Update job status"""
+        print(f'Updating job {job_id}: status={status}, error={error if error else "None"}')
         data = {'status': status}
         if error:
             data['data'] = {'error': error}
