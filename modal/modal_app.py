@@ -73,8 +73,8 @@ def main(num_iterations: int = 200):
                   modal.Secret.from_name("llm-api-keys")
               ]
               )
-@modal.web_endpoint(method="POST", docs=True)
-def update_repo_code(data: dict) -> str:
+@modal.web_endpoint(label="update-code", method="POST", docs=True)
+def update_code(data: dict) -> str:
     import git
     from aider.coders import Coder
     from aider.models import Model
@@ -143,169 +143,169 @@ def update_repo_code(data: dict) -> str:
         print(f'error: {e}')
         return f"Error processing repository: {str(e)} {e}"
 
-    @app.function(volumes=volumes,
-                  secrets=[
-                      modal.Secret.from_name("github-secret"),
-                      modal.Secret.from_name("vercel-secret"),
-                      modal.Secret.from_name("llm-api-keys")
-                  ])
-    @modal.web_endpoint(method="POST")
-    def create_frame_project(data: dict) -> dict:
-        """Create a new frame project with GitHub repo and Vercel deployment.
-    
-        Args:
-            data: Dict containing prompt, description and fid
-        Returns:
-            Dict with project status and details
-        """
-        import os
-        from github import Github
-        import requests
-        from openai import OpenAI
-        import uuid
-        import base64
-        import time
+@app.function(volumes=volumes,
+                secrets=[
+                    modal.Secret.from_name("github-secret"),
+                    modal.Secret.from_name("vercel-secret"),
+                    modal.Secret.from_name("llm-api-keys")
+                ])
+@modal.web_endpoint(label="create-frame-project", method="POST", docs=True)
+def create_frame_project(data: dict) -> dict:
+    """Create a new frame project with GitHub repo and Vercel deployment.
 
-        # Validate input
-        required_fields = ["prompt", "description", "fid"]
-        for field in required_fields:
-            if field not in data:
-                return {"error": f"Missing required field: {field}"}, 400
+    Args:
+        data: Dict containing prompt, description and fid
+    Returns:
+        Dict with project status and details
+    """
+    import os
+    from github import Github
+    import requests
+    from openai import OpenAI
+    import uuid
+    import base64
+    import time
 
-        prompt = data["prompt"]
-        description = data["description"]
-        fid = data["fid"]
+    # Validate input
+    required_fields = ["prompt", "description", "fid"]
+    for field in required_fields:
+        if field not in data:
+            return {"error": f"Missing required field: {field}"}, 400
 
-        # Initialize clients
-        gh = Github(os.environ["GITHUB_TOKEN"])
-        deepseek = OpenAI(
-            api_key=os.environ["DEEPSEEK_API_KEY"],
-            base_url="https://api.deepseek.com/v1"
+    prompt = data["prompt"]
+    description = data["description"]
+    fid = data["fid"]
+
+    # Initialize clients
+    gh = Github(os.environ["GITHUB_TOKEN"])
+    deepseek = OpenAI(
+        api_key=os.environ["DEEPSEEK_API_KEY"],
+        base_url="https://api.deepseek.com/v1"
+    )
+
+    def generate_random_secret():
+        """Generate a random secret for NextAuth"""
+        return base64.b64encode(os.urandom(32)).decode('utf-8')
+
+    def sanitize_project_name(name: str) -> str:
+        """Sanitize project name for Vercel compatibility"""
+        import re
+        # Convert to lowercase and replace invalid chars
+        sanitized = re.sub(r'[^a-z0-9._-]', '-', name.lower())
+        # Remove multiple hyphens
+        sanitized = re.sub(r'-+', '-', sanitized)
+        # Trim to 100 chars and remove leading/trailing hyphens
+        sanitized = sanitized[:100].strip('-')
+        return sanitized or 'new-frame-project'
+
+    try:
+        # Generate project name using Deepseek
+        name_response = deepseek.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": "Generate a concise, aspirational project name. Only respond with the name."},
+                {"role": "user", "content": f"Generate a short project name based on: {prompt}"}
+            ],
+            temperature=2,
+            max_tokens=25
         )
+        project_name = name_response.choices[0].message.content.strip()
+        sanitized_name = sanitize_project_name(project_name)
+    
+        # Create GitHub repository
+        org = gh.get_organization("frameception-v2")
+        repo = org.create_repo(
+            name=sanitized_name,
+            description=description,
+            private=False
+        )
+        print(f"Created GitHub repo: {repo.html_url}")
 
-        def generate_random_secret():
-            """Generate a random secret for NextAuth"""
-            return base64.b64encode(os.urandom(32)).decode('utf-8')
+        # Copy template repository contents
+        template_org = gh.get_organization("hellno")
+        template_repo = template_org.get_repo("farcaster-frames-template")
+    
+        # Get template contents and create in new repo
+        contents = template_repo.get_contents("")
+        while contents:
+            file_content = contents.pop(0)
+            if file_content.type == "dir":
+                contents.extend(template_repo.get_contents(file_content.path))
+            else:
+                try:
+                    template_content = template_repo.get_contents(file_content.path).decoded_content
+                    repo.create_file(
+                        file_content.path,
+                        f"Copy template file {file_content.path}",
+                        template_content
+                    )
+                except Exception as e:
+                    print(f"Error copying {file_content.path}: {str(e)}")
 
-        def sanitize_project_name(name: str) -> str:
-            """Sanitize project name for Vercel compatibility"""
-            import re
-            # Convert to lowercase and replace invalid chars
-            sanitized = re.sub(r'[^a-z0-9._-]', '-', name.lower())
-            # Remove multiple hyphens
-            sanitized = re.sub(r'-+', '-', sanitized)
-            # Trim to 100 chars and remove leading/trailing hyphens
-            sanitized = sanitized[:100].strip('-')
-            return sanitized or 'new-frame-project'
-
-        try:
-            # Generate project name using Deepseek
-            name_response = deepseek.chat.completions.create(
-                model="deepseek-chat",
-                messages=[
-                    {"role": "system", "content": "Generate a concise, aspirational project name. Only respond with the name."},
-                    {"role": "user", "content": f"Generate a short project name based on: {prompt}"}
-                ],
-                temperature=2,
-                max_tokens=25
-            )
-            project_name = name_response.choices[0].message.content.strip()
-            sanitized_name = sanitize_project_name(project_name)
-        
-            # Create GitHub repository
-            org = gh.get_organization("frameception-v2")
-            repo = org.create_repo(
-                name=sanitized_name,
-                description=description,
-                private=False
-            )
-            print(f"Created GitHub repo: {repo.html_url}")
-
-            # Copy template repository contents
-            template_org = gh.get_organization("hellno")
-            template_repo = template_org.get_repo("farcaster-frames-template")
-        
-            # Get template contents and create in new repo
-            contents = template_repo.get_contents("")
-            while contents:
-                file_content = contents.pop(0)
-                if file_content.type == "dir":
-                    contents.extend(template_repo.get_contents(file_content.path))
-                else:
-                    try:
-                        template_content = template_repo.get_contents(file_content.path).decoded_content
-                        repo.create_file(
-                            file_content.path,
-                            f"Copy template file {file_content.path}",
-                            template_content
-                        )
-                    except Exception as e:
-                        print(f"Error copying {file_content.path}: {str(e)}")
-
-            # Create Vercel project
-            vercel_headers = {
-                "Authorization": f"Bearer {os.environ['VERCEL_TOKEN']}",
-                "Content-Type": "application/json"
-            }
-        
-            project_data = {
-                "name": sanitized_name,
-                "framework": "nextjs",
-                "gitRepository": {
-                    "type": "github",
-                    "repo": repo.full_name
+        # Create Vercel project
+        vercel_headers = {
+            "Authorization": f"Bearer {os.environ['VERCEL_TOKEN']}",
+            "Content-Type": "application/json"
+        }
+    
+        project_data = {
+            "name": sanitized_name,
+            "framework": "nextjs",
+            "gitRepository": {
+                "type": "github",
+                "repo": repo.full_name
+            },
+            "environmentVariables": [
+                {
+                    "key": "NEXTAUTH_SECRET",
+                    "value": generate_random_secret(),
+                    "target": ["production"],
+                    "type": "secret"
                 },
-                "environmentVariables": [
-                    {
-                        "key": "NEXTAUTH_SECRET",
-                        "value": generate_random_secret(),
-                        "target": ["production"],
-                        "type": "secret"
-                    },
-                    {
-                        "key": "KV_REST_API_URL",
-                        "value": os.environ["KV_REST_API_URL"],
-                        "target": ["production"],
-                        "type": "secret"
-                    },
-                    {
-                        "key": "KV_REST_API_TOKEN", 
-                        "value": os.environ["KV_REST_API_TOKEN"],
-                        "target": ["production"],
-                        "type": "secret"
-                    }
-                ]
-            }
-
-            vercel_project = requests.post(
-                f"https://api.vercel.com/v9/projects?teamId={os.environ['VERCEL_TEAM_ID']}",
-                headers=vercel_headers,
-                json=project_data
-            ).json()
-
-            # Trigger deployment
-            deployment = requests.post(
-                f"https://api.vercel.com/v13/deployments?teamId={os.environ['VERCEL_TEAM_ID']}",
-                headers=vercel_headers,
-                json={
-                    "name": sanitized_name,
-                    "gitSource": {
-                        "type": "github",
-                        "repoId": str(repo.id),
-                        "ref": "main"
-                    }
+                {
+                    "key": "KV_REST_API_URL",
+                    "value": os.environ["KV_REST_API_URL"],
+                    "target": ["production"],
+                    "type": "secret"
+                },
+                {
+                    "key": "KV_REST_API_TOKEN", 
+                    "value": os.environ["KV_REST_API_TOKEN"],
+                    "target": ["production"],
+                    "type": "secret"
                 }
-            ).json()
+            ]
+        }
 
-            # Return success response
-            return {
-                "status": "success",
-                "projectId": str(uuid.uuid4()),
-                "repoUrl": repo.html_url,
-                "vercelUrl": f"https://{deployment['url']}",
-                "projectName": sanitized_name
+        vercel_project = requests.post(
+            f"https://api.vercel.com/v9/projects?teamId={os.environ['VERCEL_TEAM_ID']}",
+            headers=vercel_headers,
+            json=project_data
+        ).json()
+
+        # Trigger deployment
+        deployment = requests.post(
+            f"https://api.vercel.com/v13/deployments?teamId={os.environ['VERCEL_TEAM_ID']}",
+            headers=vercel_headers,
+            json={
+                "name": sanitized_name,
+                "gitSource": {
+                    "type": "github",
+                    "repoId": str(repo.id),
+                    "ref": "main"
+                }
             }
+        ).json()
 
-        except Exception as e:
-            print(f"Error creating project: {str(e)}")
-            return {"error": str(e)}, 500
+        # Return success response
+        return {
+            "status": "success",
+            "projectId": str(uuid.uuid4()),
+            "repoUrl": repo.html_url,
+            "vercelUrl": f"https://{deployment['url']}",
+            "projectName": sanitized_name
+        }
+
+    except Exception as e:
+        print(f"Error creating project: {str(e)}")
+        return {"error": str(e)}, 500
