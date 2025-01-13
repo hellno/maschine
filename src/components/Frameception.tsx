@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useCallback, useState, useMemo } from "react";
+import { LogViewer } from "./LogViewer";
 import { ProjectOverviewCard } from "./ProjectOverviewCard";
 import { ProjectDetailView } from "./ProjectDetailView";
 import { signIn, signOut, getCsrfToken } from "next-auth/react";
@@ -437,13 +438,7 @@ export default function Frameception(
           <div className="my-20 flex flex-col items-center gap-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
             <p className="text-center">Creating your frame...</p>
-            <div className="w-full max-h-48 overflow-y-auto bg-gray-50 rounded-lg p-4">
-              <pre className="text-sm text-gray-600 whitespace-pre-wrap">
-                {logs.length
-                  ? logs.map((l) => l.text).join("\n")
-                  : "Waiting for logs..."}
-              </pre>
-            </div>
+            <LogViewer logs={logs} />
           </div>
         );
 
