@@ -62,7 +62,7 @@ app = modal.App(name="frameception", image=image)
                   modal.Secret.from_name("llm-api-keys"),
                   modal.Secret.from_name("supabase-secret")
               ]
-)
+              )
 @modal.web_endpoint(label="update-code", method="POST", docs=True)
 def update_code(data: dict) -> str:
     import git
@@ -152,7 +152,8 @@ def update_code(data: dict) -> str:
         modal.Secret.from_name("github-secret"),
         modal.Secret.from_name("vercel-secret"),
         modal.Secret.from_name("llm-api-keys"),
-        modal.Secret.from_name("supabase-secret")
+        modal.Secret.from_name("supabase-secret"),
+        modal.Secret.from_name("upstash-secret")
     ]
 )
 @modal.web_endpoint(label="create-frame-project", method="POST", docs=True)
@@ -167,7 +168,7 @@ def create_frame_project(data: dict) -> dict:
     import time
 
     def validate_input(data: dict) -> None:
-        required_fields = ["prompt", "description", "fid"]
+        required_fields = ["prompt", "description", "fid", "username"]
         for field in required_fields:
             if field not in data:
                 raise ValueError(f"Missing required field: {field}")
@@ -186,16 +187,6 @@ def create_frame_project(data: dict) -> dict:
             org = gh.get_organization(GITHUB_ORG_NAME)
             db.add_log(job_id, "github", f"Successfully accessed organization: {
                        GITHUB_ORG_NAME}")
-
-            # Check if user has admin access to org
-            try:
-                membership = org.get_membership(user.login)
-                if membership.role not in ['admin', 'owner']:
-                    raise Exception(f"User {user.login} needs admin access to {
-                                    GITHUB_ORG_NAME}")
-            except Exception as e:
-                raise Exception(
-                    f"Failed to verify organization membership: {str(e)}")
 
         except Exception as e:
             raise Exception(f"GitHub setup verification failed: {str(e)}")
@@ -261,10 +252,12 @@ def create_frame_project(data: dict) -> dict:
 
             # Copy template contents
             try:
+                db.add_log(job_id, "github", "Copying template contents")
                 # Access the template from user's repository
                 template_repo = gh.get_repo("hellno/farcaster-frames-template")
             except Exception as e:
-                raise Exception(f"Failed to access template repository: {str(e)}")
+                raise Exception(
+                    f"Failed to access template repository: {str(e)}")
 
             try:
                 contents = template_repo.get_contents("")
@@ -314,24 +307,27 @@ def create_frame_project(data: dict) -> dict:
                 "type": "github",
                 "repo": repo.full_name
             },
+            "installCommand": "yarn install",
+            "buildCommand": "yarn build",
+            "outputDirectory": ".next",
             "environmentVariables": [
                 {
                     "key": "NEXTAUTH_SECRET",
                     "value": generate_random_secret(),
-                    "target": ["production"],
-                    "type": "secret"
+                    "target": "production",
+                    type: "sensitive",
                 },
                 {
                     "key": "KV_REST_API_URL",
                     "value": os.environ["KV_REST_API_URL"],
-                    "target": ["production"],
-                    "type": "secret"
+                    "target": "production",
+                    type: "sensitive",
                 },
                 {
                     "key": "KV_REST_API_TOKEN",
                     "value": os.environ["KV_REST_API_TOKEN"],
-                    "target": ["production"],
-                    "type": "secret"
+                    "target": "production",
+                    type: "sensitive",
                 }
             ]
         }
@@ -342,6 +338,12 @@ def create_frame_project(data: dict) -> dict:
             headers=vercel_headers,
             json=project_data
         ).json()
+
+        # drop secrets from logs
+        project_data.pop("environmentVariables")
+        print(f"Creating Vercel project: {project_data}")
+
+        print(f"Vercel project created: {vercel_project}")
 
         deployment = requests.post(
             f"https://api.vercel.com/v13/deployments?teamId={
@@ -394,7 +396,8 @@ def create_frame_project(data: dict) -> dict:
 
         # Generate and sanitize project name
         project_name = generate_project_name(data["prompt"], deepseek)
-        sanitized_name = sanitize_project_name(project_name)
+        username = data["username"]
+        sanitized_name = f'{username}-{sanitize_project_name(project_name)}'
 
         # Setup GitHub repository
         db.add_log(job_id, "github",
@@ -405,6 +408,8 @@ def create_frame_project(data: dict) -> dict:
         # Create Vercel deployment
         db.add_log(job_id, "vercel", "Creating Vercel project")
         deployment = create_vercel_deployment(sanitized_name, repo)
+        db.add_log(job_id, "vercel",
+                   f"Created Vercel deployment: {deployment}")
 
         # Update project with final URLs
         frontend_url = f"https://{deployment['url']}"
