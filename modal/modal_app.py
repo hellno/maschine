@@ -300,6 +300,7 @@ def create_frame_project(data: dict) -> dict:
             "Content-Type": "application/json"
         }
 
+        # First create the project
         project_data = {
             "name": sanitized_name,
             "framework": "nextjs",
@@ -309,45 +310,57 @@ def create_frame_project(data: dict) -> dict:
             },
             "installCommand": "yarn install",
             "buildCommand": "yarn build",
-            "outputDirectory": ".next",
-            "environmentVariables": [
-                {
-                    "key": "NEXTAUTH_SECRET",
-                    "value": generate_random_secret(),
-                    "target": "production",
-                    type: "sensitive",
-                },
-                {
-                    "key": "KV_REST_API_URL",
-                    "value": os.environ["KV_REST_API_URL"],
-                    "target": "production",
-                    type: "sensitive",
-                },
-                {
-                    "key": "KV_REST_API_TOKEN",
-                    "value": os.environ["KV_REST_API_TOKEN"],
-                    "target": "production",
-                    type: "sensitive",
-                }
-            ]
+            "outputDirectory": ".next"
         }
 
         vercel_project = requests.post(
-            f"https://api.vercel.com/v9/projects?teamId={
-                os.environ['VERCEL_TEAM_ID']}",
+            f"https://api.vercel.com/v9/projects?teamId={os.environ['VERCEL_TEAM_ID']}",
             headers=vercel_headers,
             json=project_data
         ).json()
 
-        # drop secrets from logs
-        project_data.pop("environmentVariables")
-        print(f"Creating Vercel project: {project_data}")
+        if "error" in vercel_project:
+            raise Exception(f"Failed to create Vercel project: {vercel_project['error']}")
 
+        print(f"Creating Vercel project: {project_data}")
         print(f"Vercel project created: {vercel_project}")
 
+        # Now add the environment variables
+        env_vars = [
+            {
+                "key": "NEXTAUTH_SECRET",
+                "value": generate_random_secret(),
+                "type": "secret",
+                "target": ["production", "preview", "development"]
+            },
+            {
+                "key": "KV_REST_API_URL",
+                "value": os.environ["KV_REST_API_URL"],
+                "type": "encrypted",
+                "target": ["production", "preview", "development"]
+            },
+            {
+                "key": "KV_REST_API_TOKEN",
+                "value": os.environ["KV_REST_API_TOKEN"],
+                "type": "encrypted",
+                "target": ["production", "preview", "development"]
+            }
+        ]
+
+        # Add each environment variable
+        for env_var in env_vars:
+            env_response = requests.post(
+                f"https://api.vercel.com/v9/projects/{sanitized_name}/env?teamId={os.environ['VERCEL_TEAM_ID']}",
+                headers=vercel_headers,
+                json=env_var
+            ).json()
+            
+            if "error" in env_response:
+                print(f"Warning: Failed to set env var {env_var['key']}: {env_response['error']}")
+
+        # Create deployment
         deployment = requests.post(
-            f"https://api.vercel.com/v13/deployments?teamId={
-                os.environ['VERCEL_TEAM_ID']}",
+            f"https://api.vercel.com/v13/deployments?teamId={os.environ['VERCEL_TEAM_ID']}",
             headers=vercel_headers,
             json={
                 "name": sanitized_name,
@@ -358,6 +371,9 @@ def create_frame_project(data: dict) -> dict:
                 }
             }
         ).json()
+
+        if "error" in deployment:
+            raise Exception(f"Failed to create deployment: {deployment['error']}")
 
         return deployment
 
