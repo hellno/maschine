@@ -355,19 +355,13 @@ export default function Frameception(
     setIsContextOpen((prev) => !prev);
   }, []);
 
-  if (!isSDKLoaded) {
-    return <div>Loading...</div>;
-  }
-
-  // AI! fix this renderMainContent function to include the new flow states
   const renderMainContent = () => {
     switch (flowState) {
-      case "initial":
+      case "waitForFrameToBePinned":
         return (
           <div className="my-20">
             <h2 className="font-5xl font-bold mb-2">
-              Hey {context?.user.username}, bookmark this to start building your
-              frame
+              Hey {context?.user.username}, bookmark this to start building your frame
             </h2>
             <h3 className="font-2xl mb-4 text-gray-600">
               We will notify in Warpcast when your frame is ready to use!
@@ -397,10 +391,7 @@ export default function Frameception(
                 className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <Button
-                onClick={async () => {
-                  setFlowState("creatingProject");
-                  await handleCreateProject();
-                }}
+                onClick={handleCreateProject}
                 disabled={!inputValue.trim()}
               >
                 Let&apos;s go
@@ -464,79 +455,16 @@ export default function Frameception(
           </div>
         );
 
-      case "creatingProject":
+      case "pending":
         return (
           <div className="my-20 flex flex-col items-center gap-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-            <p className="text-center">
-              going deep into the frameception for you...
-            </p>
+            <p className="text-center">Creating your frame...</p>
             <div className="w-full max-h-48 overflow-y-auto bg-gray-50 rounded-lg p-4">
               <pre className="text-sm text-gray-600 whitespace-pre-wrap">
                 {logs.length ? logs.join("\n") : "Waiting for logs..."}
               </pre>
             </div>
-            {/* Debug section */}
-            <div className="flex flex-col gap-2 w-full max-w-xs">
-              <Button
-                onClick={() => {
-                  const urlParams = new URLSearchParams(window.location.search);
-                  const jobId = urlParams.get("jobId");
-                  if (jobId) {
-                    console.log(
-                      "Manually restarting polling for jobId:",
-                      jobId
-                    );
-                    pollJobStatus(jobId);
-                  } else {
-                    console.error("No jobId found in URL parameters");
-                  }
-                }}
-                variant="outline"
-                size="sm"
-              >
-                Debug: Restart Polling
-              </Button>
-
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Enter Job ID manually"
-                  className="flex-1 px-3 py-1 text-sm border rounded-md"
-                  onChange={(e) => {
-                    const jobId = e.target.value.trim();
-                    if (jobId) {
-                      console.log("Manual jobId entered:", jobId);
-                      pollJobStatus(jobId);
-                    }
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        );
-
-      case "customizingTemplate":
-        return (
-          <div className="my-20 flex flex-col items-center gap-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-            <p className="text-center">
-              LLMs are carefully working on your frame...
-            </p>
-            <div className="w-full max-h-48 overflow-y-auto bg-gray-50 rounded-lg p-4">
-              <pre className="text-sm text-gray-600 whitespace-pre-wrap">
-                {logs.length ? logs.join("\n") : "Waiting for logs..."}
-              </pre>
-            </div>
-          </div>
-        );
-
-      case "deploying":
-        return (
-          <div className="my-20 flex flex-col items-center gap-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-            <p className="text-center">Deploying your frame...</p>
-            <p className="text-sm text-gray-600">Setting up Vercel project</p>
           </div>
         );
 
