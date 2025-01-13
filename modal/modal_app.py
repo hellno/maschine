@@ -368,6 +368,7 @@ def generate_domain_association(domain: str) -> dict:
     """
     import os
     from eth_account import Account
+    from eth_account.messages import encode_defunct
     import json
     import base64
     import re
@@ -414,15 +415,15 @@ def generate_domain_association(domain: str) -> dict:
 
         # Create message to sign
         message = f"{encoded_header}.{encoded_payload}"
-
+        
+        # Create signable message using encode_defunct
+        signable_message = encode_defunct(text=message)
+        
         # Sign message using ethereum account
-        account = Account.from_key(private_key)
-        signature_bytes = Account.sign_message(
-            Account,
-            message.encode('utf-8'),
-            private_key
-        ).signature
-        encoded_signature = base64.urlsafe_b64encode(signature_bytes).decode('utf-8').rstrip('=')
+        signed_message = Account.sign_message(signable_message, private_key)
+        
+        # Get the signature bytes and encode to base64url
+        encoded_signature = base64.urlsafe_b64encode(signed_message.signature).decode('utf-8').rstrip('=')
 
         # Create response formats
         compact_jfs = f"{encoded_header}.{encoded_payload}.{encoded_signature}"
