@@ -2,6 +2,7 @@
 
 import { useEffect, useCallback, useState, useMemo } from "react";
 import { ProjectOverviewCard } from "./ProjectOverviewCard";
+import { ProjectDetailView } from "./ProjectDetailView";
 import { signIn, signOut, getCsrfToken } from "next-auth/react";
 import {
   Card,
@@ -401,20 +402,27 @@ export default function Frameception(
               {projects.length > 0 && (
                 <div className="mt-6">
                   <h3 className="text-lg font-semibold mb-2">Past Projects</h3>
-                  <div className="grid grid-cols-1 gap-4">
-                    {projects.map((project) => (
-                      <ProjectOverviewCard
-                        key={project.projectId}
-                        projectId={project.projectId}
-                        name={project.repoUrl.split("frameception-v2/")[1]}
-                        repoUrl={project.repoUrl}
-                        frontendUrl={project.vercelUrl}
-                        createdAt={project.createdAt}
-                        selected={selectedProjectId === project.projectId}
-                        onClick={() => setSelectedProjectId(project.projectId)}
-                      />
-                    ))}
-                  </div>
+                  <>
+                    <div className="grid grid-cols-1 gap-4">
+                      {projects.map((project) => (
+                        <ProjectOverviewCard
+                          key={project.projectId}
+                          projectId={project.projectId}
+                          name={project.repoUrl.split("frameception-v2/")[1]}
+                          repoUrl={project.repoUrl}
+                          frontendUrl={project.vercelUrl}
+                          createdAt={project.createdAt}
+                          selected={selectedProjectId === project.projectId}
+                          onClick={() => setSelectedProjectId(project.projectId)}
+                        />
+                      ))}
+                    </div>
+                    {selectedProjectId && (
+                      <div className="mt-6">
+                        <ProjectDetailView projectId={selectedProjectId} />
+                      </div>
+                    )}
+                  </>
                 </div>
               )}
             </div>
