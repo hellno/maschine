@@ -166,13 +166,7 @@ def update_code(data: dict) -> str:
                 ])
 @modal.web_endpoint(label="create-frame-project", method="POST", docs=True)
 def create_frame_project(data: dict) -> dict:
-    """Create a new frame project with GitHub repo and Vercel deployment.
-
-    Args:
-        data: Dict containing prompt, description and fid
-    Returns:
-        Dict with project status and details
-    """
+    """Create a new frame project with GitHub repo and Vercel deployment."""
     import os
     from github import Github
     import requests
@@ -181,53 +175,26 @@ def create_frame_project(data: dict) -> dict:
     import base64
     import time
 
-    db = Database()
+    def validate_input(data: dict) -> None:
+        required_fields = ["prompt", "description", "fid"]
+        for field in required_fields:
+            if field not in data:
+                raise ValueError(f"Missing required field: {field}")
 
-    # Validate input
-    required_fields = ["prompt", "description", "fid"]
-    for field in required_fields:
-        if field not in data:
-            return {"error": f"Missing required field: {field}"}, 400
-
-    prompt = data["prompt"]
-    description = data["description"]
-    fid = data["fid"]
-
-    # Initialize clients
-    gh = Github(os.environ["GITHUB_TOKEN"])
-    deepseek = OpenAI(
-        api_key=os.environ["DEEPSEEK_API_KEY"],
-        base_url="https://api.deepseek.com/v1"
-    )
-
-    def generate_random_secret():
+    def generate_random_secret() -> str:
         """Generate a random secret for NextAuth"""
         return base64.b64encode(os.urandom(32)).decode('utf-8')
 
     def sanitize_project_name(name: str) -> str:
         """Sanitize project name for Vercel compatibility"""
         import re
-        # Convert to lowercase and replace invalid chars
         sanitized = re.sub(r'[^a-z0-9._-]', '-', name.lower())
-        # Remove multiple hyphens
         sanitized = re.sub(r'-+', '-', sanitized)
-        # Trim to 100 chars and remove leading/trailing hyphens
         sanitized = sanitized[:100].strip('-')
         return sanitized or 'new-frame-project'
 
-    try:
-        # Create project record first
-        project_id = db.create_project(
-            fid_owner=int(data["fid"]),
-            repo_url="",  # Will update later
-            frontend_url=""  # Will update later
-        )
-        
-        # Create job to track progress
-        job_id = db.create_job(project_id)
-        db.add_log(job_id, "backend", f"Starting project creation with prompt: {data['prompt']}")
-
-        # Generate project name using Deepseek
+    def generate_project_name(prompt: str, deepseek: OpenAI) -> str:
+        """Generate project name using Deepseek AI"""
         name_response = deepseek.chat.completions.create(
             model="deepseek-chat",
             messages=[
@@ -237,25 +204,21 @@ def create_frame_project(data: dict) -> dict:
             temperature=2,
             max_tokens=25
         )
-        project_name = name_response.choices[0].message.content.strip()
-        sanitized_name = sanitize_project_name(project_name)
-    
-        # Create GitHub repository
-        db.add_log(job_id, "github", f"Creating GitHub repository: {sanitized_name}")
+        return name_response.choices[0].message.content.strip()
+
+    def setup_github_repo(gh: Github, sanitized_name: str, description: str) -> tuple:
+        """Create and setup GitHub repository"""
         org = gh.get_organization("frameception-v2")
         repo = org.create_repo(
             name=sanitized_name,
             description=description,
             private=False
         )
-        db.add_log(job_id, "github", f"Created GitHub repo: {repo.html_url}")
-
-        # Copy template repository contents
-        db.add_log(job_id, "github", "Copying template repository contents")
+        
+        # Copy template contents
         template_org = gh.get_organization("hellno")
         template_repo = template_org.get_repo("farcaster-frames-template")
-    
-        # Get template contents and create in new repo
+        
         contents = template_repo.get_contents("")
         while contents:
             file_content = contents.pop(0)
@@ -271,14 +234,16 @@ def create_frame_project(data: dict) -> dict:
                     )
                 except Exception as e:
                     print(f"Error copying {file_content.path}: {str(e)}")
+        
+        return repo
 
-        # Create Vercel project
-        db.add_log(job_id, "vercel", "Creating Vercel project")
+    def create_vercel_deployment(sanitized_name: str, repo: object) -> tuple:
+        """Create Vercel project and trigger deployment"""
         vercel_headers = {
             "Authorization": f"Bearer {os.environ['VERCEL_TOKEN']}",
             "Content-Type": "application/json"
         }
-    
+        
         project_data = {
             "name": sanitized_name,
             "framework": "nextjs",
@@ -314,7 +279,6 @@ def create_frame_project(data: dict) -> dict:
             json=project_data
         ).json()
 
-        # Trigger deployment
         deployment = requests.post(
             f"https://api.vercel.com/v13/deployments?teamId={os.environ['VERCEL_TEAM_ID']}",
             headers=vercel_headers,
@@ -328,6 +292,44 @@ def create_frame_project(data: dict) -> dict:
             }
         ).json()
 
+        return deployment
+
+    # Main execution flow
+    db = Database()
+    try:
+        validate_input(data)
+        
+        # Initialize project record
+        project_id = db.create_project(
+            fid_owner=int(data["fid"]),
+            repo_url="",
+            frontend_url=""
+        )
+        
+        # Create job to track progress
+        job_id = db.create_job(project_id)
+        db.add_log(job_id, "backend", f"Starting project creation with prompt: {data['prompt']}")
+
+        # Initialize clients
+        gh = Github(os.environ["GITHUB_TOKEN"])
+        deepseek = OpenAI(
+            api_key=os.environ["DEEPSEEK_API_KEY"],
+            base_url="https://api.deepseek.com/v1"
+        )
+
+        # Generate and sanitize project name
+        project_name = generate_project_name(data["prompt"], deepseek)
+        sanitized_name = sanitize_project_name(project_name)
+        
+        # Setup GitHub repository
+        db.add_log(job_id, "github", f"Creating GitHub repository: {sanitized_name}")
+        repo = setup_github_repo(gh, sanitized_name, data["description"])
+        db.add_log(job_id, "github", f"Created GitHub repo: {repo.html_url}")
+
+        # Create Vercel deployment
+        db.add_log(job_id, "vercel", "Creating Vercel project")
+        deployment = create_vercel_deployment(sanitized_name, repo)
+        
         # Update project with final URLs
         frontend_url = f"https://{deployment['url']}"
         db.client.table('projects').update({
