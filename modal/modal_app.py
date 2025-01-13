@@ -3,6 +3,7 @@ from pathlib import Path
 import os
 
 import modal
+from .db import Database
 
 env_vars = {
     "PATH": "/root/.local/bin:/usr/local/bin:/usr/bin:/bin"
@@ -22,7 +23,8 @@ image = modal.Image.debian_slim(python_version="3.12") \
         "GitPython",
         "PyGithub",
         "requests",
-        "openai"
+        "openai",
+        "supabase"
     ).run_commands("aider-install")
 app = modal.App(name="frameception", image=image)
 
