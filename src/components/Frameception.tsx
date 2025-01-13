@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useCallback, useState, useMemo } from "react";
-import type { ProjectInfo } from "~/lib/kv";
 import { signIn, signOut, getCsrfToken } from "next-auth/react";
 import {
   Card,
@@ -83,7 +82,7 @@ export default function Frameception(
       setCreationError(null);
 
       // Create a new job for template customization
-      const response = await fetch("/api/customize-template", {
+      const response = await fetch("/api/update-code", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -137,19 +136,8 @@ export default function Frameception(
           console.log("Job completed:", data);
           setFlowState((prev) => {
             if (prev === "creatingProject") {
-              // Extract repoPath from the job data and set it
-              const repoUrl = data.repoUrl;
-              if (repoUrl) {
-                // Extract repo path from the full GitHub URL
-                const repoPath = repoUrl.split('github.com/')[1];
-                console.log("Setting repoPath:", repoPath);
-                setRepoPath(repoPath);
-                handleCustomizingTemplate();
-              } else {
-                console.error("No repoUrl in completed job data");
-                setCreationError("Missing repository information");
-                return "enteringPrompt";
-              }
+              // we need repo url here, come up with better solution how to handle the project Id and job ID stuff
+              handleCustomizingTemplate();
               return "customizingTemplate";
             } else if (prev === "customizingTemplate") {
               return "success";
