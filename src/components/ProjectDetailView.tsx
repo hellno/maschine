@@ -34,12 +34,11 @@ export function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
   const chatBubbleStyles = {
     base: "max-w-[80%] rounded-lg p-3 mb-2",
     user: "ml-auto bg-blue-500 text-white rounded-br-none",
-    bot: "mr-auto bg-gray-100 text-gray-900 rounded-bl-none"
+    bot: "mr-auto bg-gray-100 text-gray-900 rounded-bl-none",
   };
 
   const [project, setProject] = useState<Project | null>(null);
   const [logs, setLogs] = useState<Log[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchProject = useCallback(async () => {
@@ -47,8 +46,7 @@ export function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
       const response = await fetch(`/api/projects?id=${projectId}`);
       if (!response.ok) throw new Error("Failed to fetch project");
       const data = await response.json();
-      setProject(data.project);
-      setLogs(data.logs || []);
+      setProject(data.projects?.[0]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load project");
     }
@@ -59,12 +57,14 @@ export function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
       const response = await fetch(`/api/job/${jobId}`);
       if (!response.ok) throw new Error("Failed to fetch job status");
       const data = await response.json();
-      
+      console.log("Job ", jobId, "status:", data);
       // Update logs with any new entries
-      setLogs(prevLogs => {
+      setLogs((prevLogs) => {
         const newLogs = data.logs || [];
-        const existingLogIds = new Set(prevLogs.map(log => log.id));
-        const uniqueNewLogs = newLogs.filter(log => !existingLogIds.has(log.id));
+        const existingLogIds = new Set(prevLogs.map((log) => log.id));
+        const uniqueNewLogs = newLogs.filter(
+          (log) => !existingLogIds.has(log.id)
+        );
         return [...uniqueNewLogs, ...prevLogs];
       });
 
@@ -83,12 +83,14 @@ export function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
 
   useEffect(() => {
     if (project?.jobs) {
-      const pendingJobs = project.jobs.filter(job => job.status === "pending");
-      pendingJobs.forEach(job => pollJobStatus(job.id));
+      const pendingJobs = project.jobs.filter(
+        (job) => job.status === "pending"
+      );
+      pendingJobs.forEach((job) => pollJobStatus(job.id));
     }
   }, [project?.jobs, pollJobStatus]);
 
-  if (loading && !project) {
+  if (!project) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
@@ -97,18 +99,12 @@ export function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
   }
 
   if (error) {
-    return (
-      <div className="text-red-500 p-4 text-center">
-        Error: {error}
-      </div>
-    );
+    return <div className="text-red-500 p-4 text-center">Error: {error}</div>;
   }
 
   if (!project) {
     return (
-      <div className="text-gray-500 p-4 text-center">
-        Project not found
-      </div>
+      <div className="text-gray-500 p-4 text-center">Project not found</div>
     );
   }
 
@@ -119,7 +115,7 @@ export function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
       vercel: "text-purple-600",
       github: "text-gray-600",
       farcaster: "text-pink-600",
-      unknown: "text-gray-400"
+      unknown: "text-gray-400",
     };
     return colors[source as keyof typeof colors] || colors.unknown;
   };
@@ -174,13 +170,17 @@ export function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
             {project.jobs?.map((job) => (
               <div key={job.id} className="space-y-2">
                 {/* User message */}
-                <div className={`${chatBubbleStyles.base} ${chatBubbleStyles.user}`}>
+                <div
+                  className={`${chatBubbleStyles.base} ${chatBubbleStyles.user}`}
+                >
                   {job.data.prompt}
                 </div>
-                
+
                 {/* Bot response */}
-                <div className={`${chatBubbleStyles.base} ${chatBubbleStyles.bot}`}>
-                  {job.data.result || job.data.error || '✅'}
+                <div
+                  className={`${chatBubbleStyles.base} ${chatBubbleStyles.bot}`}
+                >
+                  {job.data.result || job.data.error || "✅"}
                 </div>
               </div>
             ))}
@@ -208,7 +208,11 @@ export function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
                 {logs.map((log) => (
                   <div key={log.id} className="p-3 hover:bg-gray-50">
                     <div className="flex items-start justify-between">
-                      <div className={`text-sm font-medium ${getSourceColor(log.source)}`}>
+                      <div
+                        className={`text-sm font-medium ${getSourceColor(
+                          log.source
+                        )}`}
+                      >
                         {log.source}
                       </div>
                       <div className="text-xs text-gray-500">
