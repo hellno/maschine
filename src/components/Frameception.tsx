@@ -37,6 +37,7 @@ import { truncateAddress } from "~/lib/truncateAddress";
 import { base } from "wagmi/chains";
 import { Button } from "./ui/button";
 import { ArrowUp } from "lucide-react";
+import { Project } from "~/lib/types";
 
 const promptTemplates = [
   {
@@ -89,7 +90,7 @@ export default function Frameception(
   const [sendNotificationResult, setSendNotificationResult] = useState("");
   const [inputValue, setInputValue] = useState("");
   const [creationError, setCreationError] = useState<string | null>(null);
-  const [projects, setProjects] = useState<ProjectInfo[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
     null
   );
@@ -483,7 +484,7 @@ export default function Frameception(
             <div className="grid grid-cols-1 gap-4">
               {projects.map((project) => (
                 <ProjectOverviewCard
-                  key={project.projectId}
+                  key={project.id}
                   projectId={project.id}
                   name={
                     project?.repo_url?.split("frameception-v2/")[1] ||

@@ -4,30 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
 import { ExternalLink, GitBranch, Globe, ArrowUp } from "lucide-react";
 import { Button } from "./ui/button";
 import { FrameContext } from "@farcaster/frame-core";
-
-interface Log {
-  id: string;
-  created_at: string;
-  source: string;
-  text: string;
-}
-
-interface Job {
-  id: string;
-  status: "pending" | "completed" | "failed";
-  created_at: string;
-  data: any;
-}
-
-interface Project {
-  id: string;
-  created_at: string;
-  repo_url: string;
-  frontend_url: string;
-  fid_owner: number;
-  jobs?: Job[];
-  logs?: Log[];
-}
+import { Log, Project } from "~/lib/types";
 
 interface ProjectDetailViewProps {
   projectId: string;
@@ -69,7 +46,7 @@ export function ProjectDetailView({
       console.log("Job ", jobId, "status:", data);
       // Update logs with any new entries
       setLogs((prevLogs) => {
-        const newLogs = data.logs || [];
+        const newLogs: Log[] = data.logs || [];
         const existingLogIds = new Set(prevLogs.map((log) => log.id));
         const uniqueNewLogs = newLogs.filter(
           (log) => !existingLogIds.has(log.id)

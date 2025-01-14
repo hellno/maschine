@@ -6,19 +6,25 @@ const supabase = createClient(
   process.env.SUPABASE_API_KEY!
 );
 
+
 export async function GET(
   request: NextRequest,
-  context: { params: { jobId: string } }
+  { params }: { params: Promise<{ jobId: string }> }
 ) {
   try {
-    const { jobId } = context.params;
+    const { jobId } = await params;
 
+    // Validate jobId presence
     if (!jobId) {
-      return NextResponse.json({ error: 'Job ID is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Job ID is required' },
+        { status: 400 }
+      );
     }
 
-    console.log('Getting job:', jobId);
+    console.log('Fetching job with ID:', jobId);
 
+    // Fetch job data along with associated logs from Supabase
     const { data, error } = await supabase
       .from('jobs')
       .select(`
@@ -29,25 +35,34 @@ export async function GET(
       .order('created_at', { foreignTable: 'logs', ascending: true })
       .single();
 
+    // Handle Supabase errors
     if (error) {
-      console.error('Error fetching job:', error);
-      return NextResponse.json({ error: 'Error fetching job' }, { status: 500 });
+      console.error('Supabase error:', error.message);
+      return NextResponse.json(
+        { error: 'Error fetching job data' },
+        { status: 500 }
+      );
     }
 
+    // Handle case where no data is returned
     if (!data) {
-      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Job not found' },
+        { status: 404 }
+      );
     }
 
+    // Construct and return the response
     return NextResponse.json({
       status: data.status,
       logs: data.logs || [],
-      error: data.data?.error,
       createdAt: data.created_at,
       updatedAt: data.updated_at
     });
 
   } catch (error) {
-    console.error('Error:', error);
+    // Handle unexpected errors
+    console.error('Unexpected error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
