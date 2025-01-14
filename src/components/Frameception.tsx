@@ -38,6 +38,29 @@ import { truncateAddress } from "~/lib/truncateAddress";
 import { base } from "wagmi/chains";
 import { Button } from "./ui/Button";
 
+const promptTemplates = [
+  {
+    title: "Link Tree",
+    template: "Create a link tree frame that shows my social links and allows users to navigate between them. Include links to: Twitter, GitHub, and my personal website."
+  },
+  {
+    title: "Quiz Game",
+    template: "Make a multiple choice quiz game frame about programming. Include 5 questions with 4 options each and show the score at the end."
+  },
+  {
+    title: "Image Gallery",
+    template: "Create a frame that shows a gallery of images with next/previous navigation. Include 5 sample nature photos."
+  },
+  {
+    title: "Poll",
+    template: "Build a simple poll frame that asks users about their favorite programming language with options for JavaScript, Python, Rust, and Other."
+  },
+  {
+    title: "Profile Card",
+    template: "Design a profile card frame that shows my avatar, bio, and key stats like followers and posts."
+  }
+];
+
 type FlowState =
   | "waitForFrameToBePinned"
   | "enteringPrompt"
@@ -383,6 +406,36 @@ export default function Frameception(
                 >
                   Let&apos;s build it
                 </BigPurpleButton>
+                <div className="mt-4">
+                  <p className="text-sm text-gray-500 mb-2">Or try one of these templates:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {promptTemplates.map((template, index) => (
+                      <button
+                        key={index}
+                        onClick={() => setInputValue(template.template)}
+                        className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium 
+                                 rounded-full border border-gray-200 bg-gray-50 text-gray-700
+                                 hover:bg-gray-100 hover:border-gray-300 transition-colors
+                                 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
+                      >
+                        {template.title}
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 16 16"
+                          fill="none"
+                          stroke="currentColor"
+                          className="ml-1"
+                        >
+                          <path
+                            d="M6.75 4H6v1.5h.75 2.69L5.47 9.47l-.53.53L6 11.06l.53-.53 3.97-3.97v2.69V10h1.5V9.25V5c0-.55-.45-1-1-1H6.75z"
+                            fill="currentColor"
+                          />
+                        </svg>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
