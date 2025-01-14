@@ -38,7 +38,7 @@ export function ProjectDetailView({
   userContext,
 }: ProjectDetailViewProps) {
   const chatBubbleStyles = {
-    base: "max-w-[80%] rounded-lg p-3 mb-2",
+    base: "w-fit rounded-lg p-3 mb-2",
     user: "ml-auto bg-blue-500 text-white rounded-br-none",
     bot: "mr-auto bg-gray-100 text-gray-900 rounded-bl-none",
   };
