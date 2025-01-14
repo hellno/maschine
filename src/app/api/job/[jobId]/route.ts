@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase client
@@ -8,11 +8,11 @@ const supabase = createClient(
 );
 
 export async function GET(
-  request: Request,
-  { params }: { params: { jobId: string } }
+  request: NextRequest,
+  context: { params: { jobId: string } }
 ) {
   try {
-    const { jobId } = params;
+    const { jobId } = context.params;
     
     if (!jobId) {
       return NextResponse.json({ error: 'Job ID is required' }, { status: 400 });
