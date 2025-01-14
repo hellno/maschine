@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase client
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_API_KEY!
@@ -13,13 +12,13 @@ export async function GET(
 ) {
   try {
     const { jobId } = context.params;
-    
+
     if (!jobId) {
       return NextResponse.json({ error: 'Job ID is required' }, { status: 400 });
     }
 
     console.log('Getting job:', jobId);
-  
+
     const { data, error } = await supabase
       .from('jobs')
       .select(`
@@ -46,7 +45,7 @@ export async function GET(
       createdAt: data.created_at,
       updatedAt: data.updated_at
     });
-    
+
   } catch (error) {
     console.error('Error:', error);
     return NextResponse.json(
