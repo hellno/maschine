@@ -1,5 +1,6 @@
 import requests
 from typing import List, Dict, Optional
+import os
 
 def get_author_display(author: Dict) -> str:
     """Extract author display name and username safely"""
@@ -42,7 +43,7 @@ def get_user_casts(fid: int, nr_casts: int) -> List[dict]:
 
     headers = {
         "accept": "application/json",
-        "x-api-key": process.env.NEYNAR_API_KEY
+        "x-api-key": os.environ["NEYNAR_API_KEY"],
     }
 
     response = requests.get(url, headers=headers)

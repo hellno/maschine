@@ -164,6 +164,7 @@ def update_code_webhook(data: dict) -> str:
         modal.Secret.from_name("vercel-secret"),
         modal.Secret.from_name("llm-api-keys"),
         modal.Secret.from_name("supabase-secret"),
+        modal.Secret.from_name("neynar-secret"),
         modal.Secret.from_dict({"MODAL_LOGLEVEL": "DEBUG"}),
     ]
 )
@@ -192,10 +193,8 @@ def update_code(data: dict) -> str:
     project = db.get_project(data.get("projectId"))
     if not project:
         return "Project not found", 404
-    print(f"project found: {project}")
-    repo_path = project.get("repo_url").replace("https://github.com/", "")
-    print(f"Processing repository: {repo_path} and got project {project}")
 
+    repo_path = project.get("repo_url").replace("https://github.com/", "")
     db.add_log(job_id, "backend",
                f"Start code update for repo: {repo_path}")
 
@@ -215,7 +214,7 @@ def update_code(data: dict) -> str:
 
         # Add yarn install here
         db.add_log(job_id, "backend", "Installing dependencies with yarn...")
-        os.chdir(repo_dir)  # Change to repo directory 
+        os.chdir(repo_dir)  # Change to repo directory
         os.system("yarn install")  # Run yarn install
 
         repo.config_writer().set_value("user", "name", "hellno").release()
@@ -226,7 +225,6 @@ def update_code(data: dict) -> str:
             for fname in ["src/components/Frame.tsx", "src/lib/constants.ts"]
         ]
         read_only_fnames = []
-        print(f'fnames: {fnames}')
         io = InputOutput(yes=True, root=repo.working_tree_dir)
         model = Model(
             model="deepseek/deepseek-coder",
@@ -237,9 +235,10 @@ def update_code(data: dict) -> str:
             main_model=model,
             fnames=fnames,
             io=io,
-            # lint_cmds={"typescript": "yarn lint"},
             auto_test=True,
-            test_cmd="yarn build",
+            test_cmd="yarn lint",
+            # if we want to use yarn build, separate into beefier cpu/memory function
+            # like they do on vercel: https://vercel.com/docs/limits/overview#build-container-resources
             read_only_fnames=read_only_fnames
         )
         print(f'coder: {coder}')
@@ -249,22 +248,17 @@ def update_code(data: dict) -> str:
               fnames}\ncwd: {repo.working_tree_dir}\ncoder: {coder}')
 
         res = coder.run(prompt)
-        console.log(f"Result from aider (first 250 chars): {res[:250]}")
+        print(f"Result from aider (first 250 chars): {res[:250]}")
         db.add_log(job_id, "backend", f"Finished code update")
-
-        try:
-            repo.git.push()
-            db.update_job_status(job_id, "completed") 
-            volumes["/github-repos"].commit()
-        except Exception as e:
-            error_msg = f"Error pushing changes: {str(e)}"
-            db.add_log(job_id, "backend", error_msg)
-            db.update_job_status(job_id, "failed", error_msg)
-            raise
-
+        db.update_job_status(job_id, "completed")
+        repo.git.push()
+        volumes["/github-repos"].commit()
         return f"Successfully ran prompt for repo {repo_path} in project {project_id}"
     except Exception as e:
-        error_msg = f"Error processing repository: {str(e)}"
+        repo.git.push()
+        volumes["/github-repos"].commit()
+        print(f"Error updating code: {e}")
+        error_msg = f"Error updating code: {str(e)}"
         db.add_log(job_id, "backend", error_msg)
         db.update_job_status(job_id, "failed", str(e))
         return error_msg

@@ -40,18 +40,17 @@ class Database:
     def update_job_status(self, job_id: str, status: str, error: Optional[str] = None):
         """Update job status"""
         print(f'Updating job {job_id}: status={status}, error={error if error else "None"}')
-        data = {'status': status}
-        if error:
-            data['data'] = {'error': error}
-        # Get existing data first
+        new_job = {'status': status}
+
         existing_job = self.client.table('jobs').select('data').eq('id', job_id).single().execute().data
         existing_data = existing_job.get('data', {}) if existing_job else {}
-        # Merge new error with existing data 
+        print('found existing data:', existing_data)
         if error:
             merged_data = {**existing_data, 'error': error}
-            data['data'] = merged_data
+            new_job['data'] = merged_data
         
-        self.client.table('jobs').update(data).eq('id', job_id).execute()
+        print('new job:', new_job)
+        self.client.table('jobs').update(new_job).eq('id', job_id).execute()
 
     def add_log(self, job_id: str, source: str, text: str):
         """Add a log entry"""
