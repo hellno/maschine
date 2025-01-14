@@ -252,10 +252,15 @@ def update_code(data: dict) -> str:
         console.log(f"Result from aider (first 250 chars): {res[:250]}")
         db.add_log(job_id, "backend", f"Finished code update")
 
-        # AI! should be in try catch block to make sure it is always committed
-        repo.git.push()
-        db.update_job_status(job_id, "completed")
-        volumes["/github-repos"].commit()
+        try:
+            repo.git.push()
+            db.update_job_status(job_id, "completed") 
+            volumes["/github-repos"].commit()
+        except Exception as e:
+            error_msg = f"Error pushing changes: {str(e)}"
+            db.add_log(job_id, "backend", error_msg)
+            db.update_job_status(job_id, "failed", error_msg)
+            raise
 
         return f"Successfully ran prompt for repo {repo_path} in project {project_id}"
     except Exception as e:
