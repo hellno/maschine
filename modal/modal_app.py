@@ -75,6 +75,24 @@ def verify_github_setup(gh: Github, job_id: str, db: Database) -> None:
     except Exception as e:
         raise Exception(f"GitHub setup verification failed: {str(e)}")
 
+# AI! create custom type for function parameter
+# user_context type:
+# {
+#     fid: number;
+#     username?: string;
+#     displayName?: string;
+#     /**
+#         * Profile image URL
+#         */
+#     pfpUrl?: string;
+#     location?: AccountLocation;
+# }
+
+def expand_user_prompt_with_farcaster_context(prompt: str, user_context: dict):
+    last_ten_casts = get_user_casts(user_context.fid, 10)
+    cast_context = '\n'.join([transform_cast_object_to_text(c) for c in last_ten_casts])
+    farcaster_context_prompt = f'Below are the recent Farcaster social media posts from {user_context} {user_context}: {cast_context}'
+    return f'{farcaster_context_prompt} \n {prompt}'
 
 # @app.local_entrypoint()
 # def main(num_iterations: int = 200):
@@ -126,6 +144,10 @@ def update_code(data: dict) -> str:
     import os
 
     print('Received updated code request:', data)
+    prompt = data.get("prompt")
+    if not prompt:
+        return "Please provide a prompt in the request body", 400
+    
     db = Database()
     job_id = db.create_job(data.get("projectId"),
                            job_type="update_code",
@@ -136,11 +158,10 @@ def update_code(data: dict) -> str:
     print(f"project found: {project}")
     repo_path = project.get("repo_url").replace("https://github.com/", "")
     print(f"Processing repository: {repo_path} and got project {project}")
-    db.add_log(job_id, "backend",
-               f"Starting code update for repo: {repo_path}")
 
-    if not data.get("prompt"):
-        return "Please provide a prompt in the request body", 400
+    db.add_log(job_id, "backend",
+               f"Start code update for repo: {repo_path}")
+
 
     repo_url = f"https://{os.environ["GITHUB_TOKEN"]
                           }@github.com/{repo_path}.git"
@@ -176,8 +197,7 @@ def update_code(data: dict) -> str:
             fnames=fnames,
             io=io
         )
-
-        prompt = data["prompt"]
+        prompt = expand_user_prompt_with_farcaster_context(prompt)
         print(f'Prompt for aider: {prompt}\nmodel: {model}\nfnames: {
               fnames}\ncwd: {repo.working_tree_dir}\ncoder: {coder}')
         # Run the prompt through aider
