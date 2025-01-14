@@ -31,6 +31,12 @@ interface ProjectDetailViewProps {
 }
 
 export function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
+  const chatBubbleStyles = {
+    base: "max-w-[80%] rounded-lg p-3 mb-2",
+    user: "ml-auto bg-blue-500 text-white rounded-br-none",
+    bot: "mr-auto bg-gray-100 text-gray-900 rounded-bl-none"
+  };
+
   const [project, setProject] = useState<Project | null>(null);
   const [logs, setLogs] = useState<Log[]>([]);
   const [loading, setLoading] = useState(true);
@@ -155,6 +161,34 @@ export function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
             <div className="text-sm text-gray-500">
               Created on {new Date(project.created_at).toLocaleDateString()}
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Conversation History</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {project.jobs?.map((job) => (
+              <div key={job.id} className="space-y-2">
+                {/* User message */}
+                <div className={`${chatBubbleStyles.base} ${chatBubbleStyles.user}`}>
+                  {job.data.prompt}
+                </div>
+                
+                {/* Bot response */}
+                <div className={`${chatBubbleStyles.base} ${chatBubbleStyles.bot}`}>
+                  {job.data.result || job.data.error || '✅'}
+                </div>
+              </div>
+            ))}
+            {(!project.jobs || project.jobs.length === 0) && (
+              <div className="text-center text-gray-500">
+                No conversations yet
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
