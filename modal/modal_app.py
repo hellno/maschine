@@ -131,10 +131,10 @@ def expand_user_prompt_with_farcaster_context(prompt: str, user_context: UserCon
 #         num_iterations: Number of parallel iterations to run (default: 200)
 #     """
 #     # run the function locally
-#     print("Local result:", f.local(1000))
+#     print("Local res:", f.local(1000))
 
 #     # run the function remotely on Modal
-#     print("Remote result:", f.remote(1000))
+#     print("Remote res:", f.remote(1000))
 
 #     # run the function in parallel and remotely on Modal
 #     total = 0
@@ -225,6 +225,7 @@ def update_code(data: dict) -> str:
             f"{repo.working_tree_dir}/{fname}"
             for fname in ["src/components/Frame.tsx", "src/lib/constants.ts"]
         ]
+        read_only_fnames = []
         print(f'fnames: {fnames}')
         io = InputOutput(yes=True, root=repo.working_tree_dir)
         model = Model(
@@ -236,9 +237,10 @@ def update_code(data: dict) -> str:
             main_model=model,
             fnames=fnames,
             io=io,
-            lint_cmds={"typescript": "yarn lint"},
+            # lint_cmds={"typescript": "yarn lint"},
             auto_test=True,
             test_cmd="yarn build",
+            read_only_fnames=read_only_fnames
         )
         print(f'coder: {coder}')
         prompt = expand_user_prompt_with_farcaster_context(
@@ -246,9 +248,11 @@ def update_code(data: dict) -> str:
         print(f'Prompt for aider: {prompt}\nmodel: {model}\nfnames: {
               fnames}\ncwd: {repo.working_tree_dir}\ncoder: {coder}')
 
-        result = coder.run(prompt)
+        res = coder.run(prompt)
+        console.log(f"Result from aider (first 250 chars): {res[:250]}")
         db.add_log(job_id, "backend", f"Finished code update")
 
+        # AI! should be in try catch block to make sure it is always committed
         repo.git.push()
         db.update_job_status(job_id, "completed")
         volumes["/github-repos"].commit()
