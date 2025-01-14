@@ -99,19 +99,25 @@ def verify_github_setup(gh: Github, job_id: str, db: Database) -> None:
 @app.function()
 @modal.web_endpoint(label="update-code", method="POST", docs=True)
 def update_code_webhook(data: dict) -> str:
+    """Webhook endpoint to trigger code update for a repository"""
+    if not data.get("projectId") or not data.get("prompt"):
+        return "Please provide projectId and prompt in the request body", 400
+
+    print(f"Received updated code webhook request {data}")
     update_code.remote(data)
     return "Code update initiated"
 
 
-@app.function(volumes=volumes,
-              timeout=600,  # 10 mins
-              secrets=[
-                  modal.Secret.from_name("github-secret"),
-                  modal.Secret.from_name("vercel-secret"),
-                  modal.Secret.from_name("llm-api-keys"),
-                  modal.Secret.from_name("supabase-secret")
-              ]
-              )
+@app.function(
+    volumes=volumes,
+    timeout=600,  # 10 mins
+    secrets=[
+        modal.Secret.from_name("github-secret"),
+        modal.Secret.from_name("vercel-secret"),
+        modal.Secret.from_name("llm-api-keys"),
+        modal.Secret.from_name("supabase-secret")
+    ]
+)
 def update_code(data: dict) -> str:
     import git
     from aider.coders import Coder
@@ -119,36 +125,40 @@ def update_code(data: dict) -> str:
     from aider.io import InputOutput
     import os
 
+    print('Received updated code request:', data)
     db = Database()
-    # Create a job to track this update
-    job_id = db.create_job(data.get("projectId"), job_type="update_code")
-    db.add_log(job_id, "backend", f"Starting code update for repo: {
-               data.get('repoPath')}")
-
-    if not data.get("repoPath"):
-        return "Please provide a repoPath in the request body"
+    job_id = db.create_job(data.get("projectId"),
+                           job_type="update_code",
+                           data=data)
+    project = db.get_project(data.get("projectId"))
+    if not project:
+        return "Project not found", 404
+    print(f"project found: {project}")
+    repo_path = project.get("repo_url").replace("https://github.com/", "")
+    print(f"Processing repository: {repo_path} and got project {project}")
+    db.add_log(job_id, "backend",
+               f"Starting code update for repo: {repo_path}")
 
     if not data.get("prompt"):
-        return "Please provide a prompt in the request body"
-
-    repo_name = data["repoPath"]
+        return "Please provide a prompt in the request body", 400
 
     repo_url = f"https://{os.environ["GITHUB_TOKEN"]
-                          }@github.com/{repo_name}.git"
-    repo_dir = f"/github-repos/{repo_name}"
+                          }@github.com/{repo_path}.git"
+    repo_dir = f"/github-repos/{repo_path}"
 
-    print(f"Processing repository: {repo_name}, saving to {repo_dir}")
+    print(f"Processing repository: {repo_path}, saving to {repo_dir}")
     try:
-        # Clone or pull the repo
-        try:
+        is_repo_stored_locally = os.path.exists(repo_dir)
+        repo = None
+        if not is_repo_stored_locally:
             repo = git.Repo.clone_from(repo_url, repo_dir)
-            repo.config_writer().set_value("user", "name", "hellno").release()
-            repo.config_writer().set_value("user", "email", "686075+hellno@users.noreply.github.com.").release()
-        except git.exc.GitCommandError:
-            # If repo exists, pull latest changes
+        else:
             repo = git.Repo(repo_dir)
             repo.remotes.origin.pull()
 
+        repo.config_writer().set_value("user", "name", "hellno").release()
+        repo.config_writer().set_value(
+            "user", "email", "686075+hellno@users.noreply.github.com.").release()
         fnames = [f"{repo.working_tree_dir}/{fname}"
                   for fname in [
             "src/components/Frame.tsx",
@@ -173,21 +183,11 @@ def update_code(data: dict) -> str:
         # Run the prompt through aider
         result = coder.run(prompt)
         # Commit changes if any were made
-        if repo.is_dirty():
-            db.add_log(job_id, "github",
-                       "Changes detected, committing and pushing")
-            repo.git.add(A=True)
-            repo.git.commit(m=f"Applied changes via aider: {data['prompt']}")
-            repo.git.push()
 
-            # Persist changes to volume
-            volumes["github-repos"].commit()
-            db.update_job_status(job_id, "completed")
-        else:
-            db.add_log(job_id, "github", "No changes to commit")
-            db.update_job_status(job_id, "completed")
-
-        return f"Successfully ran prompt for repo {repo_name}"
+        repo.git.push()
+        db.update_job_status(job_id, "completed")
+        volumes["/github-repos"].commit()
+        return f"Successfully ran prompt for repo {repo_path} in project {projectId}"
     except Exception as e:
         error_msg = f"Error processing repository: {str(e)}"
         db.add_log(job_id, "backend", error_msg)
@@ -211,17 +211,14 @@ def create_frame_project_webhook(data: dict) -> dict:
     import base64
     import time
 
-    # Main execution flow
     db = Database()
 
     try:
-        # Basic validation
         required_fields = ["prompt", "description", "fid", "username"]
         for field in required_fields:
             if field not in data:
                 return {"error": f"Missing required field: {field}"}, 400
 
-        # Create initial project record
         project_id = db.create_project(
             fid_owner=int(data["fid"]),
             repo_url="",
@@ -229,8 +226,8 @@ def create_frame_project_webhook(data: dict) -> dict:
         )
 
         # Create job to track progress
-        job_id = db.create_job(project_id, job_type="setup_project")
-        db.add_log(job_id, "backend", "Project creation initiated")
+        job_id = db.create_job(project_id, job_type="setup_project", data=data)
+        db.add_log(job_id, "backend", "Frame initiated")
 
         # Trigger background job
         setup_frame_project.spawn(data, project_id, job_id)
@@ -389,19 +386,21 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
         import tempfile
         import shutil
         import git
-        
+
         db = Database()
-        
+
         try:
             # Get organization
             org = gh.get_organization(GITHUB_ORG_NAME)
-            db.add_log(job_id, "github", f"Connected to organization: {GITHUB_ORG_NAME}")
-            
+            db.add_log(job_id, "github", f"Connected to organization: {
+                       GITHUB_ORG_NAME}")
+
             # Check if repo exists
             try:
                 existing_repo = org.get_repo(sanitized_name)
                 if existing_repo:
-                    raise Exception(f"Repository '{sanitized_name}' already exists")
+                    raise Exception(
+                        f"Repository '{sanitized_name}' already exists")
             except Exception as e:
                 if "Not Found" not in str(e):
                     raise
@@ -412,7 +411,8 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
                 description=description,
                 private=False
             )
-            db.add_log(job_id, "github", f"Created repository: {repo.html_url}")
+            db.add_log(job_id, "github",
+                       f"Created repository: {repo.html_url}")
 
             # Create temporary directory for local operations
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -424,14 +424,16 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
                     db.add_log(job_id, "github", "Cloned template repository")
 
                     # Clone new repository
-                    new_repo_url = f"https://{os.environ['GITHUB_TOKEN']}@github.com/{repo.full_name}.git"
+                    new_repo_url = f"https://{
+                        os.environ['GITHUB_TOKEN']}@github.com/{repo.full_name}.git"
                     new_repo_path = os.path.join(temp_dir, "new-repo")
                     new_repo = git.Repo.clone_from(new_repo_url, new_repo_path)
                     db.add_log(job_id, "github", "Cloned new repository")
 
                     # Configure git user
                     new_repo.config_writer().set_value("user", "name", "hellno").release()
-                    new_repo.config_writer().set_value("user", "email", "686075+hellno@users.noreply.github.com").release()
+                    new_repo.config_writer().set_value(
+                        "user", "email", "686075+hellno@users.noreply.github.com").release()
 
                     # Copy template contents to new repo
                     for item in os.listdir(template_path):
@@ -445,21 +447,24 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
 
                     # Stage all files
                     new_repo.git.add(A=True)
-                    
+
                     # Commit all changes
                     new_repo.index.commit("Initial bulk copy from template")
-                    
+
                     # Push to GitHub
                     new_repo.git.push('origin', 'main')
-                    
-                    db.add_log(job_id, "github", "Successfully copied template files")
+
+                    db.add_log(job_id, "github",
+                               "Successfully copied template files")
                     return repo
 
                 except Exception as e:
-                    raise Exception(f"Failed during repository setup: {str(e)}")
+                    raise Exception(
+                        f"Failed during repository setup: {str(e)}")
 
         except Exception as e:
-            db.add_log(job_id, "github", f"Error in setup_github_repo: {str(e)}")
+            db.add_log(job_id, "github",
+                       f"Error in setup_github_repo: {str(e)}")
             raise
 
     def create_vercel_deployment(sanitized_name: str, repo: object) -> tuple:
@@ -601,7 +606,7 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
             # First code update
             code_update_response = update_code.remote({
                 "projectId": project_id,
-                "repoPath": repo_path,
+                "repo_path": repo_path,
                 "prompt": data["prompt"],
                 "job_type": "update_code"
             })
@@ -610,9 +615,11 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
 
             print("Starting post-deployment setup with deployment data", deployment)
             # Generate domain association
-            domain = deployment['url'].split(
-                '://')[1]  # Remove https:// prefix
+            domain = deployment['url']
+            if domain.startswith('https://'):
+                domain = domain[8:]
             domain_assoc = generate_domain_association.remote(domain)
+            print("Generated domain association", domain_assoc)
             db.add_log(job_id, "backend", "Generated domain association")
 
             # Create prompt for domain association update
@@ -635,7 +642,7 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
             # Update domain association
             domain_update_response = update_code.remote({
                 "projectId": project_id,
-                "repoPath": repo_path,
+                "repo_path": repo_path,
                 "prompt": update_prompt,
                 "job_type": "update_code"
             })

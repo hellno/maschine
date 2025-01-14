@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import { createClient } from '@supabase/supabase-js';
 
@@ -10,17 +11,29 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const fid = url.searchParams.get("fid");
+    const id = url.searchParams.get("id");
 
-    if (!fid) {
-      return NextResponse.json({ error: "FID is required" }, { status: 400 });
+    console.log('Fetching projects:', { fid, id });
+    if (!fid && !id) {
+      return NextResponse.json({ error: "fid or id is required" }, { status: 400 });
     }
 
-    const { data: projects, error } = await supabase
-      .from('projects')
-      .select('*')
-      .eq('fid_owner', Number(fid))
-      .order('created_at', { ascending: false });
+    let res;
+    if (fid) {
+      res = await supabase
+        .from('projects')
+        .select('*, jobs:jobs(*)')
+        .eq('fid_owner', Number(fid))
+        .order('created_at', { ascending: false });
 
+    } else {
+      res = await supabase
+        .from('projects')
+        .select('*, jobs:jobs(*)')
+        .eq('id', id)
+        .order('created_at', { ascending: false });
+    }
+    const { data: projects, error } = res;
     if (error) {
       console.error('Error fetching projects:', error);
       return NextResponse.json({ error: 'Error fetching projects' }, { status: 500 });

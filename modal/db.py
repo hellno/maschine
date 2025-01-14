@@ -24,17 +24,17 @@ class Database:
         }).execute()
         return project_id
 
-    def create_job(self, project_id: str, job_type: str, status: str = 'pending') -> str:
+    def create_job(self, project_id: str, job_type: str, status: str = 'pending', data: dict = {}) -> str:
         """Create a new job record"""
         job_id = str(uuid.uuid4())
-        print(f'Creating job: project={project_id}, type={job_type}, status={status}')
+        print(f'Creating job: project={project_id}, type={job_type}, status={status}, data={data}')
         self.client.table('jobs').insert({
             'id': job_id,
             'created_at': datetime.utcnow().isoformat(),
             'project_id': project_id,
             'type': job_type,
             'status': status,
-            'data': {}
+            'data': data
         }).execute()
         return job_id
 
@@ -59,8 +59,8 @@ class Database:
 
     def get_project(self, project_id: str):
         """Get project details"""
-        return self.client.table('projects').select('*').eq('id', project_id).single().execute()
+        return self.client.table('projects').select('*').eq('id', project_id).single().execute().data
 
     def get_user_projects(self, fid: int):
         """Get all projects for a user"""
-        return self.client.table('projects').select('*').eq('fid_owner', fid).execute()
+        return self.client.table('projects').select('*').eq('fid_owner', fid).execute().data

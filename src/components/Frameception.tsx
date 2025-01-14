@@ -37,28 +37,29 @@ import { BigPurpleButton } from "~/components/ui/BigPurpleButton";
 import { truncateAddress } from "~/lib/truncateAddress";
 import { base } from "wagmi/chains";
 import { Button } from "./ui/Button";
+import { ArrowBigUp, ArrowUp } from "lucide-react";
 
 const promptTemplates = [
   {
     title: "Link Tree",
-    template: "Create a link tree frame that shows my social links and allows users to navigate between them. Include links to: Twitter, GitHub, and my personal website."
-  },
-  {
-    title: "Quiz Game",
-    template: "Make a multiple choice quiz game frame about programming. Include 5 questions with 4 options each and show the score at the end."
+    template:
+      "Create a link tree frame that shows my social links and allows users to navigate between them. Include links to: Farcaster, GitHub, and other links I've shared recently.",
   },
   {
     title: "Image Gallery",
-    template: "Create a frame that shows a gallery of images with next/previous navigation. Include 5 sample nature photos."
+    template:
+      "Create a frame that shows a gallery of images with next/previous navigation. Include 5 images or videos that I have shared recently.",
   },
   {
-    title: "Poll",
-    template: "Build a simple poll frame that asks users about their favorite programming language with options for JavaScript, Python, Rust, and Other."
+    title: "Quiz Game",
+    template:
+      "Make a multiple choice quiz game frame based on my recent casts. Include 2 questions with 4 options each and show the score at the end.",
   },
   {
-    title: "Profile Card",
-    template: "Design a profile card frame that shows my avatar, bio, and key stats like followers and posts."
-  }
+    title: "Event Countdown",
+    template:
+      "Show a countdown timer for my event coming up at 5pm on Friday UTC.",
+  },
 ];
 
 type FlowState =
@@ -92,6 +93,8 @@ export default function Frameception(
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
     null
   );
+
+  console.log('context',context)
 
   const handleCreateProject = useCallback(async () => {
     try {
@@ -401,13 +404,17 @@ export default function Frameception(
                   className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <BigPurpleButton
+                  className="flex items-center justify-center gap-2"
                   onClick={handleCreateProject}
                   disabled={!inputValue.trim()}
                 >
                   Let&apos;s build it
+                  <ArrowUp className="w-4 h-4" />
                 </BigPurpleButton>
                 <div className="mt-4">
-                  <p className="text-sm text-gray-500 mb-2">Or try one of these templates:</p>
+                  <p className="text-sm text-gray-500 mb-2">
+                    Or try one of these templates:
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     {promptTemplates.map((template, index) => (
                       <button
@@ -445,7 +452,10 @@ export default function Frameception(
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
               <p className="text-center">Creating your frame...</p>
               {selectedProjectId && (
-                <ProjectDetailView projectId={selectedProjectId} />
+                <ProjectDetailView
+                  projectId={selectedProjectId}
+                  userContext={context?.user}
+                />
               )}
             </div>
           )}
@@ -462,7 +472,10 @@ export default function Frameception(
               >
                 ← Back to Projects
               </Button>
-              <ProjectDetailView projectId={selectedProjectId} />
+              <ProjectDetailView
+                projectId={selectedProjectId}
+                userContext={context?.user}
+              />
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4">

@@ -4,27 +4,24 @@ const UPDATE_CODE_ENDPOINT = 'https://herocast--update-code.modal.run';
 
 export async function POST(request: Request) {
   try {
-    const { repoPath, prompt, userContext } = await request.json()
-
-    // Validate input
-    if (!repoPath || !prompt || !userContext) {
+    const { projectId, prompt, userContext } = await request.json()
+    console.log('/update-code', { projectId, prompt, userContext })
+    if (!projectId || !prompt || !userContext) {
       return NextResponse.json(
         { error: 'Repo, prompt and user context are required' },
         { status: 400 }
       )
     }
 
-    console.log('received request:', { repoPath, prompt, userContext });
-    const promptWithFullContext = `Customize the template for the repository at ${repoPath}\n\nUser Context: ${JSON.stringify(userContext)}}.\n\n${prompt}`
-    console.log('Full prompt sending to endpoint:', promptWithFullContext)
     const llmResponse = await fetch(UPDATE_CODE_ENDPOINT, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        repoPath,
-        prompt: promptWithFullContext,
+        projectId,
+        prompt,
+        userContext,
       }),
     })
 

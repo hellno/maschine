@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
 import { ExternalLink, GitBranch, Globe, ArrowUp } from "lucide-react";
 import { Button } from "./ui/button";
+import { FrameContext } from "@farcaster/frame-core";
 
 interface Log {
   id: string;
@@ -29,9 +30,13 @@ interface Project {
 
 interface ProjectDetailViewProps {
   projectId: string;
+  userContext?: FrameContext["user"];
 }
 
-export function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
+export function ProjectDetailView({
+  projectId,
+  userContext,
+}: ProjectDetailViewProps) {
   const chatBubbleStyles = {
     base: "max-w-[80%] rounded-lg p-3 mb-2",
     user: "ml-auto bg-blue-500 text-white rounded-br-none",
@@ -95,22 +100,23 @@ export function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
 
   const handleSubmitUpdate = async () => {
     if (!updatePrompt.trim()) return;
-    
+
     setIsSubmitting(true);
     try {
-      const response = await fetch('/api/update-code', {
-        method: 'POST',
+      const response = await fetch("/api/update-code", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           projectId: projectId,
           prompt: updatePrompt,
+          userContext,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to submit update');
+        throw new Error("Failed to submit update");
       }
 
       const data = await response.json();
@@ -118,13 +124,13 @@ export function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
       if (data.jobId) {
         pollJobStatus(data.jobId);
       }
-      
+
       // Clear the input after successful submission
       setUpdatePrompt("");
       // Refresh project data to show new job
       fetchProject();
     } catch (error) {
-      console.error('Error submitting update:', error);
+      console.error("Error submitting update:", error);
     } finally {
       setIsSubmitting(false);
     }
@@ -247,9 +253,9 @@ export function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
               className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isSubmitting}
             />
-            <Button 
+            <Button
               onClick={handleSubmitUpdate}
-              disabled={!updatePrompt.trim() || isSubmitting}
+              disabled={!updatePrompt.trim() || isSubmitting || !userContext}
               className="w-full flex items-center justify-center gap-2"
             >
               {isSubmitting ? (
