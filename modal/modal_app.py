@@ -172,8 +172,14 @@ def update_code(data: dict) -> str:
     if not prompt:
         return "Please provide a prompt in the request body", 400
 
+    user_context = data.get("userContext")
+    if not user_context:
+        return "Please provide userContext in the request body", 400
+
+    project_id = data.get("projectId")
+
     db = Database()
-    job_id = db.create_job(data.get("projectId"),
+    job_id = db.create_job(project_id,
                            job_type="update_code",
                            data=data)
     project = db.get_project(data.get("projectId"))
@@ -218,11 +224,12 @@ def update_code(data: dict) -> str:
             main_model=model,
             fnames=fnames,
             io=io,
-            lint_cmds=["yarn lint"],
-            auto_test=True
+            lint_cmds={"typescript": "yarn lint"},
+            # auto_test=True
         )
         print(f'coder: {coder}')
-        prompt = expand_user_prompt_with_farcaster_context(prompt)
+        prompt = expand_user_prompt_with_farcaster_context(
+            prompt, user_context)
         print(f'Prompt for aider: {prompt}\nmodel: {model}\nfnames: {
               fnames}\ncwd: {repo.working_tree_dir}\ncoder: {coder}')
 
@@ -232,7 +239,8 @@ def update_code(data: dict) -> str:
         repo.git.push()
         db.update_job_status(job_id, "completed")
         volumes["/github-repos"].commit()
-        return f"Successfully ran prompt for repo {repo_path} in project {projectId}"
+
+        return f"Successfully ran prompt for repo {repo_path} in project {project_id}"
     except Exception as e:
         error_msg = f"Error processing repository: {str(e)}"
         db.add_log(job_id, "backend", error_msg)
@@ -666,19 +674,20 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
                 print("Raw deployment URL:", deployment.get('url'))
                 domain = deployment.get('url', '')
                 print("Initial domain value:", domain)
-                    
+
                 if not domain:
                     raise ValueError("Deployment URL is empty")
-                    
+
                 if domain.startswith('https://'):
                     print("Removing https:// prefix")
                     domain = domain[8:]
-                    
+
                 print("Final processed domain:", domain)
                 db.add_log(job_id, "backend", f"Extracted domain: {domain}")
             except Exception as e:
                 print("❌ Domain extraction failed:", str(e))
-                raise Exception(f"Failed to extract domain from deployment: {str(e)}")
+                raise Exception(
+                    f"Failed to extract domain from deployment: {str(e)}")
 
             # Generate domain association with error handling
             try:
@@ -688,7 +697,7 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
                 print("\nDomain Association Response:")
                 print("Type:", type(domain_assoc))
                 print("Raw content:", domain_assoc)
-                    
+
                 # Handle potential list return
                 if isinstance(domain_assoc, list):
                     print("Response is a list, length:", len(domain_assoc))
@@ -698,17 +707,19 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
                     domain_assoc = domain_assoc[0]
                     print("First item type:", type(domain_assoc))
                     print("First item content:", domain_assoc)
-                        
+
                 # Validate response structure
                 print("\nValidating domain association structure:")
                 print("Is dict?", isinstance(domain_assoc, dict))
                 if not isinstance(domain_assoc, dict):
-                    raise ValueError(f"Invalid domain association type: {type(domain_assoc)}")
-                        
+                    raise ValueError(f"Invalid domain association type: {
+                                     type(domain_assoc)}")
+
                 print("Has 'json' key?", 'json' in domain_assoc)
                 if 'json' not in domain_assoc:
-                    raise ValueError("Missing 'json' key in domain association")
-                        
+                    raise ValueError(
+                        "Missing 'json' key in domain association")
+
                 required_keys = ['header', 'payload', 'signature']
                 print("\nChecking required keys in domain_assoc['json']:")
                 if 'json' in domain_assoc:
@@ -716,16 +727,20 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
                         present = key in domain_assoc['json']
                         print(f"Has '{key}'? {present}")
                         if not present:
-                            raise ValueError(f"Missing '{key}' in domain association json")
-                    
+                            raise ValueError(
+                                f"Missing '{key}' in domain association json")
+
                 print("\n✅ Domain association validation successful")
-                print("Final domain_assoc structure:", json.dumps(domain_assoc, indent=2))
-                db.add_log(job_id, "backend", "Generated valid domain association")
-                    
+                print("Final domain_assoc structure:",
+                      json.dumps(domain_assoc, indent=2))
+                db.add_log(job_id, "backend",
+                           "Generated valid domain association")
+
             except Exception as e:
                 print("❌ Domain association generation failed:", str(e))
                 print("Full error:", e)
-                raise Exception(f"Failed to generate domain association: {str(e)}")
+                raise Exception(
+                    f"Failed to generate domain association: {str(e)}")
 
             # Create prompt for domain association update
             update_prompt = f"""
