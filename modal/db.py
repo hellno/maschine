@@ -4,7 +4,6 @@ from typing import Optional, List
 import uuid
 from datetime import datetime
 
-# AI! add print messages to all DB write functions to see if they are working
 class Database:
     def __init__(self):
         url = os.environ["SUPABASE_URL"]
@@ -44,7 +43,14 @@ class Database:
         data = {'status': status}
         if error:
             data['data'] = {'error': error}
-        # AI! make this update an upsert not overwriting prior data (use merge)
+        # Get existing data first
+        existing_job = self.client.table('jobs').select('data').eq('id', job_id).single().execute().data
+        existing_data = existing_job.get('data', {}) if existing_job else {}
+        # Merge new error with existing data 
+        if error:
+            merged_data = {**existing_data, 'error': error}
+            data['data'] = merged_data
+        
         self.client.table('jobs').update(data).eq('id', job_id).execute()
 
     def add_log(self, job_id: str, source: str, text: str):
