@@ -63,8 +63,6 @@ export default function Frameception(
   const [addFrameResult, setAddFrameResult] = useState("");
   const [sendNotificationResult, setSendNotificationResult] = useState("");
   const [inputValue, setInputValue] = useState("");
-  const [repoPath, setRepoPath] = useState<string | null>(null);
-  const [vercelUrl, setVercelUrl] = useState<string | null>(null);
   const [creationError, setCreationError] = useState<string | null>(null);
   const [logs, setLogs] = useState<{ text: string }[]>([]);
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
@@ -383,54 +381,68 @@ export default function Frameception(
       case "enteringPrompt":
         return (
           <div className="my-20">
-            <h2 className="font-5xl font-bold mb-2">
-              {context?.user.username}, what kind of frame can I help you build?
-            </h2>
-            <div className="flex flex-col gap-2">
-              <textarea
-                rows={5}
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                placeholder="linktree for me with the following link..."
-                className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <Button
-                onClick={handleCreateProject}
-                disabled={!inputValue.trim()}
-              >
-                Let&apos;s go
-              </Button>
-
-              {projects.length > 0 && (
-                <div className="mt-6">
-                  <h3 className="text-lg font-semibold mb-2">Past Projects</h3>
-                  <>
-                    <div className="grid grid-cols-1 gap-4">
-                      {projects.map((project) => (
-                        <ProjectOverviewCard
-                          key={project.projectId}
-                          projectId={project.id}
-                          name={
-                            project?.repo_url?.split("frameception-v2/")[1] ||
-                            project.id?.split("-")[0]
-                          }
-                          repoUrl={project.repo_url}
-                          frontendUrl={project.frontend_url}
-                          createdAt={project.created_at}
-                          selected={selectedProjectId === project.id}
-                          onClick={() => setSelectedProjectId(project.id)}
-                        />
-                      ))}
-                    </div>
-                    {selectedProjectId && (
-                      <div className="mt-6">
-                        <ProjectDetailView projectId={selectedProjectId} />
-                      </div>
-                    )}
-                  </>
+            <Card className="">
+              <CardHeader>
+                <CardTitle>
+                  {context?.user.username}, what kind of frame can I help you
+                  build?
+                </CardTitle>
+                <CardDescription>
+                  Create your new frame project by providing a prompt
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col gap-2">
+                  <textarea
+                    rows={5}
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    placeholder="linktree for me with the following link..."
+                    className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <Button
+                    onClick={handleCreateProject}
+                    disabled={!inputValue.trim()}
+                  >
+                    Let&apos;s go
+                  </Button>
                 </div>
-              )}
-            </div>
+              </CardContent>
+            </Card>
+
+            {projects.length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold mb-2">Projects</h3>
+                <>
+                  {/* // back button to deselect */}
+                  {selectedProjectId && (
+                    <div className="my-6">
+                      <ProjectDetailView projectId={selectedProjectId} />
+                      <Button onClick={() => setSelectedProjectId(null)}>
+                        Back
+                      </Button>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 gap-4">
+                    {projects.map((project) => (
+                      <ProjectOverviewCard
+                        key={project.projectId}
+                        projectId={project.id}
+                        name={
+                          project?.repo_url?.split("frameception-v2/")[1] ||
+                          project.id?.split("-")[0]
+                        }
+                        repoUrl={project.repo_url}
+                        frontendUrl={project.frontend_url}
+                        createdAt={project.created_at}
+                        selected={selectedProjectId === project.id}
+                        onClick={() => setSelectedProjectId(project.id)}
+                      />
+                    ))}
+                  </div>
+                </>
+              </div>
+            )}
           </div>
         );
       case "pending":
@@ -482,7 +494,7 @@ export default function Frameception(
         paddingRight: context?.client.safeAreaInsets?.right ?? 0,
       }}
     >
-      <div className="w-[300px] mx-auto py-2 px-2">
+      <div className="mx-auto py-2 px-8">
         <h1 className="text-2xl font-bold text-center mb-4">{title}</h1>
 
         {renderMainContent()}
