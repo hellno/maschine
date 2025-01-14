@@ -180,10 +180,7 @@ def update_code(data: dict) -> str:
     if not prompt:
         return "Please provide a prompt in the request body", 400
 
-    user_context = data.get("userContext")
-    if not user_context:
-        return "Please provide userContext in the request body", 400
-
+    user_context = data.get("userContext")    
     project_id = data.get("projectId")
 
     db = Database()
@@ -242,8 +239,8 @@ def update_code(data: dict) -> str:
             read_only_fnames=read_only_fnames
         )
         print(f'coder: {coder}')
-        prompt = expand_user_prompt_with_farcaster_context(
-            prompt, user_context)
+        if user_context:
+            prompt = expand_user_prompt_with_farcaster_context(prompt, user_context)
         print(f'Prompt for aider: {prompt}\nmodel: {model}\nfnames: {
               fnames}\ncwd: {repo.working_tree_dir}\ncoder: {coder}')
 

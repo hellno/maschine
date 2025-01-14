@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
 import { ExternalLink, GitBranch, Globe, ArrowUp } from "lucide-react";
-import { Button } from "./ui/button";
+import { Button } from "./ui/button2";
 import { FrameContext } from "@farcaster/frame-core";
 
 interface Log {

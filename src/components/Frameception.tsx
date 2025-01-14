@@ -36,7 +36,7 @@ import { config } from "~/components/providers/WagmiProvider";
 import { BigPurpleButton } from "~/components/ui/BigPurpleButton";
 import { truncateAddress } from "~/lib/truncateAddress";
 import { base } from "wagmi/chains";
-import { Button } from "./ui/Button";
+import { Button } from "./ui/button2";
 import { ArrowBigUp, ArrowUp } from "lucide-react";
 
 const promptTemplates = [
