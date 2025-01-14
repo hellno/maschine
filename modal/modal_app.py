@@ -1,3 +1,4 @@
+from typing import TypedDict, Optional
 import modal
 import sys
 from pathlib import Path
@@ -15,6 +16,19 @@ import git
 from aider.coders import Coder
 from aider.models import Model
 from aider.io import InputOutput
+from neynar import get_user_casts, format_cast
+import sentry_sdk
+
+
+def setup_sentry():
+    sentry_sdk.init(
+        dsn=os.environ.get("SENTRY_DSN"),
+        traces_sample_rate=1.0,
+        _experiments={
+            "continuous_profiling_auto_start": True,
+        },
+    )
+
 
 # Organization constants
 GITHUB_ORG_NAME = "frameception-v2"
@@ -39,8 +53,10 @@ image = modal.Image.debian_slim(python_version="3.12") \
         "requests",
         "openai",
         "supabase",
-        "eth-account"
-).run_commands("aider-install")
+        "eth-account",
+        "sentry-sdk[fastapi]")\
+    .run_commands("aider-install") \
+    .run_function(setup_sentry, secrets=[modal.Secret.from_name("sentry-secret")])
 app = modal.App(name="frameception", image=image)
 
 
@@ -75,7 +91,6 @@ def verify_github_setup(gh: Github, job_id: str, db: Database) -> None:
     except Exception as e:
         raise Exception(f"GitHub setup verification failed: {str(e)}")
 
-from typing import TypedDict, Optional
 
 class UserContext(TypedDict):
     fid: int
@@ -84,11 +99,21 @@ class UserContext(TypedDict):
     pfpUrl: Optional[str]  # Profile image URL
     location: Optional[dict]  # AccountLocation type
 
+
 def expand_user_prompt_with_farcaster_context(prompt: str, user_context: UserContext):
-    last_ten_casts = get_user_casts(user_context['fid'], 10)
-    cast_context = '\n'.join([transform_cast_object_to_text(c) for c in last_ten_casts])
-    farcaster_context_prompt = f'Below are the recent Farcaster social media posts from {user_context.get("username", "")} {user_context.get("displayName", "")}: {cast_context}'
-    return f'{farcaster_context_prompt} \n {prompt}'
+    try:
+        print(f"Expanding user prompt with Farcaster context: {
+              prompt} {user_context}")
+        last_ten_casts = get_user_casts(user_context['fid'], 10)
+        cast_context = '\n'.join([format_cast(c)
+                                  for c in last_ten_casts])
+        print(f"Cast context: {cast_context}")
+        farcaster_context_prompt = f'Below are the recent Farcaster social media posts from {
+            user_context.get("username", "")} {user_context.get("displayName", "")}: {cast_context}'
+        return f'{farcaster_context_prompt} \n {prompt}'
+    except Exception as e:
+        print(f"Error expanding user prompt with Farcaster context: {str(e)}")
+        return prompt
 
 # @app.local_entrypoint()
 # def main(num_iterations: int = 200):
@@ -110,6 +135,7 @@ def expand_user_prompt_with_farcaster_context(prompt: str, user_context: UserCon
 
 #     print(f"Total from {num_iterations} parallel executions:", total)
 
+
 @app.function()
 @modal.web_endpoint(label="update-code", method="POST", docs=True)
 def update_code_webhook(data: dict) -> str:
@@ -129,7 +155,8 @@ def update_code_webhook(data: dict) -> str:
         modal.Secret.from_name("github-secret"),
         modal.Secret.from_name("vercel-secret"),
         modal.Secret.from_name("llm-api-keys"),
-        modal.Secret.from_name("supabase-secret")
+        modal.Secret.from_name("supabase-secret"),
+        modal.Secret.from_dict({"MODAL_LOGLEVEL": "DEBUG"}),
     ]
 )
 def update_code(data: dict) -> str:
@@ -143,7 +170,7 @@ def update_code(data: dict) -> str:
     prompt = data.get("prompt")
     if not prompt:
         return "Please provide a prompt in the request body", 400
-    
+
     db = Database()
     job_id = db.create_job(data.get("projectId"),
                            job_type="update_code",
@@ -158,7 +185,6 @@ def update_code(data: dict) -> str:
     db.add_log(job_id, "backend",
                f"Start code update for repo: {repo_path}")
 
-
     repo_url = f"https://{os.environ["GITHUB_TOKEN"]
                           }@github.com/{repo_path}.git"
     repo_dir = f"/github-repos/{repo_path}"
@@ -172,16 +198,15 @@ def update_code(data: dict) -> str:
         else:
             repo = git.Repo(repo_dir)
             repo.remotes.origin.pull()
-
+        print('repo object:', repo)
         repo.config_writer().set_value("user", "name", "hellno").release()
         repo.config_writer().set_value(
             "user", "email", "686075+hellno@users.noreply.github.com.").release()
-        fnames = [f"{repo.working_tree_dir}/{fname}"
-                  for fname in [
-            "src/components/Frame.tsx",
-            "src/lib/constants.ts"
+        fnames = [
+            f"{repo.working_tree_dir}/{fname}"
+            for fname in ["src/components/Frame.tsx", "src/lib/constants.ts"]
         ]
-        ]
+        print(f'fnames: {fnames}')
         io = InputOutput(yes=True, root=repo.working_tree_dir)
         model = Model(
             model="deepseek/deepseek-coder",
@@ -191,14 +216,17 @@ def update_code(data: dict) -> str:
         coder = Coder.create(
             main_model=model,
             fnames=fnames,
-            io=io
+            io=io,
+            lint_cmds=["yarn lint"],
+            auto_test=True
         )
+        print(f'coder: {coder}')
         prompt = expand_user_prompt_with_farcaster_context(prompt)
         print(f'Prompt for aider: {prompt}\nmodel: {model}\nfnames: {
               fnames}\ncwd: {repo.working_tree_dir}\ncoder: {coder}')
-        # Run the prompt through aider
+
         result = coder.run(prompt)
-        # Commit changes if any were made
+        db.add_log(job_id, "backend", f"Finished code update")
 
         repo.git.push()
         db.update_job_status(job_id, "completed")
@@ -365,7 +393,8 @@ def generate_domain_association(domain: str) -> dict:
         modal.Secret.from_name("llm-api-keys"),
         modal.Secret.from_name("supabase-secret"),
         modal.Secret.from_name("upstash-secret"),
-        modal.Secret.from_name("farcaster-secret")
+        modal.Secret.from_name("farcaster-secret"),
+        modal.Secret.from_dict({"MODAL_LOGLEVEL": "DEBUG"})
     ]
 )
 def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
