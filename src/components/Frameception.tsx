@@ -4,6 +4,12 @@ import { useEffect, useCallback, useState, useMemo } from "react";
 import { LogViewer } from "./LogViewer";
 import { ProjectOverviewCard } from "./ProjectOverviewCard";
 import { ProjectDetailView } from "./ProjectDetailView";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs"
 import { signIn, signOut, getCsrfToken } from "next-auth/react";
 import {
   Card,
@@ -357,132 +363,133 @@ export default function Frameception(
   }, []);
 
   const renderMainContent = () => {
-    switch (flowState) {
-      case "waitForFrameToBePinned":
-        return (
-          <div className="my-20">
-            <h2 className="font-5xl font-bold mb-2">
-              Hey {context?.user.username}, bookmark this to start building your
-              frame
-            </h2>
-            <h3 className="font-2xl mb-4 text-gray-600">
-              We will notify in Warpcast when your frame is ready to use!
-            </h3>
-            <Button
-              onClick={async () => {
-                addFrame().then(() => setFlowState("enteringPrompt"));
-              }}
-            >
-              Get Started
-            </Button>
-          </div>
-        );
+    if (!isFramePinned) {
+      return (
+        <div className="my-20">
+          <h2 className="font-5xl font-bold mb-2">
+            Hey {context?.user.username}, bookmark this to start building your frame
+          </h2>
+          <h3 className="font-2xl mb-4 text-gray-600">
+            We will notify in Warpcast when your frame is ready to use!
+          </h3>
+          <Button
+            onClick={async () => {
+              addFrame().then(() => setFlowState("enteringPrompt"));
+            }}
+          >
+            Get Started
+          </Button>
+        </div>
+      );
+    }
 
-      case "enteringPrompt":
-        return (
-          <div className="my-20">
-            <Card className="">
-              <CardHeader>
-                <CardTitle>
-                  {context?.user.username}, what kind of frame can I help you
-                  build?
-                </CardTitle>
-                <CardDescription>
-                  Create your new frame project by providing a prompt
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col gap-2">
-                  <textarea
-                    rows={5}
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    placeholder="linktree for me with the following link..."
-                    className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <Button
-                    onClick={handleCreateProject}
-                    disabled={!inputValue.trim()}
-                  >
-                    Let&apos;s go
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {projects.length > 0 && (
-              <div className="mt-6">
-                <h3 className="text-lg font-semibold mb-2">Projects</h3>
-                <>
-                  {/* // back button to deselect */}
-                  {selectedProjectId && (
-                    <div className="my-6">
-                      <ProjectDetailView projectId={selectedProjectId} />
-                      <Button onClick={() => setSelectedProjectId(null)}>
-                        Back
-                      </Button>
-                    </div>
-                  )}
-                  <div className="grid grid-cols-1 gap-4">
-                    {projects.map((project) => (
-                      <ProjectOverviewCard
-                        key={project.projectId}
-                        projectId={project.id}
-                        name={
-                          project?.repo_url?.split("frameception-v2/")[1] ||
-                          project.id?.split("-")[0]
-                        }
-                        repoUrl={project.repo_url}
-                        frontendUrl={project.frontend_url}
-                        createdAt={project.created_at}
-                        selected={selectedProjectId === project.id}
-                        onClick={() => setSelectedProjectId(project.id)}
-                      />
-                    ))}
-                  </div>
-                </>
+    return (
+      <Tabs defaultValue="create_project" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="create_project">Create Project</TabsTrigger>
+          <TabsTrigger value="view_projects">View Projects</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="create_project">
+          <Card className="">
+            <CardHeader>
+              <CardTitle>
+                {context?.user.username}, what kind of frame can I help you build?
+              </CardTitle>
+              <CardDescription>
+                Create your new frame project by providing a prompt
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-2">
+                <textarea
+                  rows={5}
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  placeholder="linktree for me with the following link..."
+                  className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <Button onClick={handleCreateProject} disabled={!inputValue.trim()}>
+                  Let&apos;s go
+                </Button>
               </div>
-            )}
-          </div>
-        );
-      case "pending":
-        return (
-          <div className="my-20 flex flex-col items-center gap-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-            <p className="text-center">Creating your frame...</p>
-            <LogViewer logs={logs} />
-          </div>
-        );
+            </CardContent>
+          </Card>
 
-      case "success":
-        return (
-          <div className="my-20">
-            <h2 className="font-5xl font-bold mb-2">Your frame is ready!</h2>
-            <div className="flex flex-col gap-2">
-              {repoPath && (
-                <a
-                  href={repoPath}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-500 hover:text-blue-700 text-sm text-center"
-                >
-                  View your new repository on GitHub
-                </a>
-              )}
-              {vercelUrl && (
-                <a
-                  href={vercelUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-500 hover:text-blue-700 text-sm text-center"
-                >
-                  View your live deployment on Vercel
-                </a>
+          {flowState === "pending" && (
+            <div className="my-20 flex flex-col items-center gap-4">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+              <p className="text-center">Creating your frame...</p>
+              <LogViewer logs={logs} />
+            </div>
+          )}
+
+          {flowState === "success" && (
+            <div className="my-20">
+              <h2 className="font-5xl font-bold mb-2">Your frame is ready!</h2>
+              <div className="flex flex-col gap-2">
+                {repoPath && (
+                  <a
+                    href={repoPath}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-500 hover:text-blue-700 text-sm text-center"
+                  >
+                    View your new repository on GitHub
+                  </a>
+                )}
+                {vercelUrl && (
+                  <a
+                    href={vercelUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-500 hover:text-blue-700 text-sm text-center"
+                  >
+                    View your live deployment on Vercel
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="view_projects">
+          {selectedProjectId ? (
+            <div>
+              <Button 
+                onClick={() => setSelectedProjectId(null)}
+                className="mb-4"
+              >
+                ← Back to Projects
+              </Button>
+              <ProjectDetailView projectId={selectedProjectId} />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {projects.map((project) => (
+                <ProjectOverviewCard
+                  key={project.projectId}
+                  projectId={project.id}
+                  name={
+                    project?.repo_url?.split("frameception-v2/")[1] ||
+                    project.id?.split("-")[0]
+                  }
+                  repoUrl={project.repo_url}
+                  frontendUrl={project.frontend_url}
+                  createdAt={project.created_at}
+                  onClick={() => setSelectedProjectId(project.id)}
+                />
+              ))}
+              {projects.length === 0 && (
+                <div className="text-center text-gray-500 py-8">
+                  No projects yet. Create your first project in the Create tab!
+                </div>
               )}
             </div>
-          </div>
-        );
-    }
+          )}
+        </TabsContent>
+      </Tabs>
+    );
   };
 
   return (
