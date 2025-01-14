@@ -1,15 +1,9 @@
 "use client";
 
 import { useEffect, useCallback, useState, useMemo } from "react";
-import { LogViewer } from "./LogViewer";
 import { ProjectOverviewCard } from "./ProjectOverviewCard";
 import { ProjectDetailView } from "./ProjectDetailView";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { signIn, signOut, getCsrfToken } from "next-auth/react";
 import {
   Card,
@@ -39,9 +33,10 @@ import { SignIn as SignInCore } from "@farcaster/frame-core";
 import { SignInResult } from "@farcaster/frame-core/dist/actions/signIn";
 
 import { config } from "~/components/providers/WagmiProvider";
-import { Button } from "~/components/ui/Button";
+import { BigPurpleButton } from "~/components/ui/BigPurpleButton";
 import { truncateAddress } from "~/lib/truncateAddress";
 import { base } from "wagmi/chains";
+import { Button } from "./ui/Button";
 
 type FlowState =
   | "waitForFrameToBePinned"
@@ -70,47 +65,15 @@ export default function Frameception(
   const [sendNotificationResult, setSendNotificationResult] = useState("");
   const [inputValue, setInputValue] = useState("");
   const [creationError, setCreationError] = useState<string | null>(null);
-  const [logs, setLogs] = useState<{ text: string }[]>([]);
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
     null
   );
 
-  const pollJobStatus = useCallback(async (jobId: string) => {
-    try {
-      console.log("Polling job status:", jobId);
-      const response = await fetch(`/api/job/${jobId}`);
-      const data = await response.json();
-
-      if (data.error) {
-        setCreationError(data.error);
-        return;
-      }
-
-      setLogs(data.logs || []);
-      console.log("job data", data);
-
-      if (data.status === "completed") {
-        setFlowState("success");
-      } else if (data.status === "failed") {
-        setCreationError(data.error || "Job failed");
-        setFlowState("enteringPrompt");
-      } else if (data.status === "in-progress" || data.status === "pending") {
-        setTimeout(() => pollJobStatus(jobId), 2000);
-      }
-    } catch (error) {
-      setCreationError(
-        error instanceof Error ? error.message : "Polling error"
-      );
-      setFlowState("enteringPrompt");
-    }
-  }, []);
-
   const handleCreateProject = useCallback(async () => {
     try {
       setFlowState("pending");
       setCreationError(null);
-      setRepoPath(null);
 
       if (!context?.user?.fid) {
         throw new Error("User FID is required");
@@ -134,8 +97,8 @@ export default function Frameception(
         throw new Error("Failed to create project");
       }
 
-      const { jobId } = await response.json();
-      pollJobStatus(jobId);
+      const { projectId } = await response.json();
+      setSelectedProjectId(projectId);
     } catch (error) {
       console.error("Error creating project:", error);
       setCreationError(
@@ -143,11 +106,8 @@ export default function Frameception(
       );
       setFlowState("enteringPrompt");
     }
-  }, [inputValue, context?.user?.username, pollJobStatus]);
+  }, [inputValue, context?.user]);
 
-  /**
-   * React effects and setup
-   */
   useEffect(() => {
     setNotificationDetails(context?.client.notificationDetails ?? null);
   }, [context]);
@@ -363,22 +323,24 @@ export default function Frameception(
   }, []);
 
   const renderMainContent = () => {
-    if (!isFramePinned) {
+    if (false && !isFramePinned) {
       return (
         <div className="my-20">
           <h2 className="font-5xl font-bold mb-2">
-            Hey {context?.user.username}, bookmark this to start building your frame
+            Hey {context?.user.username}, bookmark this to start building your
+            frame
           </h2>
           <h3 className="font-2xl mb-4 text-gray-600">
-            We will notify in Warpcast when your frame is ready to use!
+            We will notify you when your frame is ready!
           </h3>
-          <Button
+          <BigPurpleButton
+            className="flex justify-center items-center gap-2"
             onClick={async () => {
               addFrame().then(() => setFlowState("enteringPrompt"));
             }}
           >
             Get Started
-          </Button>
+          </BigPurpleButton>
         </div>
       );
     }
@@ -386,18 +348,24 @@ export default function Frameception(
     return (
       <Tabs defaultValue="create_project" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="create_project">Create Project</TabsTrigger>
-          <TabsTrigger value="view_projects">View Projects</TabsTrigger>
+          <TabsTrigger value="create_project">New</TabsTrigger>
+          <TabsTrigger
+            value="view_projects"
+            onClick={() => setSelectedProjectId(null)}
+          >
+            View Projects
+          </TabsTrigger>
         </TabsList>
-        
+
         <TabsContent value="create_project">
           <Card className="">
             <CardHeader>
               <CardTitle>
-                {context?.user.username}, what kind of frame can I help you build?
+                Hey @{context?.user.username}, what frame would you like to
+                build?
               </CardTitle>
               <CardDescription>
-                Create your new frame project by providing a prompt
+                Enter a prompt to start your new frame project.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -409,46 +377,23 @@ export default function Frameception(
                   placeholder="linktree for me with the following link..."
                   className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <Button onClick={handleCreateProject} disabled={!inputValue.trim()}>
-                  Let&apos;s go
-                </Button>
+                <BigPurpleButton
+                  onClick={handleCreateProject}
+                  disabled={!inputValue.trim()}
+                >
+                  Let&apos;s build it
+                </BigPurpleButton>
               </div>
             </CardContent>
           </Card>
 
-          {flowState === "pending" && (
+          {(flowState === "pending" || flowState === "success") && (
             <div className="my-20 flex flex-col items-center gap-4">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
               <p className="text-center">Creating your frame...</p>
-              <LogViewer logs={logs} />
-            </div>
-          )}
-
-          {flowState === "success" && (
-            <div className="my-20">
-              <h2 className="font-5xl font-bold mb-2">Your frame is ready!</h2>
-              <div className="flex flex-col gap-2">
-                {repoPath && (
-                  <a
-                    href={repoPath}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-500 hover:text-blue-700 text-sm text-center"
-                  >
-                    View your new repository on GitHub
-                  </a>
-                )}
-                {vercelUrl && (
-                  <a
-                    href={vercelUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-500 hover:text-blue-700 text-sm text-center"
-                  >
-                    View your live deployment on Vercel
-                  </a>
-                )}
-              </div>
+              {selectedProjectId && (
+                <ProjectDetailView projectId={selectedProjectId} />
+              )}
             </div>
           )}
         </TabsContent>
@@ -456,7 +401,9 @@ export default function Frameception(
         <TabsContent value="view_projects">
           {selectedProjectId ? (
             <div>
-              <Button 
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setSelectedProjectId(null)}
                 className="mb-4"
               >
@@ -513,7 +460,7 @@ export default function Frameception(
         )}
         <div className="mb-4">
           <h2 className="font-2xl font-bold">Context</h2>
-          <button
+          <BigPurpleButton
             onClick={toggleContext}
             className="flex items-center gap-2 transition-colors"
           >
@@ -525,7 +472,7 @@ export default function Frameception(
               ➤
             </span>
             Tap to expand
-          </button>
+          </BigPurpleButton>
 
           {isContextOpen && (
             <div className="p-4 mt-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
@@ -554,7 +501,7 @@ export default function Frameception(
                 sdk.actions.openUrl
               </pre>
             </div>
-            <Button onClick={openUrl}>Open Link</Button>
+            <BigPurpleButton onClick={openUrl}>Open Link</BigPurpleButton>
           </div>
 
           <div className="mb-4">
@@ -563,7 +510,9 @@ export default function Frameception(
                 sdk.actions.openUrl
               </pre>
             </div>
-            <Button onClick={openWarpcastUrl}>Open Warpcast Link</Button>
+            <BigPurpleButton onClick={openWarpcastUrl}>
+              Open Warpcast Link
+            </BigPurpleButton>
           </div>
 
           <div className="mb-4">
@@ -572,7 +521,7 @@ export default function Frameception(
                 sdk.actions.close
               </pre>
             </div>
-            <Button onClick={close}>Close Frame</Button>
+            <BigPurpleButton onClick={close}>Close Frame</BigPurpleButton>
           </div>
         </div>
 
@@ -610,9 +559,9 @@ export default function Frameception(
                 Add frame result: {addFrameResult}
               </div>
             )}
-            <Button onClick={addFrame} disabled={isFramePinned}>
+            <BigPurpleButton onClick={addFrame} disabled={isFramePinned}>
               Add frame to client
-            </Button>
+            </BigPurpleButton>
           </div>
 
           {sendNotificationResult && (
@@ -621,9 +570,12 @@ export default function Frameception(
             </div>
           )}
           <div className="mb-4">
-            <Button onClick={sendNotification} disabled={!notificationDetails}>
+            <BigPurpleButton
+              onClick={sendNotification}
+              disabled={!notificationDetails}
+            >
               Send notification
-            </Button>
+            </BigPurpleButton>
           </div>
         </div>
 
@@ -643,7 +595,7 @@ export default function Frameception(
           )}
 
           <div className="mb-4">
-            <Button
+            <BigPurpleButton
               onClick={() =>
                 isConnected
                   ? disconnect()
@@ -651,7 +603,7 @@ export default function Frameception(
               }
             >
               {isConnected ? "Disconnect" : "Connect"}
-            </Button>
+            </BigPurpleButton>
           </div>
 
           <div className="mb-4">
@@ -664,13 +616,13 @@ export default function Frameception(
                 <SendEth />
               </div>
               <div className="mb-4">
-                <Button
+                <BigPurpleButton
                   onClick={sendTx}
                   disabled={!isConnected || isSendTxPending}
                   isLoading={isSendTxPending}
                 >
                   Send Transaction (contract)
-                </Button>
+                </BigPurpleButton>
                 {isSendTxError && renderError(sendTxError)}
                 {txHash && (
                   <div className="mt-2 text-xs">
@@ -687,13 +639,13 @@ export default function Frameception(
                 )}
               </div>
               <div className="mb-4">
-                <Button
+                <BigPurpleButton
                   onClick={signTyped}
                   disabled={!isConnected || isSignTypedPending}
                   isLoading={isSignTypedPending}
                 >
                   Sign Typed Data
-                </Button>
+                </BigPurpleButton>
                 {isSignTypedError && renderError(signTypedError)}
               </div>
             </>
@@ -730,13 +682,13 @@ function SignMessage() {
 
   return (
     <>
-      <Button
+      <BigPurpleButton
         onClick={handleSignMessage}
         disabled={isSignPending}
         isLoading={isSignPending}
       >
         Sign Message
-      </Button>
+      </BigPurpleButton>
       {isSignError && renderError(signError)}
       {signature && (
         <div className="mt-2 text-xs">
@@ -781,13 +733,13 @@ function SendEth() {
 
   return (
     <>
-      <Button
+      <BigPurpleButton
         onClick={handleSend}
         disabled={!isConnected || isSendTxPending}
         isLoading={isSendTxPending}
       >
         Send Transaction (eth)
-      </Button>
+      </BigPurpleButton>
       {isSendTxError && renderError(sendTxError)}
       {data && (
         <div className="mt-2 text-xs">
@@ -859,14 +811,14 @@ function SignIn() {
   return (
     <>
       {status !== "authenticated" && (
-        <Button onClick={handleSignIn} disabled={signingIn}>
+        <BigPurpleButton onClick={handleSignIn} disabled={signingIn}>
           Sign In with Farcaster
-        </Button>
+        </BigPurpleButton>
       )}
       {status === "authenticated" && (
-        <Button onClick={handleSignOut} disabled={signingOut}>
+        <BigPurpleButton onClick={handleSignOut} disabled={signingOut}>
           Sign out
-        </Button>
+        </BigPurpleButton>
       )}
       {session && (
         <div className="my-2 p-2 text-xs overflow-x-scroll bg-gray-100 rounded-lg font-mono">
