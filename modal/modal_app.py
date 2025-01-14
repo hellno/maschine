@@ -660,13 +660,72 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
                        code_update_response}")
 
             print("Starting post-deployment setup with deployment data", deployment)
-            # Generate domain association
-            domain = deployment['url']
-            if domain.startswith('https://'):
-                domain = domain[8:]
-            domain_assoc = generate_domain_association.remote(domain)
-            print("Generated domain association", domain_assoc)
-            db.add_log(job_id, "backend", "Generated domain association")
+            # Extract and validate domain
+            try:
+                print("\n--- Domain Extraction ---")
+                print("Raw deployment URL:", deployment.get('url'))
+                domain = deployment.get('url', '')
+                print("Initial domain value:", domain)
+                    
+                if not domain:
+                    raise ValueError("Deployment URL is empty")
+                    
+                if domain.startswith('https://'):
+                    print("Removing https:// prefix")
+                    domain = domain[8:]
+                    
+                print("Final processed domain:", domain)
+                db.add_log(job_id, "backend", f"Extracted domain: {domain}")
+            except Exception as e:
+                print("❌ Domain extraction failed:", str(e))
+                raise Exception(f"Failed to extract domain from deployment: {str(e)}")
+
+            # Generate domain association with error handling
+            try:
+                print("\n--- Domain Association Generation ---")
+                print("Calling generate_domain_association.remote with domain:", domain)
+                domain_assoc = generate_domain_association.remote(domain)
+                print("\nDomain Association Response:")
+                print("Type:", type(domain_assoc))
+                print("Raw content:", domain_assoc)
+                    
+                # Handle potential list return
+                if isinstance(domain_assoc, list):
+                    print("Response is a list, length:", len(domain_assoc))
+                    if not domain_assoc:
+                        raise ValueError("Empty domain association response")
+                    print("Taking first item from list")
+                    domain_assoc = domain_assoc[0]
+                    print("First item type:", type(domain_assoc))
+                    print("First item content:", domain_assoc)
+                        
+                # Validate response structure
+                print("\nValidating domain association structure:")
+                print("Is dict?", isinstance(domain_assoc, dict))
+                if not isinstance(domain_assoc, dict):
+                    raise ValueError(f"Invalid domain association type: {type(domain_assoc)}")
+                        
+                print("Has 'json' key?", 'json' in domain_assoc)
+                if 'json' not in domain_assoc:
+                    raise ValueError("Missing 'json' key in domain association")
+                        
+                required_keys = ['header', 'payload', 'signature']
+                print("\nChecking required keys in domain_assoc['json']:")
+                if 'json' in domain_assoc:
+                    for key in required_keys:
+                        present = key in domain_assoc['json']
+                        print(f"Has '{key}'? {present}")
+                        if not present:
+                            raise ValueError(f"Missing '{key}' in domain association json")
+                    
+                print("\n✅ Domain association validation successful")
+                print("Final domain_assoc structure:", json.dumps(domain_assoc, indent=2))
+                db.add_log(job_id, "backend", "Generated valid domain association")
+                    
+            except Exception as e:
+                print("❌ Domain association generation failed:", str(e))
+                print("Full error:", e)
+                raise Exception(f"Failed to generate domain association: {str(e)}")
 
             # Create prompt for domain association update
             update_prompt = f"""
