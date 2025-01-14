@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
-import { ExternalLink, GitBranch, Globe } from "lucide-react";
+import { ExternalLink, GitBranch, Globe, ArrowUp } from "lucide-react";
+import { Button } from "./ui/button";
 
 interface Log {
   id: string;
@@ -40,6 +41,8 @@ export function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
   const [project, setProject] = useState<Project | null>(null);
   const [logs, setLogs] = useState<Log[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [updatePrompt, setUpdatePrompt] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchProject = useCallback(async () => {
     try {
@@ -89,6 +92,43 @@ export function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
       pendingJobs.forEach((job) => pollJobStatus(job.id));
     }
   }, [project?.jobs, pollJobStatus]);
+
+  const handleSubmitUpdate = async () => {
+    if (!updatePrompt.trim()) return;
+    
+    setIsSubmitting(true);
+    try {
+      const response = await fetch('/api/update-code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          projectId: projectId,
+          prompt: updatePrompt,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to submit update');
+      }
+
+      const data = await response.json();
+      // Start polling the new job
+      if (data.jobId) {
+        pollJobStatus(data.jobId);
+      }
+      
+      // Clear the input after successful submission
+      setUpdatePrompt("");
+      // Refresh project data to show new job
+      fetchProject();
+    } catch (error) {
+      console.error('Error submitting update:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   if (!project) {
     return (
@@ -189,6 +229,41 @@ export function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
                 No conversations yet
               </div>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Update Frame</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <textarea
+              rows={4}
+              value={updatePrompt}
+              onChange={(e) => setUpdatePrompt(e.target.value)}
+              placeholder="Describe the changes you'd like to make to your frame..."
+              className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={isSubmitting}
+            />
+            <Button 
+              onClick={handleSubmitUpdate}
+              disabled={!updatePrompt.trim() || isSubmitting}
+              className="w-full flex items-center justify-center gap-2"
+            >
+              {isSubmitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  Updating...
+                </>
+              ) : (
+                <>
+                  Update Frame
+                  <ArrowUp className="w-4 h-4" />
+                </>
+              )}
+            </Button>
           </div>
         </CardContent>
       </Card>
