@@ -43,8 +43,16 @@ github_repos = modal.Volume.from_name(
 volumes = {"/github-repos": github_repos}
 
 image = modal.Image.debian_slim(python_version="3.12") \
-    .apt_install("git") \
-    .env(env_vars) \
+    .apt_install("git", "curl") \
+    .run_commands(
+        # Install Node.js
+        "curl -fsSL https://deb.nodesource.com/setup_20.x | bash -",
+        "apt-get install -y nodejs",
+        # Install yarn
+        "npm install -g yarn",
+        # Install aider
+        "aider-install"
+    ) \
     .pip_install(
         "fastapi[standard]",
         "aider-chat",
@@ -53,10 +61,10 @@ image = modal.Image.debian_slim(python_version="3.12") \
         "PyGithub",
         "requests",
         "openai",
-        "supabase",
+        "supabase", 
         "eth-account",
         "sentry-sdk[fastapi]")\
-    .run_commands("aider-install") \
+    .env(env_vars) \
     .run_function(setup_sentry, secrets=[modal.Secret.from_name("sentry-secret")])
 app = modal.App(name="frameception", image=image)
 
