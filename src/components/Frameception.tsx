@@ -82,7 +82,8 @@ export default function Frameception(
 
   const [lastEvent, setLastEvent] = useState("");
   const [flowState, setFlowState] = useState<FlowState>(
-    "waitForFrameToBePinned"
+    // "waitForFrameToBePinned"
+    "enteringPrompt"
   );
 
   const [addFrameResult, setAddFrameResult] = useState("");
@@ -94,7 +95,7 @@ export default function Frameception(
     null
   );
 
-  console.log('context',context)
+  console.log("context", context);
 
   const handleCreateProject = useCallback(async () => {
     try {
@@ -395,70 +396,72 @@ export default function Frameception(
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col gap-2">
-                <textarea
-                  rows={5}
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  placeholder="linktree for me with the following link..."
-                  className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <BigPurpleButton
-                  className="flex items-center justify-center gap-2"
-                  onClick={handleCreateProject}
-                  disabled={!inputValue.trim()}
-                >
-                  Let&apos;s build it
-                  <ArrowUp className="w-4 h-4" />
-                </BigPurpleButton>
-                <div className="mt-4">
-                  <p className="text-sm text-gray-500 mb-2">
-                    Or try one of these templates:
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {promptTemplates.map((template, index) => (
-                      <button
-                        key={index}
-                        onClick={() => setInputValue(template.template)}
-                        className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium 
+              {flowState === "enteringPrompt" && (
+                <div className="flex flex-col gap-2">
+                  <textarea
+                    rows={5}
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    placeholder="linktree for me with the following link..."
+                    className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <BigPurpleButton
+                    className="flex items-center justify-center gap-2"
+                    onClick={handleCreateProject}
+                    disabled={!inputValue.trim()}
+                  >
+                    Let&apos;s build it
+                    <ArrowUp className="w-4 h-4" />
+                  </BigPurpleButton>
+                  <div className="mt-4">
+                    <p className="text-sm text-gray-500 mb-2">
+                      Or try one of these templates:
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {promptTemplates.map((template, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setInputValue(template.template)}
+                          className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium 
                                  rounded-full border border-gray-200 bg-gray-50 text-gray-700
                                  hover:bg-gray-100 hover:border-gray-300 transition-colors
                                  focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
-                      >
-                        {template.title}
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 16 16"
-                          fill="none"
-                          stroke="currentColor"
-                          className="ml-1"
                         >
-                          <path
-                            d="M6.75 4H6v1.5h.75 2.69L5.47 9.47l-.53.53L6 11.06l.53-.53 3.97-3.97v2.69V10h1.5V9.25V5c0-.55-.45-1-1-1H6.75z"
-                            fill="currentColor"
-                          />
-                        </svg>
-                      </button>
-                    ))}
+                          {template.title}
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            className="ml-1"
+                          >
+                            <path
+                              d="M6.75 4H6v1.5h.75 2.69L5.47 9.47l-.53.53L6 11.06l.53-.53 3.97-3.97v2.69V10h1.5V9.25V5c0-.55-.45-1-1-1H6.75z"
+                              fill="currentColor"
+                            />
+                          </svg>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
+              {(flowState === "pending" || flowState === "success") && (
+                <div className="flex flex-col items-center gap-4">
+                  {flowState === "pending" && (
+                    <div className="my-16 animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+                  )}
+                  {selectedProjectId && (
+                    <ProjectDetailView
+                      projectId={selectedProjectId}
+                      userContext={context?.user}
+                    />
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
-
-          {(flowState === "pending" || flowState === "success") && (
-            <div className="my-20 flex flex-col items-center gap-4">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-              <p className="text-center">Creating your frame...</p>
-              {selectedProjectId && (
-                <ProjectDetailView
-                  projectId={selectedProjectId}
-                  userContext={context?.user}
-                />
-              )}
-            </div>
-          )}
         </TabsContent>
 
         <TabsContent value="view_projects">
@@ -524,199 +527,206 @@ export default function Frameception(
             Error: {creationError}
           </div>
         )}
-        <div className="mb-4">
-          <h2 className="font-2xl font-bold">Context</h2>
-          <BigPurpleButton
-            onClick={toggleContext}
-            className="flex items-center gap-2 transition-colors"
-          >
-            <span
-              className={`transform transition-transform ${
-                isContextOpen ? "rotate-90" : ""
-              }`}
-            >
-              ➤
-            </span>
-            Tap to expand
-          </BigPurpleButton>
-
-          {isContextOpen && (
-            <div className="p-4 mt-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
-              <pre className="font-mono text-xs whitespace-pre-wrap break-words max-w-[260px] overflow-x-">
-                {JSON.stringify(context, null, 2)}
-              </pre>
-            </div>
-          )}
-        </div>
-
-        <div>
-          <h2 className="font-2xl font-bold">Actions</h2>
-
-          <div className="mb-4">
-            <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg my-2">
-              <pre className="font-mono text-xs whitespace-pre-wrap break-words max-w-[260px] overflow-x-">
-                sdk.actions.signIn
-              </pre>
-            </div>
-            <SignIn />
-          </div>
-
-          <div className="mb-4">
-            <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg my-2">
-              <pre className="font-mono text-xs whitespace-pre-wrap break-words max-w-[260px] overflow-x-">
-                sdk.actions.openUrl
-              </pre>
-            </div>
-            <BigPurpleButton onClick={openUrl}>Open Link</BigPurpleButton>
-          </div>
-
-          <div className="mb-4">
-            <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg my-2">
-              <pre className="font-mono text-xs whitespace-pre-wrap break-words max-w-[260px] overflow-x-">
-                sdk.actions.openUrl
-              </pre>
-            </div>
-            <BigPurpleButton onClick={openWarpcastUrl}>
-              Open Warpcast Link
-            </BigPurpleButton>
-          </div>
-
-          <div className="mb-4">
-            <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg my-2">
-              <pre className="font-mono text-xs whitespace-pre-wrap break-words max-w-[260px] overflow-x-">
-                sdk.actions.close
-              </pre>
-            </div>
-            <BigPurpleButton onClick={close}>Close Frame</BigPurpleButton>
-          </div>
-        </div>
-
-        <div className="mb-4">
-          <h2 className="font-2xl font-bold">Last event</h2>
-
-          <div className="p-4 mt-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
-            <pre className="font-mono text-xs whitespace-pre-wrap break-words max-w-[260px] overflow-x-">
-              {lastEvent || "none"}
-            </pre>
-          </div>
-        </div>
-
-        <div>
-          <h2 className="font-2xl font-bold">Add to client & notifications</h2>
-
-          <div className="mt-2 mb-4 text-sm">
-            Client fid {context?.client.clientFid},{" "}
-            {isFramePinned
-              ? " frame added to client,"
-              : " frame not added to client,"}
-            {notificationDetails
-              ? " notifications enabled"
-              : " notifications disabled"}
-          </div>
-
-          <div className="mb-4">
-            <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg my-2">
-              <pre className="font-mono text-xs whitespace-pre-wrap break-words max-w-[260px] overflow-x-">
-                sdk.actions.addFrame
-              </pre>
-            </div>
-            {addFrameResult && (
-              <div className="mb-2 text-sm">
-                Add frame result: {addFrameResult}
-              </div>
-            )}
-            <BigPurpleButton onClick={addFrame} disabled={isFramePinned}>
-              Add frame to client
-            </BigPurpleButton>
-          </div>
-
-          {sendNotificationResult && (
-            <div className="mb-2 text-sm">
-              Send notification result: {sendNotificationResult}
-            </div>
-          )}
-          <div className="mb-4">
-            <BigPurpleButton
-              onClick={sendNotification}
-              disabled={!notificationDetails}
-            >
-              Send notification
-            </BigPurpleButton>
-          </div>
-        </div>
-
-        <div>
-          <h2 className="font-2xl font-bold">Wallet</h2>
-
-          {address && (
-            <div className="my-2 text-xs">
-              Address: <pre className="inline">{truncateAddress(address)}</pre>
-            </div>
-          )}
-
-          {chainId && (
-            <div className="my-2 text-xs">
-              Chain ID: <pre className="inline">{chainId}</pre>
-            </div>
-          )}
-
-          <div className="mb-4">
-            <BigPurpleButton
-              onClick={() =>
-                isConnected
-                  ? disconnect()
-                  : connect({ connector: config.connectors[0] })
-              }
-            >
-              {isConnected ? "Disconnect" : "Connect"}
-            </BigPurpleButton>
-          </div>
-
-          <div className="mb-4">
-            <SignMessage />
-          </div>
-
-          {isConnected && (
-            <>
-              <div className="mb-4">
-                <SendEth />
-              </div>
-              <div className="mb-4">
-                <BigPurpleButton
-                  onClick={sendTx}
-                  disabled={!isConnected || isSendTxPending}
-                  isLoading={isSendTxPending}
+        {!process.env.NEXT_PUBLIC_URL?.endsWith("cloudflare.com") && (
+          <div>
+            <div className="mb-4">
+              <h2 className="font-2xl font-bold">Context</h2>
+              <BigPurpleButton
+                onClick={toggleContext}
+                className="flex items-center gap-2 transition-colors"
+              >
+                <span
+                  className={`transform transition-transform ${
+                    isContextOpen ? "rotate-90" : ""
+                  }`}
                 >
-                  Send Transaction (contract)
+                  ➤
+                </span>
+                Tap to expand
+              </BigPurpleButton>
+
+              {isContextOpen && (
+                <div className="p-4 mt-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                  <pre className="font-mono text-xs whitespace-pre-wrap break-words max-w-[260px] overflow-x-">
+                    {JSON.stringify(context, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h2 className="font-2xl font-bold">Actions</h2>
+
+              <div className="mb-4">
+                <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg my-2">
+                  <pre className="font-mono text-xs whitespace-pre-wrap break-words max-w-[260px] overflow-x-">
+                    sdk.actions.signIn
+                  </pre>
+                </div>
+                <SignIn />
+              </div>
+
+              <div className="mb-4">
+                <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg my-2">
+                  <pre className="font-mono text-xs whitespace-pre-wrap break-words max-w-[260px] overflow-x-">
+                    sdk.actions.openUrl
+                  </pre>
+                </div>
+                <BigPurpleButton onClick={openUrl}>Open Link</BigPurpleButton>
+              </div>
+
+              <div className="mb-4">
+                <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg my-2">
+                  <pre className="font-mono text-xs whitespace-pre-wrap break-words max-w-[260px] overflow-x-">
+                    sdk.actions.openUrl
+                  </pre>
+                </div>
+                <BigPurpleButton onClick={openWarpcastUrl}>
+                  Open Warpcast Link
                 </BigPurpleButton>
-                {isSendTxError && renderError(sendTxError)}
-                {txHash && (
-                  <div className="mt-2 text-xs">
-                    <div>Hash: {truncateAddress(txHash)}</div>
-                    <div>
-                      Status:{" "}
-                      {isConfirming
-                        ? "Confirming..."
-                        : isConfirmed
-                        ? "Confirmed!"
-                        : "Pending"}
-                    </div>
+              </div>
+
+              <div className="mb-4">
+                <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg my-2">
+                  <pre className="font-mono text-xs whitespace-pre-wrap break-words max-w-[260px] overflow-x-">
+                    sdk.actions.close
+                  </pre>
+                </div>
+                <BigPurpleButton onClick={close}>Close Frame</BigPurpleButton>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <h2 className="font-2xl font-bold">Last event</h2>
+
+              <div className="p-4 mt-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                <pre className="font-mono text-xs whitespace-pre-wrap break-words max-w-[260px] overflow-x-">
+                  {lastEvent || "none"}
+                </pre>
+              </div>
+            </div>
+
+            <div>
+              <h2 className="font-2xl font-bold">
+                Add to client & notifications
+              </h2>
+
+              <div className="mt-2 mb-4 text-sm">
+                Client fid {context?.client.clientFid},{" "}
+                {isFramePinned
+                  ? " frame added to client,"
+                  : " frame not added to client,"}
+                {notificationDetails
+                  ? " notifications enabled"
+                  : " notifications disabled"}
+              </div>
+
+              <div className="mb-4">
+                <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg my-2">
+                  <pre className="font-mono text-xs whitespace-pre-wrap break-words max-w-[260px] overflow-x-">
+                    sdk.actions.addFrame
+                  </pre>
+                </div>
+                {addFrameResult && (
+                  <div className="mb-2 text-sm">
+                    Add frame result: {addFrameResult}
                   </div>
                 )}
+                <BigPurpleButton onClick={addFrame} disabled={isFramePinned}>
+                  Add frame to client
+                </BigPurpleButton>
               </div>
+
+              {sendNotificationResult && (
+                <div className="mb-2 text-sm">
+                  Send notification result: {sendNotificationResult}
+                </div>
+              )}
               <div className="mb-4">
                 <BigPurpleButton
-                  onClick={signTyped}
-                  disabled={!isConnected || isSignTypedPending}
-                  isLoading={isSignTypedPending}
+                  onClick={sendNotification}
+                  disabled={!notificationDetails}
                 >
-                  Sign Typed Data
+                  Send notification
                 </BigPurpleButton>
-                {isSignTypedError && renderError(signTypedError)}
               </div>
-            </>
-          )}
-        </div>
+            </div>
+
+            <div>
+              <h2 className="font-2xl font-bold">Wallet</h2>
+
+              {address && (
+                <div className="my-2 text-xs">
+                  Address:{" "}
+                  <pre className="inline">{truncateAddress(address)}</pre>
+                </div>
+              )}
+
+              {chainId && (
+                <div className="my-2 text-xs">
+                  Chain ID: <pre className="inline">{chainId}</pre>
+                </div>
+              )}
+
+              <div className="mb-4">
+                <BigPurpleButton
+                  onClick={() =>
+                    isConnected
+                      ? disconnect()
+                      : connect({ connector: config.connectors[0] })
+                  }
+                >
+                  {isConnected ? "Disconnect" : "Connect"}
+                </BigPurpleButton>
+              </div>
+
+              <div className="mb-4">
+                <SignMessage />
+              </div>
+
+              {isConnected && (
+                <>
+                  <div className="mb-4">
+                    <SendEth />
+                  </div>
+                  <div className="mb-4">
+                    <BigPurpleButton
+                      onClick={sendTx}
+                      disabled={!isConnected || isSendTxPending}
+                      isLoading={isSendTxPending}
+                    >
+                      Send Transaction (contract)
+                    </BigPurpleButton>
+                    {isSendTxError && renderError(sendTxError)}
+                    {txHash && (
+                      <div className="mt-2 text-xs">
+                        <div>Hash: {truncateAddress(txHash)}</div>
+                        <div>
+                          Status:{" "}
+                          {isConfirming
+                            ? "Confirming..."
+                            : isConfirmed
+                            ? "Confirmed!"
+                            : "Pending"}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="mb-4">
+                    <BigPurpleButton
+                      onClick={signTyped}
+                      disabled={!isConnected || isSignTypedPending}
+                      isLoading={isSignTypedPending}
+                    >
+                      Sign Typed Data
+                    </BigPurpleButton>
+                    {isSignTypedError && renderError(signTypedError)}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
