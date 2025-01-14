@@ -43,16 +43,8 @@ github_repos = modal.Volume.from_name(
 volumes = {"/github-repos": github_repos}
 
 image = modal.Image.debian_slim(python_version="3.12") \
+    .env(env_vars) \
     .apt_install("git", "curl") \
-    .run_commands(
-        # Install Node.js
-        "curl -fsSL https://deb.nodesource.com/setup_20.x | bash -",
-        "apt-get install -y nodejs",
-        # Install yarn
-        "npm install -g yarn",
-        # Install aider
-        "aider-install"
-    ) \
     .pip_install(
         "fastapi[standard]",
         "aider-chat",
@@ -61,10 +53,17 @@ image = modal.Image.debian_slim(python_version="3.12") \
         "PyGithub",
         "requests",
         "openai",
-        "supabase", 
+        "supabase",
         "eth-account",
         "sentry-sdk[fastapi]")\
-    .env(env_vars) \
+    .run_commands(
+        # Install Node.js
+        "curl -fsSL https://deb.nodesource.com/setup_20.x | bash -",
+        "apt-get install -y nodejs",
+        # Install yarn
+        "npm install -g yarn",
+        # Install aider
+        "aider-install") \
     .run_function(setup_sentry, secrets=[modal.Secret.from_name("sentry-secret")])
 app = modal.App(name="frameception", image=image)
 
@@ -213,7 +212,7 @@ def update_code(data: dict) -> str:
         else:
             repo = git.Repo(repo_dir)
             repo.remotes.origin.pull()
-        print('repo object:', repo)
+
         repo.config_writer().set_value("user", "name", "hellno").release()
         repo.config_writer().set_value(
             "user", "email", "686075+hellno@users.noreply.github.com.").release()
@@ -233,7 +232,8 @@ def update_code(data: dict) -> str:
             fnames=fnames,
             io=io,
             lint_cmds={"typescript": "yarn lint"},
-            # auto_test=True
+            auto_test=True,
+            test_cmd="yarn build",
         )
         print(f'coder: {coder}')
         prompt = expand_user_prompt_with_farcaster_context(
