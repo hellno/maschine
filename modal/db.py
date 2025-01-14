@@ -44,6 +44,7 @@ class Database:
         data = {'status': status}
         if error:
             data['data'] = {'error': error}
+        # AI! make this update an upsert not overwriting prior data (use merge)
         self.client.table('jobs').update(data).eq('id', job_id).execute()
 
     def add_log(self, job_id: str, source: str, text: str):
