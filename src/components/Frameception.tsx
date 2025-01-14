@@ -11,7 +11,6 @@ import {
   CardTitle,
   CardDescription,
   CardContent,
-  CardFooter,
 } from "~/components/ui/card";
 import sdk, {
   FrameNotificationDetails,
@@ -37,7 +36,7 @@ import { BigPurpleButton } from "~/components/ui/BigPurpleButton";
 import { truncateAddress } from "~/lib/truncateAddress";
 import { base } from "wagmi/chains";
 import { Button } from "./ui/button";
-import { ArrowBigUp, ArrowUp } from "lucide-react";
+import { ArrowUp } from "lucide-react";
 
 const promptTemplates = [
   {

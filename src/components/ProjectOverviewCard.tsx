@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from "./ui/card";
 import { CheckCircle2, XCircle } from "lucide-react";
 

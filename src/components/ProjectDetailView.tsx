@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
 import { ExternalLink, GitBranch, Globe, ArrowUp } from "lucide-react";
