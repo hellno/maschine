@@ -213,6 +213,11 @@ def update_code(data: dict) -> str:
             repo = git.Repo(repo_dir)
             repo.remotes.origin.pull()
 
+        # Add yarn install here
+        db.add_log(job_id, "backend", "Installing dependencies with yarn...")
+        os.chdir(repo_dir)  # Change to repo directory 
+        os.system("yarn install")  # Run yarn install
+
         repo.config_writer().set_value("user", "name", "hellno").release()
         repo.config_writer().set_value(
             "user", "email", "686075+hellno@users.noreply.github.com.").release()
