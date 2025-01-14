@@ -75,23 +75,19 @@ def verify_github_setup(gh: Github, job_id: str, db: Database) -> None:
     except Exception as e:
         raise Exception(f"GitHub setup verification failed: {str(e)}")
 
-# AI! create custom type for function parameter
-# user_context type:
-# {
-#     fid: number;
-#     username?: string;
-#     displayName?: string;
-#     /**
-#         * Profile image URL
-#         */
-#     pfpUrl?: string;
-#     location?: AccountLocation;
-# }
+from typing import TypedDict, Optional
 
-def expand_user_prompt_with_farcaster_context(prompt: str, user_context: dict):
-    last_ten_casts = get_user_casts(user_context.fid, 10)
+class UserContext(TypedDict):
+    fid: int
+    username: Optional[str]
+    displayName: Optional[str]
+    pfpUrl: Optional[str]  # Profile image URL
+    location: Optional[dict]  # AccountLocation type
+
+def expand_user_prompt_with_farcaster_context(prompt: str, user_context: UserContext):
+    last_ten_casts = get_user_casts(user_context['fid'], 10)
     cast_context = '\n'.join([transform_cast_object_to_text(c) for c in last_ten_casts])
-    farcaster_context_prompt = f'Below are the recent Farcaster social media posts from {user_context} {user_context}: {cast_context}'
+    farcaster_context_prompt = f'Below are the recent Farcaster social media posts from {user_context.get("username", "")} {user_context.get("displayName", "")}: {cast_context}'
     return f'{farcaster_context_prompt} \n {prompt}'
 
 # @app.local_entrypoint()
