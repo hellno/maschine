@@ -390,6 +390,26 @@ def get_shortest_vercel_domain(project_name: str) -> str:
     return domains[0]["name"].replace('.', '').replace('*', '')
 
 
+def cleanup_project_repo(repo_path: str) -> None:
+    """Clean up project repository from local storage
+    
+    Args:
+        repo_path: Path to the repository in the volume
+    """
+    import shutil
+    
+    try:
+        full_path = f"/github-repos/{repo_path}"
+        if os.path.exists(full_path):
+            print(f"Cleaning up repository at {full_path}")
+            shutil.rmtree(full_path)
+            print(f"Successfully removed repository directory")
+        else:
+            print(f"No repository found at {full_path} to clean up")
+    except Exception as e:
+        print(f"Error cleaning up repository {repo_path}: {str(e)}")
+        # Don't raise the exception - cleanup failure shouldn't fail the whole process
+
 def generate_domain_association(domain: str) -> dict:
     """Generate a domain association signature for Farcaster frames.
 
