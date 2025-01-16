@@ -1,4 +1,10 @@
-import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from "./ui/card";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardFooter,
+} from "./ui/card";
 import { CheckCircle2, XCircle, Share } from "lucide-react";
 import sdk from "@farcaster/frame-sdk";
 
@@ -25,7 +31,9 @@ export function ProjectOverviewCard({
     e.stopPropagation(); // Prevent card click event
     if (frontendUrl) {
       const shareText = `Check out my frame ${name} built with frameception`;
-      const shareUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(shareText)}&embeds[]=${encodeURIComponent(frontendUrl)}`;
+      const shareUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(
+        shareText
+      )}&embeds[]=${encodeURIComponent(frontendUrl)}`;
       sdk.actions.openUrl(shareUrl);
     }
   };
@@ -85,16 +93,9 @@ export function ProjectOverviewCard({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  sdk.actions.openUrl(frontendUrl);
-                }}
-                className="text-blue-500 hover:text-blue-700 hover:underline"
-              >
-                Open Frame
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  sdk.actions.openUrl(frontendUrl);
+                  sdk.actions.openUrl(
+                    `https://warpcast.com/~/frames/launch?domain=${frontendUrl}`
+                  );
                 }}
                 className="text-blue-500 hover:text-blue-700 hover:underline"
               >
