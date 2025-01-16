@@ -13,7 +13,6 @@ import { Button } from "./ui/button";
 import { FrameContext } from "@farcaster/frame-core";
 import sdk from "@farcaster/frame-sdk";
 import { Job, Log, Project, VercelLogData } from "~/lib/types";
-import Link from "next/link";
 
 // Styles object
 const styles = {
