@@ -858,10 +858,25 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
                 except Exception as e:
                     print(f'Error when sending notifications: {e}')
 
+            # Clean up repository files
+            try:
+                cleanup_project_repo(repo.full_name)
+                db.add_log(job_id, "backend", f"Cleaned up repository files for {repo.full_name}")
+            except Exception as e:
+                db.add_log(job_id, "backend", f"Warning: Failed to clean up repository files: {str(e)}")
+
         except Exception as e:
             error_msg = f"Error during post-deployment setup: {str(e)}"
             db.add_log(job_id, "backend", error_msg)
             db.update_job_status(job_id, "failed", str(e))
+            
+            # Attempt cleanup even on failure
+            if 'repo' in locals() and repo:
+                try:
+                    cleanup_project_repo(repo.full_name)
+                    db.add_log(job_id, "backend", f"Cleaned up repository files after error")
+                except Exception as cleanup_error:
+                    db.add_log(job_id, "backend", f"Warning: Failed to clean up repository files after error: {str(cleanup_error)}")
 
     except Exception as e:
         error_msg = f"Error creating project: {str(e)}"
