@@ -1000,9 +1000,9 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
             Update the following files to customize the project metadata:
 
             1. In src/lib/constants.ts:
-            - Update NEXT_PUBLIC_TITLE to "{project_name}"
-            - Update NEXT_PUBLIC_DESCRIPTION to "{data['description']}"
-            - Update NEXT_PUBLIC_URL to "{frontend_url}"
+            set PROJECT_ID to "{project_name}"
+            set PROJECT_TITLE to "{project_name}"
+            set PROJECT_DESCRIPTION to a brief description of the project
 
             2. In src/app/opengraph-image.tsx:
             - Update the OpenGraph image to reflect the project "{project_name}"
