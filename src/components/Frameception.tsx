@@ -95,6 +95,7 @@ export default function Frameception(
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
     null,
   );
+  const [newProjectId, setNewProjectId] = useState<string | null>(null);
 
   // console.log("context", context);
   // console.log("flowState", flowState);
@@ -133,6 +134,7 @@ export default function Frameception(
 
       const { projectId } = await response.json();
       setSelectedProjectId(projectId);
+      setNewProjectId(projectId);
     } catch (error) {
       console.error("Error creating project:", error);
       setCreationError(
@@ -475,7 +477,7 @@ export default function Frameception(
               {(flowState === "pending" || flowState === "success") && (
                 <div className="flex flex-col items-center gap-4">
                   <ProjectDetailView
-                    projectId={selectedProjectId}
+                    projectId={newProjectId}
                     userContext={context?.user}
                   />
                 </div>
