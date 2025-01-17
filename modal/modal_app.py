@@ -421,8 +421,9 @@ def update_code_webhook(data: dict) -> str:
 
 
 @app.function(
+    retries=1,
     volumes=volumes,
-    timeout=600,  # 10 mins
+    timeout=1200,  # 20 mins
     secrets=[
         modal.Secret.from_name("github-secret"),
         modal.Secret.from_name("vercel-secret"),
@@ -778,6 +779,7 @@ def generate_domain_association(domain: str) -> dict:
 
 
 @app.function(
+    retries=1,
     volumes=volumes,
     timeout=3600,  # 1 hour
     secrets=[
