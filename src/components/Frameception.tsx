@@ -102,6 +102,11 @@ export default function Frameception(
 
   const handleCreateProject = useCallback(async () => {
     try {
+      // Add length validation
+      if (inputValue.trim().length < 25) {
+        throw new Error("Please enter at least 25 characters");
+      }
+
       setFlowState("pending");
       setCreationError(null);
 
@@ -413,17 +418,22 @@ export default function Frameception(
             <CardContent>
               {flowState === "enteringPrompt" && (
                 <div className="flex flex-col gap-2">
-                  <textarea
-                    rows={5}
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    placeholder="linktree for me with the following link..."
-                    className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                  <div className="relative">
+                    <textarea
+                      rows={5}
+                      value={inputValue}
+                      onChange={(e) => setInputValue(e.target.value)}
+                      placeholder="build a linktree for me with the following links..."
+                      className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <div className="absolute bottom-2 right-2 text-sm text-gray-500">
+                      {inputValue.length}/25
+                    </div>
+                  </div>
                   <BigPurpleButton
                     className="flex items-center justify-center gap-2"
                     onClick={handleCreateProject}
-                    disabled={!inputValue.trim()}
+                    disabled={inputValue.trim().length < 25}
                   >
                     Let&apos;s build it
                     <ArrowUp className="w-4 h-4" />

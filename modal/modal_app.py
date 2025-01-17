@@ -32,14 +32,12 @@ def setup_sentry():
     )
 
 
-# Organization constants
 GITHUB_ORG_NAME = "frameception-v2"
 
 env_vars = {
     "PATH": "/root/.local/bin:/usr/local/bin:/usr/bin:/bin"
 }
 
-# Separate volumes for repos and node_modules
 github_repos = modal.Volume.from_name(
     "frameception-github-repos", create_if_missing=True)
 node_modules = modal.Volume.from_name(
@@ -47,7 +45,7 @@ node_modules = modal.Volume.from_name(
 
 volumes = {
     "/github-repos": github_repos,
-    "/shared-node_modules": node_modules
+    "/shared-node-modules": node_modules
 }
 
 image = modal.Image.debian_slim(python_version="3.12") \
@@ -75,8 +73,8 @@ image = modal.Image.debian_slim(python_version="3.12") \
         # Install aider
         "aider-install",
         # Create shared node_modules and install dependencies
-        "mkdir -p /shared-node_modules",
-        "cd /shared-node_modules && yarn install") \
+        "mkdir -p /shared-node-modules",
+        "cd /shared-node-modules && yarn install") \
     .run_function(setup_sentry, secrets=[modal.Secret.from_name("sentry-secret")])
 app = modal.App(name="frameception", image=image)
 
@@ -97,44 +95,47 @@ def generate_random_secret() -> str:
 
 def verify_shared_node_modules(job_id: str = None, db: Database = None) -> None:
     """Verify and initialize shared node_modules if needed
-    
+
     Args:
         job_id: Optional job ID for logging
         db: Optional database instance for logging
     """
     import os
     import subprocess
-    
+
     def log_message(msg: str):
         print(msg)
         if db and job_id:
             db.add_log(job_id, "backend", msg)
-    
-    shared_dir = "/shared-node_modules"
+
+    shared_dir = "/shared-node-modules"
     node_modules_dir = os.path.join(shared_dir, "node_modules")
     package_json = os.path.join(shared_dir, "package.json")
-    
+
     try:
         # Check if shared node_modules exists and has content
         if not os.path.exists(node_modules_dir) or not os.listdir(node_modules_dir):
-            log_message("Shared node_modules missing or empty. Initializing...")
-            
+            log_message(
+                "Shared node_modules missing or empty. Initializing...")
+
             # Ensure directory exists
             os.makedirs(shared_dir, exist_ok=True)
-            
+
             # Copy package.json if not exists (from template or default)
             if not os.path.exists(package_json):
                 template_package_json = "/app/package.json"  # Adjust path as needed
                 if os.path.exists(template_package_json):
                     import shutil
                     shutil.copy2(template_package_json, package_json)
-                    log_message("Copied template package.json to shared directory")
+                    log_message(
+                        "Copied template package.json to shared directory")
                 else:
                     # Create minimal package.json if template not available
                     with open(package_json, 'w') as f:
                         f.write('{"private": true}\n')
-                    log_message("Created minimal package.json in shared directory")
-            
+                    log_message(
+                        "Created minimal package.json in shared directory")
+
             # Run yarn install in shared directory
             os.chdir(shared_dir)
             result = subprocess.run(
@@ -142,23 +143,25 @@ def verify_shared_node_modules(job_id: str = None, db: Database = None) -> None:
                 capture_output=True,
                 text=True
             )
-            
+
             if result.returncode != 0:
                 raise Exception(f"yarn install failed: {result.stderr}")
-                
+
             log_message("Successfully initialized shared node_modules")
-            
+
         else:
             log_message("Verified shared node_modules exists and has content")
-            
+
     except Exception as e:
-        error_msg = f"Error verifying/initializing shared node_modules: {str(e)}"
+        error_msg = f"Error verifying/initializing shared node_modules: {
+            str(e)}"
         log_message(error_msg)
         raise Exception(error_msg)
 
+
 def setup_shared_node_modules(repo_dir: str, job_id: str = None, db: Database = None) -> None:
     """Setup symlink to shared node_modules directory
-    
+
     Args:
         repo_dir: Path to repository directory
         job_id: Optional job ID for logging
@@ -166,20 +169,20 @@ def setup_shared_node_modules(repo_dir: str, job_id: str = None, db: Database = 
     """
     import os
     import shutil
-    
+
     def log_message(msg: str):
         print(msg)
         if db and job_id:
             db.add_log(job_id, "backend", msg)
-    
+
     try:
         # First verify shared node_modules
         verify_shared_node_modules(job_id, db)
-        
+
         # Setup symlink if needed
         node_modules_path = os.path.join(repo_dir, "node_modules")
-        shared_modules_path = "/shared-node_modules"
-        
+        shared_modules_path = "/shared-node-modules"
+
         # Check if symlink already exists and points to correct location
         if os.path.islink(node_modules_path):
             existing_target = os.readlink(node_modules_path)
@@ -192,15 +195,16 @@ def setup_shared_node_modules(repo_dir: str, job_id: str = None, db: Database = 
         elif os.path.exists(node_modules_path):
             log_message("Removing existing node_modules directory")
             shutil.rmtree(node_modules_path)
-        
+
         # Create symlink to shared node_modules
         os.symlink(shared_modules_path, node_modules_path)
         log_message(f"Created symlink to shared node_modules for {repo_dir}")
-        
+
     except Exception as e:
         error_msg = f"Error setting up shared node_modules: {str(e)}"
         log_message(error_msg)
         raise
+
 
 def verify_github_setup(gh: Github, job_id: str, db: Database) -> None:
     """Verify GitHub token and organization access"""
@@ -269,30 +273,35 @@ def generate_project_name(prompt: str, deepseek: OpenAI) -> str:
 def get_project_setup_prompt(project_name: str, prompt: str, user_context: UserContext) -> str:
     """Generate a prompt for setting up a new project"""
     return f"""
-    Update the code template and customize for the project "{project_name}" with the following details:
-    - Owner: {user_context.get("username", "")} {user_context.get("displayName", "")}
-    - User Instruction: {prompt}
+    Project name: "{project_name}"
+    Owner: {user_context.get("username", "")} {user_context.get("displayName", "")}
+    User prompt: {prompt}
     """
 
-# @app.local_entrypoint()
-# def main(num_iterations: int = 200):
-#     """Run the function in different modes and aggregate results.
 
-#     Args:
-#         num_iterations: Number of parallel iterations to run (default: 200)
-#     """
-#     # run the function locally
-#     print("Local res:", f.local(1000))
-
-#     # run the function remotely on Modal
-#     print("Remote res:", f.remote(1000))
-
-#     # run the function in parallel and remotely on Modal
-#     total = 0
-#     for ret in f.map(range(num_iterations)):
-#         total += ret
-
-#     print(f"Total from {num_iterations} parallel executions:", total)
+def improve_user_instructions(prompt: str, deepseek: OpenAI) -> str:
+    """Improve user instructions using Deepseek AI"""
+    improve_user_instructions_prompt = f"""Take the user’s prompt about a Farcaster frame miniapp and rewrite it as a clear, structured starter prompt for a coding LLM.
+    Emphasize a single-page React+TypeScript app using Shadcn UI, Tailwind, wagmi, viem, and minimal Farcaster interactions.
+    Keep the output concise, static or minimally dynamic, and aligned with best practices.
+    Include:
+        1.	A short restatement of the user request with any clarifications (UI, UX, integrations).
+        2.	A concise coding plan referencing key components, blockchain hooks, design guidelines, and ensuring a simple one-page layout.
+    Your final response: the improved starter prompt, ready for the coding LLM.
+    """
+    try:
+        instructions_response = deepseek.chat.completions.create(
+            model="deepskeek-chat",
+            messages=[
+                {"role": "system", "content": improve_user_instructions_prompt},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.5,
+        )
+        return instructions_response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"Error improving user instructions: {str(e)}")
+        return prompt
 
 
 @app.function()
@@ -874,12 +883,10 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
         db.add_log(job_id, "vercel", f"Deployment created at: {frontend_url}")
 
         try:
-            # Extract repo path from repo.full_name
-            repo_path = repo.full_name  # Format: "frameception-v2/repo-name"
-
-            # First code update
+            repo_path = repo.full_name
             prompt = get_project_setup_prompt(
                 project_name, data["prompt"], user_context)
+            prompt = improve_user_instructions(prompt, deepseek)
             code_update_response = update_code.remote({
                 "project_id": project_id,
                 "repo_path": repo_path,
