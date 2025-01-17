@@ -1036,8 +1036,8 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
                 try:
                     notification_result = send_notification(
                         fid=user_context["fid"],
-                        project_name=project_name,
-                        text="Your new Frame is ready! 🚀",
+                        title=f"Your {project_name} frame is building",
+                        body=f"Frameception has prepared your frame, it's almost ready! 🚀",
                     )
                     print(f'sending notification result: {
                           notification_result}')
@@ -1073,3 +1073,12 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
         error_msg = f"Error creating project: {str(e)}"
         print('Error setup_frame_project:', error_msg)
         db.update_job_status(job_id, "failed", str(e))
+
+
+
+# AI! create a temporary webhook endpoint to trigger a notification being sent to an fid
+#   notification_result = send_notification(
+#     fid=user_context["fid"],
+#     title=f"Your {project_name} frame is building",
+#     body=f"Frameception has prepared your frame, it's almost ready! 🚀",
+# )
