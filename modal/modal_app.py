@@ -419,16 +419,37 @@ def update_code(data: dict) -> str:
                 repo_url, repo_dir, depth=1, single_branch=True, branch="main")
         else:
             repo = git.Repo(repo_dir)
-            repo.remotes.origin.pull()
+            # Configure git before operations
+            repo.config_writer().set_value("user", "name", "hellno").release()
+            repo.config_writer().set_value(
+                "user", "email", "686075+hellno@users.noreply.github.com").release()
+            
+            try:
+                # Fetch latest changes
+                db.add_log(job_id, "backend", "Fetching latest changes from remote")
+                repo.remotes.origin.fetch()
+                
+                # Try to pull, handling potential conflicts
+                try:
+                    repo.git.pull('origin', 'main')
+                except git.GitCommandError as pull_error:
+                    # If there are conflicts, reset to remote state
+                    db.add_log(job_id, "backend", "Conflicts detected, resetting to remote state")
+                    repo.git.reset('--hard', 'origin/main')
+                    repo.git.clean('-fd')
+                    
+            except Exception as e:
+                db.add_log(job_id, "backend", f"Warning: Error syncing with remote: {str(e)}")
+                # If all sync attempts fail, reset the repository
+                db.add_log(job_id, "backend", "Performing full repository reset")
+                repo.git.reset('--hard')
+                repo.git.clean('-fd')
+                repo.remotes.origin.pull('main', force=True)
 
         # Setup shared node_modules
         setup_shared_node_modules(repo_dir, job_id, db)
         db.add_log(job_id, "backend", "Set up shared node_modules")
         os.chdir(repo_dir)  # Change to repo directory
-
-        repo.config_writer().set_value("user", "name", "hellno").release()
-        repo.config_writer().set_value(
-            "user", "email", "686075+hellno@users.noreply.github.com.").release()
         fnames = [
             f"{repo.working_tree_dir}/{fname}"
             for fname in ["src/components/Frame.tsx", "src/lib/constants.ts"]
@@ -490,7 +511,17 @@ def update_code(data: dict) -> str:
         db.add_log(job_id, "backend", f"Finished code update")
         db.update_job_status(job_id, "completed")
 
-        repo.git.push()
+        try:
+            repo.git.push()
+        except git.GitCommandError as push_error:
+            if "fetch first" in str(push_error):
+                db.add_log(job_id, "backend", "Push rejected, trying to sync and retry")
+                # Pull latest changes
+                repo.remotes.origin.pull('main')
+                # Try push again
+                repo.git.push()
+            else:
+                raise
         volumes["/github-repos"].commit()
         volumes["/shared-node-modules"].commit()
         return f"Successfully ran prompt for repo {repo_path} in project {project_id}"
