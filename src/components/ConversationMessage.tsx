@@ -10,7 +10,6 @@ interface ConversationMessageProps {
 
 export function ConversationMessage({ text, timestamp, type, isError }: ConversationMessageProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  // AI! Error: 'shouldCollapse' is assigned a value but never used.  @typescript-eslint/no-unused-vars
 
   const { displayText, hasMore } = useMemo(() => {
     const lines = text.split('\n').filter(line => line.trim());
@@ -42,7 +41,7 @@ export function ConversationMessage({ text, timestamp, type, isError }: Conversa
       
       {hasMore && (
         <Button
-          variant="ghost"
+          variant="outline"
           className="mt-2 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
           onClick={() => setIsExpanded(true)}
         >
