@@ -326,7 +326,7 @@ function LogViewer({ logs }: { logs: VercelLogData[] }) {
 
 function ActivityLogCard({ logs }: { logs: Log[] }) {
   const getSourceColor = (source: string) => {
-    const colors = {
+    const colors: Record<string, string> = {
       frontend: "text-blue-600",
       backend: "text-green-600",
       vercel: "text-purple-600",
@@ -334,8 +334,7 @@ function ActivityLogCard({ logs }: { logs: Log[] }) {
       farcaster: "text-pink-600",
       unknown: "text-gray-400",
     };
-    // AI! 337:23  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
-    return (colors as any)[source] || colors.unknown;
+    return colors[source] || colors.unknown;
   };
 
   return (
