@@ -28,7 +28,7 @@ export function getProjectStatus(project: Project | null, vercelStatus: VercelBu
   if (!setupJob) {
     return {
       state: 'error',
-      message: 'Frame info not found',
+      message: 'Info not found',
     };
   }
 
@@ -43,7 +43,7 @@ export function getProjectStatus(project: Project | null, vercelStatus: VercelBu
   if (setupJob.status === 'failed') {
     return {
       state: 'failed',
-      message: 'Frame setup failed',
+      message: 'Setup failed',
       error: setupJob.data?.error || 'Unknown error occurred',
     };
   }
@@ -61,7 +61,7 @@ export function getProjectStatus(project: Project | null, vercelStatus: VercelBu
       case 'INITIALIZING':
         return {
           state: 'building',
-          message: 'Building your project...',
+          message: 'Building',
         };
       case 'ERROR':
         return {
@@ -77,7 +77,7 @@ export function getProjectStatus(project: Project | null, vercelStatus: VercelBu
       default:
         return {
           state: 'error',
-          message: 'Unknown project state',
+          message: 'Unknown state',
         };
     }
   }
