@@ -63,10 +63,12 @@ function ProjectInfoCard({ project }: { project: Project }) {
       sdk.actions.openUrl(shareUrl);
     }
   };
+
   return (
     <div className={styles.card}>
-      <div className="p-6 space-y-4">
-        <div className="flex items-start justify-between">
+      <div className="p-6 space-y-6">
+        {/* Project Title and Creation Date */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
               {project.name}
@@ -75,34 +77,9 @@ function ProjectInfoCard({ project }: { project: Project }) {
               Created {new Date(project.created_at).toLocaleDateString()}
             </p>
           </div>
-          <div className="flex gap-2">
-            {project.frontend_url && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => 
-                    sdk.actions.openUrl(`https://warpcast.com/~/frames/launch?domain=${project.frontend_url}`)
-                  }
-                >
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  Open Frame
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleShare}
-                >
-                  <Share className="w-4 h-4 mr-2" />
-                  Share
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
-          <div className="flex items-center gap-2">
+          
+          {/* Status Badge */}
+          <div className="order-3 sm:order-2">
             <div className={cn(
               styles.badge,
               status.state === 'ready' && styles.deploymentStatus.ready,
@@ -110,20 +87,54 @@ function ProjectInfoCard({ project }: { project: Project }) {
               status.state === 'building' && styles.deploymentStatus.building,
               status.state === 'setting_up' && styles.deploymentStatus.pending,
             )}>
-              {status.state === 'building' && <div className="w-2 h-2 rounded-full bg-yellow-600 animate-pulse" />}
+              {status.state === 'building' && (
+                <div className="w-2 h-2 rounded-full bg-yellow-600 animate-pulse mr-2" />
+              )}
               {status.message}
             </div>
           </div>
-          
-          <a href={project.repo_url} 
-             target="_blank" 
-             rel="noopener noreferrer" 
-             className={styles.link}>
-            <GitBranch className="w-4 h-4" />
-            View Repository
-          </a>
         </div>
 
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          {project.frontend_url && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => 
+                  sdk.actions.openUrl(`https://warpcast.com/~/frames/launch?domain=${project.frontend_url}`)
+                }
+                className="flex-1"
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Open Frame
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleShare}
+                className="flex-1"
+              >
+                <Share className="w-4 h-4 mr-2" />
+                Share on Warpcast
+              </Button>
+            </>
+          )}
+          {project.repo_url && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => sdk.actions.openUrl(project.repo_url!)}
+              className="flex-1"
+            >
+              <GitBranch className="w-4 h-4 mr-2" />
+              View Repository
+            </Button>
+          )}
+        </div>
+
+        {/* Error Message */}
         {status.error && (
           <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-600 dark:text-red-400 text-sm">
             {status.error}
