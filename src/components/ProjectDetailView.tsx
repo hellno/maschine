@@ -426,7 +426,6 @@ export function ProjectDetailView({
     useState<VercelBuildStatus | null>(null);
 
   const projectStatus = getProjectStatus(project, vercelBuildStatus);
-  console.log('logs.length', logs.length)
 
   const fetchProject = useCallback(async () => {
     if (!projectId) return;
@@ -435,7 +434,6 @@ export function ProjectDetailView({
       if (!response.ok) throw new Error("Failed to fetch project");
 
       const data = await response.json();
-      console.log('return from project', data)
       const fetchedProject: Project = data.projects?.[0];
       setProject(fetchedProject);
       if (fetchedProject) {
@@ -472,7 +470,6 @@ export function ProjectDetailView({
       const response = await fetch(`/api/vercel-status/${project.id}`);
       if (!response.ok) throw new Error("Failed to fetch Vercel status");
       const data = await response.json();
-      console.log("return from vercel", data);
       setDeploymentStatus(data.status);
       setVercelBuildStatus(data.status);
 
