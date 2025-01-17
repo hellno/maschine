@@ -215,37 +215,38 @@ function ConversationCard({
           )}
           {!hasAnyJobsPending && (
             <>
-            <textarea
-            rows={4}
-            value={updatePrompt}
-            onChange={(e) => setUpdatePrompt(e.target.value)}
-            placeholder="Describe the changes you'd like to make..."
-            className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isSubmitting || hasAnyJobsPending}
-          />
-          <Button
-            onClick={handleSubmitUpdate}
-            disabled={
-              !updatePrompt.trim() ||
-              isSubmitting ||
-              !userContext ||
-              hasAnyJobsPending
-            }
-            className="w-full flex items-center justify-center gap-2"
-          >
-            {isSubmitting ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                Updating...
-              </>
-            ) : (
-              <>
-                Update Frame
-                <ArrowUp className="w-4 h-4" />
-              </>
-            )}
-          </Button></>
-        )}
+              <textarea
+                rows={4}
+                value={updatePrompt}
+                onChange={(e) => setUpdatePrompt(e.target.value)}
+                placeholder="Describe the changes you'd like to make..."
+                className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={isSubmitting || hasAnyJobsPending}
+              />
+              <Button
+                onClick={handleSubmitUpdate}
+                disabled={
+                  !updatePrompt.trim() ||
+                  isSubmitting ||
+                  !userContext ||
+                  hasAnyJobsPending
+                }
+                className="w-full flex items-center justify-center gap-2"
+              >
+                {isSubmitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Updating...
+                  </>
+                ) : (
+                  <>
+                    Update Frame
+                    <ArrowUp className="w-4 h-4" />
+                  </>
+                )}
+              </Button>
+            </>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -429,6 +430,7 @@ export function ProjectDetailView({
         );
         setLogs(sortedLogs);
       }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       setError(err.message || "Failed to load project");
     }
