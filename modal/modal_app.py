@@ -73,8 +73,9 @@ image = modal.Image.debian_slim(python_version="3.12") \
         # Install aider
         "aider-install",
         # Create shared node_modules and install dependencies
-        "mkdir -p /shared-node-modules",
-        "cd /shared-node-modules && yarn install") \
+        # "mkdir -p /shared-node-modules",
+        # "cd /shared-node-modules && yarn install"
+        ) \
     .run_function(setup_sentry, secrets=[modal.Secret.from_name("sentry-secret")])
 app = modal.App(name="frameception", image=image)
 
@@ -854,6 +855,10 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
         project_name = generate_project_name(data["prompt"], deepseek)
         username = user_context["username"]
         sanitized_name = f'{username}-{sanitize_project_name(project_name)}'
+        # AI! validate that github_org / sanitized_name doesn't exist.
+        # if it already has a number after the final dash, increment it by 1
+        # if it exists, add a dash and a number to the end of the sanitized_name 
+        # incrementing the number until it doesn't exist
 
         # Setup GitHub repository
         db.add_log(job_id, "github",
@@ -1011,5 +1016,5 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
 
     except Exception as e:
         error_msg = f"Error creating project: {str(e)}"
-        db.add_log(job_id, "backend", error_msg)
+        print('Error setup_frame_project:', error_msg)
         db.update_job_status(job_id, "failed", str(e))
