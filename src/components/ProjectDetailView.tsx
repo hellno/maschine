@@ -19,7 +19,7 @@ import { cn } from "~/lib/utils";
 
 // Styles object
 const styles = {
-  container: "max-w-4xl mx-auto space-y-6 p-6",
+  container: "max-w-4xl mx-auto space-y-6 py-2",
   card: "bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700",
   cardHeader: "px-6 py-4 border-b border-gray-100 dark:border-gray-700",
   cardContent: "p-6",
@@ -29,14 +29,15 @@ const styles = {
     building: "text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20",
     pending: "text-blue-600 bg-blue-50 dark:bg-blue-900/20",
   },
-  badge: "px-2.5 py-0.5 rounded-full text-xs font-medium inline-flex items-center gap-1",
+  badge:
+    "px-2.5 py-0.5 rounded-full text-xs font-medium inline-flex items-center gap-1",
   link: "text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 inline-flex items-center gap-2 transition-colors",
   chat: {
     userMessage: "bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg",
-    botMessage: "bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg", 
+    botMessage: "bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg",
     timestamp: "text-xs text-gray-500 mt-1",
-    container: "space-y-4"
-  }
+    container: "space-y-4",
+  },
 };
 
 interface ProjectDetailViewProps {
@@ -53,7 +54,7 @@ interface PollingRefs {
 // Project Info Card Component
 function ProjectInfoCard({ project }: { project: Project }) {
   const status = getProjectStatus(project);
-  
+
   const handleShare = () => {
     if (project.frontend_url) {
       const shareText = `Check out my frame "${project.name}" built with frameception`;
@@ -77,17 +78,19 @@ function ProjectInfoCard({ project }: { project: Project }) {
               Created {new Date(project.created_at).toLocaleDateString()}
             </p>
           </div>
-          
+
           {/* Status Badge */}
           <div className="order-3 sm:order-2">
-            <div className={cn(
-              styles.badge,
-              status.state === 'ready' && styles.deploymentStatus.ready,
-              status.state === 'error' && styles.deploymentStatus.error,
-              status.state === 'building' && styles.deploymentStatus.building,
-              status.state === 'setting_up' && styles.deploymentStatus.pending,
-            )}>
-              {status.state === 'building' && (
+            <div
+              className={cn(
+                styles.badge,
+                status.state === "ready" && styles.deploymentStatus.ready,
+                status.state === "error" && styles.deploymentStatus.error,
+                status.state === "building" && styles.deploymentStatus.building,
+                status.state === "setting_up" && styles.deploymentStatus.pending
+              )}
+            >
+              {status.state === "building" && (
                 <div className="w-2 h-2 rounded-full bg-yellow-600 animate-pulse mr-2" />
               )}
               {status.message}
@@ -101,9 +104,10 @@ function ProjectInfoCard({ project }: { project: Project }) {
             <>
               <Button
                 variant="outline"
-                size="sm"
-                onClick={() => 
-                  sdk.actions.openUrl(`https://warpcast.com/~/frames/launch?domain=${project.frontend_url}`)
+                onClick={() =>
+                  sdk.actions.openUrl(
+                    `https://warpcast.com/~/frames/launch?domain=${project.frontend_url}`
+                  )
                 }
                 className="flex-1"
               >
@@ -112,7 +116,6 @@ function ProjectInfoCard({ project }: { project: Project }) {
               </Button>
               <Button
                 variant="outline"
-                size="sm"
                 onClick={handleShare}
                 className="flex-1"
               >
@@ -124,7 +127,6 @@ function ProjectInfoCard({ project }: { project: Project }) {
           {project.repo_url && (
             <Button
               variant="outline"
-              size="sm"
               onClick={() => sdk.actions.openUrl(project.repo_url!)}
               className="flex-1"
             >
@@ -186,7 +188,7 @@ function ConversationCard({
                   </p>
                 </div>
                 <div className={styles.chat.botMessage}>
-                  {job.status === 'pending' ? (
+                  {job.status === "pending" ? (
                     <div className="flex items-center gap-2 text-gray-500">
                       <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" />
                       Processing...
@@ -203,7 +205,8 @@ function ConversationCard({
             ))
           ) : (
             <div className="text-center text-gray-500 py-8">
-              No conversations yet. Start by describing the changes you'd like to make.
+              No conversations yet. Start by describing the changes you'd like
+              to make.
             </div>
           )}
         </div>
