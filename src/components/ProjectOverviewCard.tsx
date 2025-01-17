@@ -3,9 +3,11 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
+  CardContent,
   CardFooter,
 } from "./ui/card";
-import { CheckCircle2, XCircle, Share } from "lucide-react";
+import { Button } from "./ui/button";
+import { CheckCircle2, XCircle, Share, ExternalLink } from "lucide-react";
 import sdk from "@farcaster/frame-sdk";
 
 interface ProjectOverviewCardProps {
@@ -28,9 +30,9 @@ export function ProjectOverviewCard({
   selected = false,
 }: ProjectOverviewCardProps) {
   const handleShare = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent card click event
+    e.stopPropagation();
     if (frontendUrl) {
-      const shareText = `Check out my frame ${name} built with frameception`;
+      const shareText = `Check out my frame "${name}" built with frameception`;
       const shareUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(
         shareText
       )}&embeds[]=${encodeURIComponent(frontendUrl)}`;
@@ -38,13 +40,21 @@ export function ProjectOverviewCard({
     }
   };
 
+  const handleOpenFrame = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (frontendUrl) {
+      sdk.actions.openUrl(
+        `https://warpcast.com/~/frames/launch?domain=${frontendUrl}`
+      );
+    }
+  };
+
   return (
     <Card
-      className={`transition-colors cursor-pointer ${
-        selected
-          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-          : "hover:border-gray-400"
-      }`}
+      className={cn(
+        "transition-colors cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50",
+        selected && "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+      )}
       onClick={onClick}
     >
       <CardHeader className="pb-2">
@@ -76,38 +86,41 @@ export function ProjectOverviewCard({
         </div>
       </CardHeader>
       <CardFooter className="pt-2">
-        <div className="flex gap-3 text-sm">
+        <div className="flex gap-2 w-full">
           {repoUrl && (
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={(e) => {
                 e.stopPropagation();
                 sdk.actions.openUrl(repoUrl);
               }}
-              className="text-blue-500 hover:text-blue-700 hover:underline"
+              className="flex-1"
             >
+              <ExternalLink className="w-4 h-4 mr-2" />
               GitHub
-            </button>
+            </Button>
           )}
           {frontendUrl && (
             <>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  sdk.actions.openUrl(
-                    `https://warpcast.com/~/frames/launch?domain=${frontendUrl}`
-                  );
-                }}
-                className="text-blue-500 hover:text-blue-700 hover:underline"
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleOpenFrame}
+                className="flex-1"
               >
+                <ExternalLink className="w-4 h-4 mr-2" />
                 Open Frame
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleShare}
-                className="text-purple-500 hover:text-purple-700 hover:underline flex items-center gap-1"
+                className="flex-1"
               >
-                <Share className="w-4 h-4" />
+                <Share className="w-4 h-4 mr-2" />
                 Share
-              </button>
+              </Button>
             </>
           )}
         </div>

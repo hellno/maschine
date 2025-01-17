@@ -54,6 +54,15 @@ interface PollingRefs {
 function ProjectInfoCard({ project }: { project: Project }) {
   const status = getProjectStatus(project);
   
+  const handleShare = () => {
+    if (project.frontend_url) {
+      const shareText = `Check out my frame "${project.name}" built with frameception`;
+      const shareUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(
+        shareText
+      )}&embeds[]=${encodeURIComponent(project.frontend_url)}`;
+      sdk.actions.openUrl(shareUrl);
+    }
+  };
   return (
     <div className={styles.card}>
       <div className="p-6 space-y-4">
@@ -66,14 +75,30 @@ function ProjectInfoCard({ project }: { project: Project }) {
               Created {new Date(project.created_at).toLocaleDateString()}
             </p>
           </div>
-          {project.frontend_url && (
-            <Button variant="outline" size="sm" onClick={() => 
-              sdk.actions.openUrl(`https://warpcast.com/~/frames/launch?domain=${project.frontend_url}`)
-            }>
-              <Globe className="w-4 h-4 mr-2" />
-              Open Frame
-            </Button>
-          )}
+          <div className="flex gap-2">
+            {project.frontend_url && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => 
+                    sdk.actions.openUrl(`https://warpcast.com/~/frames/launch?domain=${project.frontend_url}`)
+                  }
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Open Frame
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleShare}
+                >
+                  <Share className="w-4 h-4 mr-2" />
+                  Share
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
