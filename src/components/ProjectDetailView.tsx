@@ -33,6 +33,12 @@ interface ProjectDetailViewProps {
   userContext?: FrameContext["user"];
 }
 
+// Refs for polling control
+interface PollingRefs {
+  pollTimeout: React.MutableRefObject<NodeJS.Timeout | undefined>;
+  isPollingActive: React.MutableRefObject<boolean>;
+}
+
 // Project Info Card Component
 function ProjectInfoCard({ project }: { project: Project }) {
   const status = getProjectStatus(project);
@@ -409,12 +415,7 @@ export function ProjectDetailView({
   }, [fetchProject]);
 
   const pollVercelStatus = useCallback(async () => {
-    console.log(
-      "Polling Vercel status...",
-      project?.id,
-      project?.vercel_project_id
-    );
-    if (!project?.vercel_project_id) return;
+    if (!project?.vercel_project_id || !isPollingActiveRef.current) return;
 
     try {
       const response = await fetch(`/api/vercel-status/${project.id}`);
@@ -423,12 +424,13 @@ export function ProjectDetailView({
       const data = await response.json();
       setDeploymentStatus(data.status);
       console.log("Vercel deployment data:", data);
-      // Continue polling if build is in progress
-      if (data.status === "BUILDING" || data.status === "INITIALIZING") {
-        setTimeout(() => pollVercelStatus(), 5000);
+
+      // Continue polling if build is in progress and polling is active
+      if ((data.status === "BUILDING" || data.status === "INITIALIZING") && 
+          isPollingActiveRef.current) {
+        pollTimeoutRef.current = setTimeout(() => pollVercelStatus(), 5000);
       }
 
-      // Add deployment status to logs if changed
       if (data.status !== deploymentStatus) {
         setLogs((prev) => [
           {
@@ -446,18 +448,37 @@ export function ProjectDetailView({
     }
   }, [project?.id, project?.vercel_project_id, deploymentStatus]);
 
+  // Add cleanup effect
+  useEffect(() => {
+    // Set polling as active when component mounts
+    isPollingActiveRef.current = true;
+
+    // Cleanup function to run when component unmounts
+    return () => {
+      // Stop all polling
+      isPollingActiveRef.current = false;
+      
+      // Clear any pending timeouts
+      if (pollTimeoutRef.current) {
+        clearTimeout(pollTimeoutRef.current);
+      }
+      
+      console.log("Cleaned up polling for project", projectId);
+    };
+  }, [projectId]);
+
   useEffect(() => {
     fetchProject();
   }, [fetchProject]);
 
   useEffect(() => {
-    if (project?.vercel_project_id) {
+    if (project?.vercel_project_id && isPollingActiveRef.current) {
       pollVercelStatus();
     }
   }, [project?.vercel_project_id, pollVercelStatus]);
 
   useEffect(() => {
-    if (project?.jobs) {
+    if (project?.jobs && isPollingActiveRef.current) {
       const pendingJobs = project.jobs.filter(
         (job) => job.status === "pending"
       );
