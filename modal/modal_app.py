@@ -20,6 +20,7 @@ from aider.io import InputOutput
 from neynar import get_user_casts, format_cast
 import sentry_sdk
 from notifications import send_notification
+import time
 
 
 def setup_sentry():
@@ -75,7 +76,7 @@ image = modal.Image.debian_slim(python_version="3.12") \
         # Create shared node_modules and install dependencies
         # "mkdir -p /shared-node-modules",
         # "cd /shared-node-modules && yarn install"
-        ) \
+) \
     .run_function(setup_sentry, secrets=[modal.Secret.from_name("sentry-secret")])
 app = modal.App(name="frameception", image=image)
 
@@ -91,16 +92,16 @@ def sanitize_project_name(name: str) -> str:
 
 def get_unique_repo_name(gh: Github, base_name: str) -> str:
     """Get a unique repository name by adding/incrementing a number suffix if needed
-    
+
     Args:
         gh: GitHub client instance
         base_name: Base repository name to check
-        
+
     Returns:
         str: Unique repository name
     """
     org = gh.get_organization(GITHUB_ORG_NAME)
-    
+
     # Check if base name exists
     try:
         org.get_repo(base_name)
@@ -108,11 +109,10 @@ def get_unique_repo_name(gh: Github, base_name: str) -> str:
     except:
         # Repo doesn't exist, can use base name
         return base_name
-        
+
     # Check if name already ends with -number
-    import re
     number_match = re.match(r'(.+)-(\d+)$', base_name)
-    
+
     if number_match:
         # Name ends with number, increment it
         name_base = number_match.group(1)
@@ -122,13 +122,14 @@ def get_unique_repo_name(gh: Github, base_name: str) -> str:
         # Add -1 to the name
         name_base = base_name
         current_try = 1
-        
+
     # Keep incrementing until we find an available name
     while True:
         new_name = f"{name_base}-{current_try}"
         try:
             org.get_repo(new_name)
             current_try += 1
+            time.sleep(1)
         except:
             return new_name
 
@@ -497,7 +498,6 @@ def create_frame_project_webhook(data: dict) -> dict:
     from openai import OpenAI
     import uuid
     import base64
-    import time
 
     db = Database()
 
@@ -696,7 +696,7 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
     import base64
     import time
 
-    def setup_github_repo(gh: Github, sanitized_name: str, description: str) -> object:
+    def setup_github_repo(gh: Github, repo_name: str, description: str) -> object:
         """Create and setup GitHub repository with template contents"""
         import tempfile
         import shutil
@@ -712,17 +712,17 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
 
             # Check if repo exists
             try:
-                existing_repo = org.get_repo(sanitized_name)
+                existing_repo = org.get_repo(repo_name)
                 if existing_repo:
                     raise Exception(
-                        f"Repository '{sanitized_name}' already exists")
+                        f"Repository '{repo_name}' already exists")
             except Exception as e:
                 if "Not Found" not in str(e):
                     raise
 
             # Create new repo
             repo = org.create_repo(
-                name=sanitized_name,
+                name=repo_name,
                 description=description,
                 private=False
             )
@@ -786,7 +786,7 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
                        f"Error in setup_github_repo: {str(e)}")
             raise
 
-    def create_vercel_deployment(sanitized_name: str, repo: object) -> tuple:
+    def create_vercel_deployment(repo_name: str, repo: object) -> tuple:
         """Create Vercel project and trigger deployment"""
         vercel_headers = {
             "Authorization": f"Bearer {os.environ['VERCEL_TOKEN']}",
@@ -795,7 +795,7 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
 
         # First create the project
         project_data = {
-            "name": sanitized_name,
+            "name": repo_name,
             "framework": "nextjs",
             "gitRepository": {
                 "type": "github",
@@ -846,7 +846,7 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
         for env_var in env_vars:
             env_response = requests.post(
                 f"https://api.vercel.com/v9/projects/{
-                    sanitized_name}/env?teamId={os.environ['VERCEL_TEAM_ID']}",
+                    repo_name}/env?teamId={os.environ['VERCEL_TEAM_ID']}",
                 headers=vercel_headers,
                 json=env_var
             ).json()
@@ -861,7 +861,7 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
                 os.environ['VERCEL_TEAM_ID']}",
             headers=vercel_headers,
             json={
-                "name": sanitized_name,
+                "name": repo_name,
                 "gitSource": {
                     "type": "github",
                     "repoId": str(repo.id),
@@ -898,25 +898,25 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
         user_context = data.get("userContext")
         project_name = generate_project_name(data["prompt"], deepseek)
         username = user_context["username"]
-        base_sanitized_name = f'{username}-{sanitize_project_name(project_name)}'
-        sanitized_name = get_unique_repo_name(gh, base_sanitized_name)
+        base_repo_name = f'{username}-{sanitize_project_name(project_name)}'
+        repo_name = get_unique_repo_name(gh, base_repo_name)
 
         # Setup GitHub repository
         db.add_log(job_id, "github",
-                   f"Creating GitHub repository: {sanitized_name}")
-        repo = setup_github_repo(gh, sanitized_name, data["description"])
+                   f"Creating GitHub repository: {repo_name}")
+        repo = setup_github_repo(gh, repo_name, data["description"])
         db.add_log(job_id, "github", f"Created GitHub repo: {repo.html_url}")
 
         # Create Vercel deployment
         db.add_log(job_id, "vercel", "Creating Vercel project")
         vercel_project, deployment = create_vercel_deployment(
-            sanitized_name, repo)
+            repo_name, repo)
 
         # Store only Vercel project info
         db.update_project_vercel_info(project_id, vercel_project)
 
         # Get shortest production URL
-        frontend_url = f"https://{get_shortest_vercel_domain(sanitized_name)}"
+        frontend_url = f"https://{get_shortest_vercel_domain(repo_name)}"
         if not frontend_url:
             raise Exception("Failed to get valid deployment URL")
 
