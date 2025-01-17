@@ -2,6 +2,7 @@ import { CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { ProjectStatus } from "~/lib/types/project-status";
 
 export function ProjectStatusIndicator({ status }: { status: ProjectStatus }) {
+  // AI! add status 'unknown' which should render a spinner and a skeleton 
   const statusStyles = {
     setting_up: {
       bg: 'bg-blue-100',
@@ -33,7 +34,7 @@ export function ProjectStatusIndicator({ status }: { status: ProjectStatus }) {
   const style = statusStyles[status.state];
 
   return (
-    <div className={`flex items-center gap-2 p-2 rounded-md ${style.bg}`}>
+    <div className={`flex items-center gap-2 rounded-md ${style.bg}`}>
       <div className={`flex items-center ${style.text}`}>
         {style.icon}
         <span className="ml-2 font-medium">{status.message}</span>
