@@ -53,7 +53,6 @@ def get_user_casts(fid: int, nr_casts: int) -> List[dict]:
     }
 
     response = requests.get(url, headers=headers)
-    print(f'get_user_casts response', response.text)
     return response.json().get('casts')
 
 
