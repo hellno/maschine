@@ -669,9 +669,11 @@ def generate_domain_association(domain: str) -> dict:
         # Sign message using ethereum account
         signed_message = Account.sign_message(signable_message, private_key)
 
-        # Get the signature bytes and encode to base64url
+        # Convert signature to hex string prefixed with 0x, then base64url encode
+        signature_hex = "0x" + signed_message.signature.hex()
         encoded_signature = base64.urlsafe_b64encode(
-            signed_message.signature).decode('utf-8').rstrip('=')
+            signature_hex.encode("utf-8")
+        ).decode("utf-8").rstrip("=")
 
         # Create response formats
         compact_jfs = f"{encoded_header}.{encoded_payload}.{encoded_signature}"
