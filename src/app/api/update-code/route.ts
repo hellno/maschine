@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server'
 
 const UPDATE_CODE_ENDPOINT = 'https://herocast--update-code.modal.run';
 
+export const config = {
+  maxDuration: 30,
+};
+
 export async function POST(request: Request) {
   try {
     const { projectId, prompt, userContext } = await request.json()
