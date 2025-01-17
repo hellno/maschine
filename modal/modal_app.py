@@ -457,6 +457,9 @@ def update_code(data: dict) -> str:
             # like they do on vercel: https://vercel.com/docs/limits/overview#build-container-resources
         )
         print(f'coder: {coder}')
+        # AI! make a 90/10 solution that catches cases when we should expand the prompt
+        should_expand_prompt = 'farcaster' in prompt.lower() or ' me ' in prompt.lower(
+        ) or ' my ' in prompt.lower() or ' mine ' in prompt.lower() or ' myself ' in prompt.lower()
         if user_context:
             prompt = expand_user_prompt_with_farcaster_context(
                 prompt, user_context)
