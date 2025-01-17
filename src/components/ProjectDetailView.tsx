@@ -43,6 +43,11 @@ function ProjectInfoCard({ project }: { project: Project }) {
       sdk.actions.openUrl(shareUrl);
     }
   };
+
+  const hasAnyJobsPending = (project?.jobs || []).some(
+    (job) => job.status === "pending"
+  );
+
   return (
     <Card>
       <CardHeader>
@@ -67,11 +72,18 @@ function ProjectInfoCard({ project }: { project: Project }) {
               GitHub Repository
             </button>
           </div>
+          {hasAnyJobsPending && (
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+          )}
           {project.frontend_url && (
             <div className="flex items-center gap-2">
               <Globe className="w-5 h-5 flex-shrink-0" />
               <button
-                onClick={() => sdk.actions.openUrl(`https://warpcast.com/~/frames/launch?domain=${project.frontend_url!}`)}
+                onClick={() =>
+                  sdk.actions.openUrl(
+                    `https://warpcast.com/~/frames/launch?domain=${project.frontend_url!}`
+                  )
+                }
                 className="text-blue-500 hover:text-blue-700 flex items-center gap-1 break-all"
               >
                 Open Frame
