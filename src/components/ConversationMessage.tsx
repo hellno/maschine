@@ -12,14 +12,13 @@ export function ConversationMessage({ text, timestamp, type, isError }: Conversa
   const [isExpanded, setIsExpanded] = useState(false);
   // AI! Error: 'shouldCollapse' is assigned a value but never used.  @typescript-eslint/no-unused-vars
 
-  const { shouldCollapse, displayText, hasMore } = useMemo(() => {
+  const { displayText, hasMore } = useMemo(() => {
     const lines = text.split('\n').filter(line => line.trim());
     const shouldCollapse = lines.length > 3;
     const displayText = shouldCollapse && !isExpanded 
       ? lines.slice(0, 3).join('\n')
       : text;
     return {
-      shouldCollapse,
       displayText,
       hasMore: shouldCollapse && !isExpanded
     };
