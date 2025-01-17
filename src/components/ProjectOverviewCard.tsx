@@ -9,6 +9,7 @@ import {
 import { Button } from "./ui/button";
 import { CheckCircle2, XCircle, Share, ExternalLink } from "lucide-react";
 import sdk from "@farcaster/frame-sdk";
+import { cn } from "~/lib/utils";
 
 interface ProjectOverviewCardProps {
   projectId: string;
@@ -65,61 +66,28 @@ export function ProjectOverviewCard({
               Created {new Date(createdAt).toLocaleDateString()}
             </CardDescription>
           </div>
-          <div className="flex gap-2 items-center">
-            <div className="flex flex-col items-center">
-              {repoUrl ? (
-                <CheckCircle2 className="w-4 h-4 text-green-500" />
-              ) : (
-                <XCircle className="w-4 h-4 text-red-500" />
-              )}
-              <span className="text-xs">Repo</span>
-            </div>
-            <div className="flex flex-col items-center">
-              {frontendUrl ? (
-                <CheckCircle2 className="w-4 h-4 text-green-500" />
-              ) : (
-                <XCircle className="w-4 h-4 text-red-500" />
-              )}
-              <span className="text-xs">Frontend</span>
-            </div>
-          </div>
         </div>
       </CardHeader>
       <CardFooter className="pt-2">
-        <div className="flex gap-2 w-full">
-          {repoUrl && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                sdk.actions.openUrl(repoUrl);
-              }}
-              className="flex-1"
-            >
-              <ExternalLink className="w-4 h-4 mr-2" />
-              GitHub
-            </Button>
-          )}
+        <div className="gap-2 w-full grid grid-cols-2">
           {frontendUrl && (
             <>
               <Button
-                variant="outline"
-                size="sm"
-                onClick={handleOpenFrame}
-                className="flex-1"
-              >
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Open Frame
-              </Button>
-              <Button
-                variant="outline"
                 size="sm"
                 onClick={handleShare}
                 className="flex-1"
               >
                 <Share className="w-4 h-4 mr-2" />
                 Share
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleOpenFrame}
+                className="flex-1"
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Open
               </Button>
             </>
           )}
