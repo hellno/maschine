@@ -18,7 +18,7 @@ import { GitBranch, ArrowUp, Share, ExternalLink, Copy } from "lucide-react";
 import { Button } from "./ui/button";
 import { FrameContext } from "@farcaster/frame-core";
 import sdk from "@farcaster/frame-sdk";
-import { Job, Log, Project, VercelLogData } from "~/lib/types";
+import { Log, Project, VercelLogData } from "~/lib/types";
 
 const styles = {
   container: "max-w-4xl mx-auto space-y-6 py-2",
@@ -334,6 +334,7 @@ function ActivityLogCard({ logs }: { logs: Log[] }) {
       farcaster: "text-pink-600",
       unknown: "text-gray-400",
     };
+    // AI! 337:23  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
     return (colors as any)[source] || colors.unknown;
   };
 
