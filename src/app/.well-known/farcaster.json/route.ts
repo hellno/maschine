@@ -12,7 +12,7 @@ export async function GET() {
       name: "Frameception",
       iconUrl: `${appUrl}/icon.png`,
       homeUrl: appUrl,
-      imageUrl: `${appUrl}/frames/hello/opengraph-image`,
+      imageUrl: `${appUrl}/og.png`,
       buttonTitle: "Launch Frame",
       splashImageUrl: `${appUrl}/splash.png`,
       splashBackgroundColor: "#555555",
