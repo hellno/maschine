@@ -10,7 +10,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "./ui/sheet";
-import { GitBranch, Globe, ArrowUp, Share } from "lucide-react";
+import { GitBranch, Globe, ArrowUp, Share, ExternalLink } from "lucide-react";
 import { Button } from "./ui/button";
 import { FrameContext } from "@farcaster/frame-core";
 import sdk from "@farcaster/frame-sdk";
