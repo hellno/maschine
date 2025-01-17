@@ -45,7 +45,7 @@ export function ProjectOverviewCard({
     e.stopPropagation();
     if (frontendUrl) {
       sdk.actions.openUrl(
-        `https://warpcast.com/~/frames/launch?domain=${frontendUrl}`
+        `https://warpcast.com/~/frames/launch?domain=${frontendUrl.replace('https://','')}`
       );
     }
   };
