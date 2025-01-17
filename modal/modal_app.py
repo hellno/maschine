@@ -206,14 +206,9 @@ def verify_shared_node_modules(job_id: str = None, db: Database = None) -> None:
 
 
 def setup_shared_node_modules(repo_dir: str, job_id: str = None, db: Database = None) -> None:
-    """Setup symlink to shared node_modules directory
-
-    Args:
-        repo_dir: Path to repository directory
-        job_id: Optional job ID for logging
-        db: Optional database instance for logging
-    """
+    """Setup symlink to shared node_modules directory and verify module resolution"""
     import os
+    import subprocess
     import shutil
 
     def log_message(msg: str):
@@ -222,29 +217,87 @@ def setup_shared_node_modules(repo_dir: str, job_id: str = None, db: Database = 
             db.add_log(job_id, "backend", msg)
 
     try:
-        # First verify shared node_modules
-        verify_shared_node_modules(job_id, db)
-
-        # Setup symlink if needed
         node_modules_path = os.path.join(repo_dir, "node_modules")
         shared_modules_path = "/shared-node-modules"
 
-        # Check if symlink already exists and points to correct location
-        if os.path.islink(node_modules_path):
-            existing_target = os.readlink(node_modules_path)
-            if existing_target == shared_modules_path:
-                log_message("Symlink already correctly configured")
-                return
-            else:
-                log_message("Removing incorrect symlink")
-                os.unlink(node_modules_path)
-        elif os.path.exists(node_modules_path):
-            log_message("Removing existing node_modules directory")
-            shutil.rmtree(node_modules_path)
+        # Debug logging
+        log_message("=== Node Modules Setup Debug Info ===")
+        log_message(f"Repository directory: {repo_dir}")
+        log_message(f"Target node_modules path: {node_modules_path}")
+        log_message(f"Shared modules path: {shared_modules_path}")
+        
+        # Check package.json
+        package_json_path = os.path.join(repo_dir, "package.json")
+        if os.path.exists(package_json_path):
+            with open(package_json_path, 'r') as f:
+                log_message(f"Project package.json contents:\n{f.read()}")
+        else:
+            log_message("WARNING: No package.json found in project directory!")
 
-        # Create symlink to shared node_modules
-        os.symlink(shared_modules_path, node_modules_path)
-        log_message(f"Created symlink to shared node_modules for {repo_dir}")
+        # Setup symlink
+        if os.path.exists(node_modules_path):
+            if os.path.islink(node_modules_path):
+                log_message("Removing existing symlink")
+                os.unlink(node_modules_path)
+            else:
+                log_message("Removing existing node_modules directory")
+                shutil.rmtree(node_modules_path)
+
+        # Create new symlink
+        os.symlink(shared_modules_path, node_modules_path, target_is_directory=True)
+        
+        # Verify symlink
+        if os.path.islink(node_modules_path):
+            target = os.readlink(node_modules_path)
+            log_message(f"Symlink created successfully: {node_modules_path} -> {target}")
+            
+            # Check next package
+            next_package = os.path.join(node_modules_path, "next")
+            if os.path.exists(next_package):
+                log_message("✅ next package is accessible in node_modules")
+            else:
+                log_message("❌ next package not found in node_modules!")
+                if os.path.exists(node_modules_path):
+                    contents = os.listdir(node_modules_path)
+                    log_message(f"Available packages in node_modules: {contents[:10]}")
+
+        # Change to project directory for yarn commands
+        os.chdir(repo_dir)
+        
+        # Run yarn install to ensure dependencies are properly linked
+        log_message("Running yarn install --check-files")
+        install_result = subprocess.run(
+            ["yarn", "install", "--check-files"],
+            capture_output=True,
+            text=True
+        )
+        log_message(f"Yarn install result:\n{install_result.stdout}")
+        if install_result.stderr:
+            log_message(f"Yarn install errors:\n{install_result.stderr}")
+
+        # Check next package resolution
+        log_message("Checking next package resolution")
+        resolution_result = subprocess.run(
+            ["yarn", "why", "next"],
+            capture_output=True,
+            text=True
+        )
+        log_message(f"Package resolution check:\n{resolution_result.stdout}")
+        if resolution_result.stderr:
+            log_message(f"Resolution check errors:\n{resolution_result.stderr}")
+
+        # Verify dependency tree
+        log_message("Verifying dependency tree")
+        check_result = subprocess.run(
+            ["yarn", "check", "--verify-tree"],
+            capture_output=True,
+            text=True
+        )
+        log_message(f"Dependency tree verification:\n{check_result.stdout}")
+        if check_result.stderr:
+            log_message(f"Verification errors:\n{check_result.stderr}")
+
+        log_message("=== Node Modules Setup Complete ===")
 
     except Exception as e:
         error_msg = f"Error setting up shared node_modules: {str(e)}"
@@ -475,7 +528,7 @@ def update_code(data: dict) -> str:
             fnames=fnames,
             io=io,
             auto_test=True,
-            test_cmd="yarn lint",
+            test_cmd=f"cd {repo.working_tree_dir} && yarn install --check-files && yarn lint",  # Ensure dependencies are linked before linting
             read_only_fnames=read_only_fnames
             # if we want to use yarn build, separate into beefier cpu/memory function
             # like they do on vercel: https://vercel.com/docs/limits/overview#build-container-resources
