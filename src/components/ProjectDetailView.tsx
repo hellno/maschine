@@ -229,7 +229,11 @@ function ConversationCard({
           )}
           {hasBuildErrors && (
             <div className="grid grid-cols-2 gap-4">
-              <Button onClick={onHandleTryAutofix} className="w-full">
+              <Button
+                onClick={onHandleTryAutofix}
+                disabled={isSubmitting || hasAnyJobsPending}
+                className="w-full"
+              >
                 Try Autofix
               </Button>
               <Sheet>
@@ -579,7 +583,13 @@ export function ProjectDetailView({
       .filter((log) => log.data?.logs?.some((l) => l.type === "stderr"))
       .flatMap(
         (log) =>
-          log.data?.logs && log.data.logs.filter((l) => l.type === "stderr" && l.payload?.text && !l.payload.text.startsWith("warning"))
+          log.data?.logs &&
+          log.data.logs.filter(
+            (l) =>
+              l.type === "stderr" &&
+              l.payload?.text &&
+              !l.payload.text.startsWith("warning")
+          )
       )
       .map((log) => log?.payload?.text)
       .join("\n");
