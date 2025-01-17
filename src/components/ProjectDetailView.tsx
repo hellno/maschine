@@ -10,7 +10,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "./ui/sheet";
-import { GitBranch, Globe, ArrowUp, Share, ExternalLink } from "lucide-react";
+import { GitBranch, Globe, ArrowUp, Share, ExternalLink, Copy } from "lucide-react";
 import { Button } from "./ui/button";
 import { FrameContext } from "@farcaster/frame-core";
 import sdk from "@farcaster/frame-sdk";
@@ -54,6 +54,17 @@ interface PollingRefs {
 // Project Info Card Component
 function ProjectInfoCard({ project }: { project: Project }) {
   const status = getProjectStatus(project);
+
+  const handleCopyUrl = async () => {
+    if (project.frontend_url) {
+      try {
+        await navigator.clipboard.writeText(project.frontend_url);
+        console.log('URL copied to clipboard');
+      } catch (err) {
+        console.error('Failed to copy URL:', err);
+      }
+    }
+  };
 
   const handleShare = () => {
     if (project.frontend_url) {
@@ -121,6 +132,14 @@ function ProjectInfoCard({ project }: { project: Project }) {
               >
                 <Share className="w-4 h-4 mr-2" />
                 Share on Warpcast
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleCopyUrl}
+                className="flex-1"
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                Copy URL
               </Button>
             </>
           )}
