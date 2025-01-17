@@ -15,6 +15,7 @@ import { Button } from "./ui/button";
 import { FrameContext } from "@farcaster/frame-core";
 import sdk from "@farcaster/frame-sdk";
 import { Job, Log, Project, VercelLogData } from "~/lib/types";
+import { cn } from "~/lib/utils";
 
 // Styles object
 const styles = {
