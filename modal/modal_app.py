@@ -307,7 +307,7 @@ def validate_input(data: dict) -> None:
 def generate_project_name(prompt: str, deepseek: OpenAI) -> str:
     """Generate project name using Deepseek AI"""
     name_response = deepseek.chat.completions.create(
-        model="deepseek/deepseek-coder",
+        model="deepseek-chat",
         messages=[
             {"role": "system", "content": "Generate a concise, aspirational project name. Only respond with the name. No quotation marks, punctuation or quotes."},
             {"role": "user", "content": f"Generate a short project name based on: {prompt}"}
@@ -341,7 +341,7 @@ def improve_user_instructions(prompt: str, deepseek: OpenAI) -> str:
     print(f"Improving user instructions: {prompt}")
     try:
         instructions_response = deepseek.chat.completions.create(
-            model="deepskeek-chat",
+            model="deepseek-chat",
             messages=[
                 {"role": "system", "content": improve_user_instructions_prompt},
                 {"role": "user", "content": prompt}
