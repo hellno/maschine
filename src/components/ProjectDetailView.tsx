@@ -169,6 +169,17 @@ function ConversationCard({
 
   const hasAnyJobsPending = jobs.some((job) => job.status === "pending");
   const hasBuildErrors = vercelBuildStatus === "ERROR";
+
+  // Find the most recent Vercel log with build errors
+  const buildErrorLog = project.jobs
+    ?.flatMap(job => job.logs || [])
+    .filter(log => 
+      log.source === 'vercel' && 
+      log.data?.logs?.some(l => l.type === 'stderr')
+    )
+    .sort((a, b) => 
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )[0];
   return (
     <Card>
       <CardHeader>
@@ -222,9 +233,26 @@ function ConversationCard({
               <Button onClick={onHandleTryAutofix} className="w-full">
                 Try Autofix
               </Button>
-              <Button variant="outline" className="w-full">
-                View Build Errors
-              </Button>
+              {buildErrorLog && (
+                <Sheet>
+                  <SheetTrigger asChild>
+                    <Button variant="outline" className="w-full">
+                      View Build Errors
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent className="w-[400px] sm:w-[540px] lg:w-[680px] overflow-y-auto flex flex-col h-full">
+                    <div className="flex-none">
+                      <SheetHeader>
+                        <SheetTitle>Build Error Details</SheetTitle>
+                        <SheetDescription>
+                          {new Date(buildErrorLog.created_at).toLocaleString()}
+                        </SheetDescription>
+                      </SheetHeader>
+                    </div>
+                    <LogViewer logs={buildErrorLog.data.logs} />
+                  </SheetContent>
+                </Sheet>
+              )}
             </div>
           )}
           {!hasAnyJobsPending && (
