@@ -31,6 +31,12 @@ const styles = {
   },
   badge: "px-2.5 py-0.5 rounded-full text-xs font-medium inline-flex items-center gap-1",
   link: "text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 inline-flex items-center gap-2 transition-colors",
+  chat: {
+    userMessage: "bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg",
+    botMessage: "bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg", 
+    timestamp: "text-xs text-gray-500 mt-1",
+    container: "space-y-4"
+  }
 };
 
 interface ProjectDetailViewProps {
@@ -132,23 +138,36 @@ function ConversationCard({
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {jobs?.map((job) => (
-            <div key={job.id} className="space-y-2">
-              <div
-                className={`${styles.chatBubble.base} ${styles.chatBubble.user}`}
-              >
-                {job.data.prompt}
+          {jobs.length > 0 ? (
+            jobs.map((job) => (
+              <div key={job.id} className="space-y-2">
+                <div className={styles.chat.userMessage}>
+                  <p className="text-sm text-gray-900 dark:text-gray-100">
+                    {job.data.prompt}
+                  </p>
+                  <p className={styles.chat.timestamp}>
+                    {new Date(job.created_at).toLocaleString()}
+                  </p>
+                </div>
+                <div className={styles.chat.botMessage}>
+                  {job.status === 'pending' ? (
+                    <div className="flex items-center gap-2 text-gray-500">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" />
+                      Processing...
+                    </div>
+                  ) : job.data.error ? (
+                    <p className="text-red-600">{job.data.error}</p>
+                  ) : (
+                    <p className="text-gray-700 dark:text-gray-300">
+                      {job.data.result || "✅"}
+                    </p>
+                  )}
+                </div>
               </div>
-              <div
-                className={`${styles.chatBubble.base} ${styles.chatBubble.bot}`}
-              >
-                {job.data.result || job.data.error || "✅"}
-              </div>
-            </div>
-          ))}
-          {(!jobs || jobs.length === 0) && (
-            <div className="text-center text-gray-500">
-              No conversations yet
+            ))
+          ) : (
+            <div className="text-center text-gray-500 py-8">
+              No conversations yet. Start by describing the changes you'd like to make.
             </div>
           )}
         </div>
