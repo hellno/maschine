@@ -359,6 +359,10 @@ export function ProjectDetailView({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deploymentStatus, setDeploymentStatus] = useState<string | null>(null);
 
+  // Add refs to track active polling
+  const pollTimeoutRef = useRef<NodeJS.Timeout>();
+  const isPollingActiveRef = useRef(true);
+
   const fetchProject = useCallback(async () => {
     try {
       if (!projectId) return;
@@ -387,6 +391,9 @@ export function ProjectDetailView({
 
   const pollJobStatus = useCallback(async (jobId: string) => {
     try {
+      // Don't continue if polling was cancelled
+      if (!isPollingActiveRef.current) return;
+
       const response = await fetch(`/api/job/${jobId}`);
       if (!response.ok) throw new Error("Failed to fetch job status");
       const data = await response.json();
@@ -405,9 +412,9 @@ export function ProjectDetailView({
         return [...uniqueNewLogs, ...prevLogs];
       });
 
-      // Continue polling if job is still pending
-      if (data.status === "pending") {
-        setTimeout(() => pollJobStatus(jobId), 2000);
+      // Continue polling if job is still pending and polling is active
+      if (data.status === "pending" && isPollingActiveRef.current) {
+        pollTimeoutRef.current = setTimeout(() => pollJobStatus(jobId), 2000);
       }
     } catch (err) {
       console.error("Error polling job status:", err);
