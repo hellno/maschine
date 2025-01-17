@@ -392,12 +392,12 @@ def get_shortest_vercel_domain(project_name: str) -> str:
 
 def cleanup_project_repo(repo_path: str) -> None:
     """Clean up project repository from local storage
-    
+
     Args:
         repo_path: Path to the repository in the volume
     """
     import shutil
-    
+
     try:
         full_path = f"/github-repos/{repo_path}"
         if os.path.exists(full_path):
@@ -409,6 +409,7 @@ def cleanup_project_repo(repo_path: str) -> None:
     except Exception as e:
         print(f"Error cleaning up repository {repo_path}: {str(e)}")
         # Don't raise the exception - cleanup failure shouldn't fail the whole process
+
 
 def generate_domain_association(domain: str) -> dict:
     """Generate a domain association signature for Farcaster frames.
@@ -861,22 +862,24 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
             # Clean up repository files
             try:
                 cleanup_project_repo(repo.full_name)
-                db.add_log(job_id, "backend", f"Cleaned up repository files for {repo.full_name}")
+                print(f"Cleaned up repository files for {repo.full_name}")
             except Exception as e:
-                db.add_log(job_id, "backend", f"Warning: Failed to clean up repository files: {str(e)}")
+                print(
+                    f"Warning: Failed to clean up repository files: {str(e)}")
 
         except Exception as e:
             error_msg = f"Error during post-deployment setup: {str(e)}"
             db.add_log(job_id, "backend", error_msg)
             db.update_job_status(job_id, "failed", str(e))
-            
+
             # Attempt cleanup even on failure
             if 'repo' in locals() and repo:
                 try:
                     cleanup_project_repo(repo.full_name)
-                    db.add_log(job_id, "backend", f"Cleaned up repository files after error")
+                    print(f"Cleaned up repository files after error")
                 except Exception as cleanup_error:
-                    db.add_log(job_id, "backend", f"Warning: Failed to clean up repository files after error: {str(cleanup_error)}")
+                    print(f"Warning: Failed to clean up repository files after error: {
+                          str(cleanup_error)}")
 
     except Exception as e:
         error_msg = f"Error creating project: {str(e)}"
