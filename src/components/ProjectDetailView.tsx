@@ -439,14 +439,26 @@ export function ProjectDetailView({
       const fetchedProject: Project = data.projects?.[0];
       setProject(fetchedProject);
       if (fetchedProject) {
-        const allLogs =
-          fetchedProject.jobs?.flatMap((job) => job.logs || []) || [];
+        const allLogs = fetchedProject.jobs?.flatMap((job) => job.logs || []) || [];
         const sortedLogs = allLogs.sort(
           (a, b) =>
             new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         );
-        // AI! check if any logs are new, if we simply overwrite we remove vercel logs
-        setLogs(sortedLogs);
+        
+        // Merge new logs with existing Vercel logs
+        setLogs(prevLogs => {
+          // Keep existing Vercel logs
+          const vercelLogs = prevLogs.filter(log => log.source === 'vercel');
+          
+          // Add new logs, avoiding duplicates by ID
+          const existingIds = new Set(vercelLogs.map(log => log.id));
+          const newLogs = sortedLogs.filter(log => !existingIds.has(log.id));
+          
+          // Combine and sort all logs
+          return [...vercelLogs, ...newLogs].sort((a, b) => 
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
+        });
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
