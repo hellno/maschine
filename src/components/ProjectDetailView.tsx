@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
+import { ProjectStatusIndicator } from "./ProjectStatusIndicator";
+import { getProjectStatus } from "~/lib/types/project-status";
 import {
   Sheet,
   SheetContent,
@@ -33,6 +35,8 @@ interface ProjectDetailViewProps {
 
 // Project Info Card Component
 function ProjectInfoCard({ project }: { project: Project }) {
+  const status = getProjectStatus(project);
+  
   const handleShare = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card click event
     if (project.frontend_url) {
@@ -43,10 +47,6 @@ function ProjectInfoCard({ project }: { project: Project }) {
       sdk.actions.openUrl(shareUrl);
     }
   };
-
-  const hasAnyJobsPending = (project?.jobs || []).some(
-    (job) => job.status === "pending"
-  );
 
   return (
     <Card>
@@ -63,6 +63,8 @@ function ProjectInfoCard({ project }: { project: Project }) {
       </CardHeader>
       <CardContent>
         <div className="grid gap-4">
+          <ProjectStatusIndicator status={status} />
+          
           <div className="flex items-center gap-2">
             <GitBranch className="w-5 h-5 flex-shrink-0" />
             <button
@@ -72,10 +74,8 @@ function ProjectInfoCard({ project }: { project: Project }) {
               GitHub Repository
             </button>
           </div>
-          {hasAnyJobsPending && (
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-          )}
-          {project.frontend_url && (
+          
+          {status.state === 'ready' && project.frontend_url && (
             <div className="flex items-center gap-2">
               <Globe className="w-5 h-5 flex-shrink-0" />
               <button
@@ -90,6 +90,7 @@ function ProjectInfoCard({ project }: { project: Project }) {
               </button>
             </div>
           )}
+          
           <div className="text-sm text-gray-500">
             Created on {new Date(project.created_at).toLocaleDateString()}
           </div>
