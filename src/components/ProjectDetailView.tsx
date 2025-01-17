@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { ConversationMessage } from "./ConversationMessage";
 import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
 import { ProjectStatusIndicator } from "./ProjectStatusIndicator";
 import {
@@ -189,28 +190,21 @@ function ConversationCard({
           {jobs.length > 0 ? (
             jobs.map((job) => (
               <div key={job.id} className="space-y-2">
-                <div className={`${styles.chat.userMessage} overflow-hidden`}>
-                  <p className="text-sm text-gray-900 dark:text-gray-100 break-words overflow-wrap-anywhere">
-                    {job.data.prompt}
-                  </p>
-                  <p className={styles.chat.timestamp}>
-                    {new Date(job.created_at).toLocaleString()}
-                  </p>
-                </div>
-                <div className={`${styles.chat.botMessage} overflow-hidden`}>
-                  {job.status === "pending" ? (
-                    <div className="flex items-center gap-2 text-gray-500">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" />
-                      Processing...
-                    </div>
-                  ) : job.data.error ? (
-                    <p className="text-red-600 break-words overflow-wrap-anywhere">{job.data.error}</p>
-                  ) : (
-                    <p className="text-gray-700 dark:text-gray-300 break-words overflow-wrap-anywhere">
-                      {job.data.result || "✅"}
-                    </p>
-                  )}
-                </div>
+                <ConversationMessage
+                  text={job.data.prompt}
+                  timestamp={new Date(job.created_at).toLocaleString()}
+                  type="user"
+                />
+                <ConversationMessage
+                  text={job.status === "pending"
+                    ? "Processing..."
+                    : job.data.error
+                    ? job.data.error
+                    : job.data.result || "✅"}
+                  timestamp={new Date(job.created_at).toLocaleString()}
+                  type="bot"
+                  isError={!!job.data.error}
+                />
               </div>
             ))
           ) : (
