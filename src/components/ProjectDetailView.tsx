@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
 import { ProjectStatusIndicator } from "./ProjectStatusIndicator";
 import { getProjectStatus } from "~/lib/types/project-status";
@@ -42,7 +42,7 @@ interface PollingRefs {
 // Project Info Card Component
 function ProjectInfoCard({ project }: { project: Project }) {
   const status = getProjectStatus(project);
-  
+
   const handleShare = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card click event
     if (project.frontend_url) {
@@ -57,7 +57,7 @@ function ProjectInfoCard({ project }: { project: Project }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-top justify-between">
+        <CardTitle className="flex items-center justify-between">
           {project.name || "Project Details"}
           {project.frontend_url && (
             <Button variant="secondary" size="sm" onClick={handleShare}>
@@ -70,7 +70,7 @@ function ProjectInfoCard({ project }: { project: Project }) {
       <CardContent>
         <div className="grid gap-4">
           <ProjectStatusIndicator status={status} />
-          
+
           <div className="flex items-center gap-2">
             <GitBranch className="w-5 h-5 flex-shrink-0" />
             <button
@@ -80,8 +80,8 @@ function ProjectInfoCard({ project }: { project: Project }) {
               GitHub Repository
             </button>
           </div>
-          
-          {status.state === 'ready' && project.frontend_url && (
+
+          {status.state === "ready" && project.frontend_url && (
             <div className="flex items-center gap-2">
               <Globe className="w-5 h-5 flex-shrink-0" />
               <button
@@ -96,7 +96,6 @@ function ProjectInfoCard({ project }: { project: Project }) {
               </button>
             </div>
           )}
-          
           <div className="text-sm text-gray-500">
             Created on {new Date(project.created_at).toLocaleDateString()}
           </div>
@@ -359,7 +358,6 @@ export function ProjectDetailView({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deploymentStatus, setDeploymentStatus] = useState<string | null>(null);
 
-  // Add refs to track active polling
   const pollTimeoutRef = useRef<NodeJS.Timeout>();
   const isPollingActiveRef = useRef(true);
 
@@ -388,38 +386,40 @@ export function ProjectDetailView({
     }
   }, [projectId]);
 
+  const pollJobStatus = useCallback(
+    async (jobId: string) => {
+      try {
+        // Don't continue if polling was cancelled
+        if (!isPollingActiveRef.current) return;
 
-  const pollJobStatus = useCallback(async (jobId: string) => {
-    try {
-      // Don't continue if polling was cancelled
-      if (!isPollingActiveRef.current) return;
+        const response = await fetch(`/api/job/${jobId}`);
+        if (!response.ok) throw new Error("Failed to fetch job status");
+        const data = await response.json();
+        console.log("Job ", jobId, "status:", data);
 
-      const response = await fetch(`/api/job/${jobId}`);
-      if (!response.ok) throw new Error("Failed to fetch job status");
-      const data = await response.json();
-      console.log("Job ", jobId, "status:", data);
-      
-      // Refetch project data to get latest changes
-      await fetchProject();
-      
-      // Update logs with any new entries
-      setLogs((prevLogs) => {
-        const newLogs: Log[] = data.logs || [];
-        const existingLogIds = new Set(prevLogs.map((log) => log.id));
-        const uniqueNewLogs = newLogs.filter(
-          (log) => !existingLogIds.has(log.id)
-        );
-        return [...uniqueNewLogs, ...prevLogs];
-      });
+        // Refetch project data to get latest changes
+        await fetchProject();
 
-      // Continue polling if job is still pending and polling is active
-      if (data.status === "pending" && isPollingActiveRef.current) {
-        pollTimeoutRef.current = setTimeout(() => pollJobStatus(jobId), 2000);
+        // Update logs with any new entries
+        setLogs((prevLogs) => {
+          const newLogs: Log[] = data.logs || [];
+          const existingLogIds = new Set(prevLogs.map((log) => log.id));
+          const uniqueNewLogs = newLogs.filter(
+            (log) => !existingLogIds.has(log.id)
+          );
+          return [...uniqueNewLogs, ...prevLogs];
+        });
+
+        // Continue polling if job is still pending and polling is active
+        if (data.status === "pending" && isPollingActiveRef.current) {
+          pollTimeoutRef.current = setTimeout(() => pollJobStatus(jobId), 2000);
+        }
+      } catch (err) {
+        console.error("Error polling job status:", err);
       }
-    } catch (err) {
-      console.error("Error polling job status:", err);
-    }
-  }, [fetchProject]);
+    },
+    [fetchProject]
+  );
 
   const pollVercelStatus = useCallback(async () => {
     if (!project?.vercel_project_id || !isPollingActiveRef.current) return;
@@ -433,8 +433,10 @@ export function ProjectDetailView({
       console.log("Vercel deployment data:", data);
 
       // Continue polling if build is in progress and polling is active
-      if ((data.status === "BUILDING" || data.status === "INITIALIZING") && 
-          isPollingActiveRef.current) {
+      if (
+        (data.status === "BUILDING" || data.status === "INITIALIZING") &&
+        isPollingActiveRef.current
+      ) {
         pollTimeoutRef.current = setTimeout(() => pollVercelStatus(), 5000);
       }
 
@@ -464,12 +466,12 @@ export function ProjectDetailView({
     return () => {
       // Stop all polling
       isPollingActiveRef.current = false;
-      
+
       // Clear any pending timeouts
       if (pollTimeoutRef.current) {
         clearTimeout(pollTimeoutRef.current);
       }
-      
+
       console.log("Cleaned up polling for project", projectId);
     };
   }, [projectId]);
