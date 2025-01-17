@@ -3,33 +3,33 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
-  CardContent,
   CardFooter,
 } from "./ui/card";
 import { Button } from "./ui/button";
-import { CheckCircle2, XCircle, Share, ExternalLink } from "lucide-react";
+import { Share, ExternalLink } from "lucide-react";
 import sdk from "@farcaster/frame-sdk";
 import { cn } from "~/lib/utils";
+import { Project } from "~/lib/types";
 
 interface ProjectOverviewCardProps {
-  projectId: string;
-  name: string;
-  repoUrl?: string;
-  frontendUrl?: string;
-  createdAt: string;
+  project: Project;
   onClick?: () => void;
   selected?: boolean;
 }
 
 export function ProjectOverviewCard({
-  projectId,
-  name,
-  repoUrl,
-  frontendUrl,
-  createdAt,
+  project,
   onClick,
   selected = false,
 }: ProjectOverviewCardProps) {
+  const name =
+    project?.name ||
+    project?.repo_url?.split("frameception-v2/")[1] ||
+    project.id?.split("-")[0];
+
+  const createdAt = project.created_at;
+  const frontendUrl = project.frontend_url;
+
   const handleShare = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (frontendUrl) {
@@ -61,7 +61,7 @@ export function ProjectOverviewCard({
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start">
           <div>
-            <CardTitle className="text-base">{name || projectId}</CardTitle>
+            <CardTitle className="text-base">{name || project.id}</CardTitle>
             <CardDescription className="text-xs">
               Created {new Date(createdAt).toLocaleDateString()}
             </CardDescription>
@@ -72,11 +72,7 @@ export function ProjectOverviewCard({
         <div className="gap-2 w-full grid grid-cols-2">
           {frontendUrl && (
             <>
-              <Button
-                size="sm"
-                onClick={handleShare}
-                className="flex-1"
-              >
+              <Button size="sm" onClick={handleShare} className="flex-1">
                 <Share className="w-4 h-4 mr-2" />
                 Share
               </Button>

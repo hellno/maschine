@@ -1,17 +1,33 @@
+import { Project } from "../types";
+
+// aggregation of project status across different services: our backend and vercel
 export type ProjectStatus = {
-  state: 'setting_up' | 'failed' | 'building' | 'ready' | 'error';
+  state: 'setting_up' | 'failed' | 'building' | 'ready' | 'error' | 'unknown';
   message: string;
   error?: string;
 };
 
-export function getProjectStatus(project: Project): ProjectStatus {
-  // Find setup job
+export enum VercelBuildStatus {
+  READY = 'READY',
+  BUILDING = 'BUILDING',
+  INITIALIZING = 'INITIALIZING',
+  ERROR = 'ERROR',
+}
+
+export function getProjectStatus(project: Project | null, vercelStatus: VercelBuildStatus | null): ProjectStatus {
+  if (!project) {
+    return {
+      state: 'error',
+      message: 'Project not found',
+    };
+  }
+
   const setupJob = project.jobs?.find(job => job.type === 'setup_project');
-  
+
   if (!setupJob) {
     return {
       state: 'error',
-      message: 'Project setup information not found',
+      message: 'Frame info not found',
     };
   }
 
@@ -19,24 +35,26 @@ export function getProjectStatus(project: Project): ProjectStatus {
   if (setupJob.status === 'pending') {
     return {
       state: 'setting_up',
-      message: 'Setting up your project...',
+      message: 'Setting up frame...',
     };
   }
 
   if (setupJob.status === 'failed') {
     return {
       state: 'failed',
-      message: 'Project setup failed',
+      message: 'Frame setup failed',
       error: setupJob.data?.error || 'Unknown error occurred',
     };
   }
 
   // If setup is complete, check Vercel build status
   if (setupJob.status === 'completed') {
-    const vercelStatus = project.vercel_project_id ? 'READY' : 'PENDING';
-    
     switch (vercelStatus) {
-      case 'PENDING':
+      case null:
+        return {
+          state: 'unknown',
+          message: '',
+        };
       case 'BUILDING':
       case 'INITIALIZING':
         return {
@@ -46,13 +64,13 @@ export function getProjectStatus(project: Project): ProjectStatus {
       case 'ERROR':
         return {
           state: 'error',
-          message: 'Build failed',
+          message: 'Build error',
           error: 'Vercel build failed. Please check the logs for details.',
         };
       case 'READY':
         return {
           state: 'ready',
-          message: 'Your project is ready!',
+          message: 'Ready',
         };
       default:
         return {

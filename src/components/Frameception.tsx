@@ -431,7 +431,7 @@ export default function Frameception(
                     </div>
                   </div>
                   <BigPurpleButton
-                    className="max-w-full flex items-center justify-center gap-2"
+                    className="min-w-full flex items-center justify-center gap-2"
                     onClick={handleCreateProject}
                     disabled={inputValue.trim().length < 25}
                   >
@@ -508,15 +508,7 @@ export default function Frameception(
               {projects.map((project) => (
                 <ProjectOverviewCard
                   key={project.id}
-                  projectId={project.id}
-                  name={
-                    project?.name||
-                    project?.repo_url?.split("frameception-v2/")[1] ||
-                    project.id?.split("-")[0]
-                  }
-                  repoUrl={project.repo_url}
-                  frontendUrl={project.frontend_url}
-                  createdAt={project.created_at}
+                  project={project}
                   onClick={() => setSelectedProjectId(project.id)}
                 />
               ))}

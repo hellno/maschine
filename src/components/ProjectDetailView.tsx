@@ -1,7 +1,11 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
 import { ProjectStatusIndicator } from "./ProjectStatusIndicator";
-import { getProjectStatus } from "~/lib/types/project-status";
+import {
+  getProjectStatus,
+  ProjectStatus,
+  VercelBuildStatus,
+} from "~/lib/types/project-status";
 import {
   Sheet,
   SheetContent,
@@ -10,12 +14,11 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "./ui/sheet";
-import { GitBranch, Globe, ArrowUp, Share, ExternalLink, Copy } from "lucide-react";
+import { GitBranch, ArrowUp, Share, ExternalLink, Copy } from "lucide-react";
 import { Button } from "./ui/button";
 import { FrameContext } from "@farcaster/frame-core";
 import sdk from "@farcaster/frame-sdk";
 import { Job, Log, Project, VercelLogData } from "~/lib/types";
-import { cn } from "~/lib/utils";
 
 // Styles object
 const styles = {
@@ -45,23 +48,21 @@ interface ProjectDetailViewProps {
   userContext?: FrameContext["user"];
 }
 
-// Refs for polling control
-interface PollingRefs {
-  pollTimeout: React.MutableRefObject<NodeJS.Timeout | undefined>;
-  isPollingActive: React.MutableRefObject<boolean>;
-}
-
 // Project Info Card Component
-function ProjectInfoCard({ project }: { project: Project }) {
-  const status = getProjectStatus(project);
-
+function ProjectInfoCard({
+  project,
+  status,
+}: {
+  project: Project;
+  status: ProjectStatus;
+}) {
   const handleCopyUrl = async () => {
     if (project.frontend_url) {
       try {
         await navigator.clipboard.writeText(project.frontend_url);
-        console.log('URL copied to clipboard');
+        console.log("URL copied to clipboard");
       } catch (err) {
-        console.error('Failed to copy URL:', err);
+        console.error("Failed to copy URL:", err);
       }
     }
   };
@@ -80,7 +81,7 @@ function ProjectInfoCard({ project }: { project: Project }) {
     <div className={styles.card}>
       <div className="p-6 space-y-6">
         {/* Project Title and Creation Date */}
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="flex flex-row sm:items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
               {project.name}
@@ -89,24 +90,7 @@ function ProjectInfoCard({ project }: { project: Project }) {
               Created {new Date(project.created_at).toLocaleDateString()}
             </p>
           </div>
-
-          {/* Status Badge */}
-          <div className="order-3 sm:order-2">
-            <div
-              className={cn(
-                styles.badge,
-                status.state === "ready" && styles.deploymentStatus.ready,
-                status.state === "error" && styles.deploymentStatus.error,
-                status.state === "building" && styles.deploymentStatus.building,
-                status.state === "setting_up" && styles.deploymentStatus.pending
-              )}
-            >
-              {status.state === "building" && (
-                <div className="w-2 h-2 rounded-full bg-yellow-600 animate-pulse mr-2" />
-              )}
-              {status.message}
-            </div>
-          </div>
+          <ProjectStatusIndicator status={status} />
         </div>
 
         {/* Action Buttons */}
@@ -224,7 +208,7 @@ function ConversationCard({
             ))
           ) : (
             <div className="text-center text-gray-500 py-8">
-              No conversations yet. Start by describing the changes you'd like
+              No conversations yet. Start by describing the changes you&apos;d like
               to make.
             </div>
           )}
@@ -432,7 +416,9 @@ export function ProjectDetailView({
   const [updatePrompt, setUpdatePrompt] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deploymentStatus, setDeploymentStatus] = useState<string | null>(null);
-
+  const [vercelBuildStatus, setVercelBuildStatus] =
+    useState<VercelBuildStatus | null>(null);
+  const projectStatus = getProjectStatus(project, vercelBuildStatus);
   const pollTimeoutRef = useRef<NodeJS.Timeout>();
   const isPollingActiveRef = useRef(true);
 
@@ -514,7 +500,7 @@ export function ProjectDetailView({
       ) {
         pollTimeoutRef.current = setTimeout(() => pollVercelStatus(), 5000);
       }
-
+      setVercelBuildStatus(data.status);
       if (data.status !== deploymentStatus) {
         setLogs((prev) => [
           {
@@ -628,7 +614,7 @@ export function ProjectDetailView({
 
   return (
     <div className={styles.container}>
-      <ProjectInfoCard project={project} />
+      <ProjectInfoCard project={project} status={projectStatus} />
       <ConversationCard
         project={project}
         updatePrompt={updatePrompt}
