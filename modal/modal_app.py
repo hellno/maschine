@@ -472,6 +472,10 @@ def update_code(data: dict) -> str:
         if not is_repo_stored_locally:
             repo = git.Repo.clone_from(
                 repo_url, repo_dir, depth=1, single_branch=True, branch="main")
+            repo.config_writer().set_value("user", "name", "hellno").release()
+            repo.config_writer().set_value(
+                "user", "email", "686075+hellno@users.noreply.github.com").release()
+            
         else:
             repo = git.Repo(repo_dir)
             # Configure git before operations
