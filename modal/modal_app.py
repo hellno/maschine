@@ -287,9 +287,11 @@ def expand_user_prompt_with_farcaster_context(prompt: str, user_context: UserCon
         formatted_casts = [format_cast(c) for c in last_ten_casts]
         cast_context = '\n'.join([c for c in formatted_casts if c])
         print(f"Cast context: {cast_context}")
-        farcaster_context_prompt = f'Below are the recent Farcaster social media posts from {
-            user_context.get("username", "")} {user_context.get("displayName", "")}: {cast_context}'
-        return f'{farcaster_context_prompt} \n {prompt}'
+        farcaster_context_prompt = f"""Below are the recent Farcaster social media posts from {
+            user_context.get("username", "")} {user_context.get("displayName", "")}.
+            Take this only as additional context for the core prompt from the user, which is the primary focus and most important thing.
+            {cast_context}"""
+        return f'{prompt} \n {farcaster_context_prompt}'
     except Exception as e:
         print(f"Error expanding user prompt with Farcaster context: {str(e)}")
         return prompt

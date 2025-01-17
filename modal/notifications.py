@@ -11,7 +11,7 @@ app = FastAPI()
 
 KV_REST_API_URL = os.getenv("KV_REST_API_URL", "")
 KV_REST_API_TOKEN = os.getenv("KV_REST_API_TOKEN", "")
-FRONTEND_URL = os.getenv('FRONTEND_URL', 'farcasterframeception.vercel.app')
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://farcasterframeception.vercel.app')
 
 
 r = redis.Redis(

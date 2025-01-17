@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
 import { ProjectStatusIndicator } from "./ProjectStatusIndicator";
 import {
@@ -20,7 +20,6 @@ import { FrameContext } from "@farcaster/frame-core";
 import sdk from "@farcaster/frame-sdk";
 import { Job, Log, Project, VercelLogData } from "~/lib/types";
 
-// Styles object
 const styles = {
   container: "max-w-4xl mx-auto space-y-6 py-2",
   card: "bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700",
@@ -48,7 +47,6 @@ interface ProjectDetailViewProps {
   userContext?: FrameContext["user"];
 }
 
-// Project Info Card Component
 function ProjectInfoCard({
   project,
   status,
@@ -80,7 +78,6 @@ function ProjectInfoCard({
   return (
     <div className={styles.card}>
       <div className="p-6 space-y-6">
-        {/* Project Title and Creation Date */}
         <div className="flex flex-row sm:items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
@@ -92,8 +89,6 @@ function ProjectInfoCard({
           </div>
           <ProjectStatusIndicator status={status} />
         </div>
-
-        {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-3">
           {project.frontend_url && (
             <>
@@ -138,8 +133,6 @@ function ProjectInfoCard({
             </Button>
           )}
         </div>
-
-        {/* Error Message */}
         {status.error && (
           <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-600 dark:text-red-400 text-sm">
             {status.error}
@@ -150,7 +143,6 @@ function ProjectInfoCard({
   );
 }
 
-// Conversation History Card Component
 function ConversationCard({
   project,
   updatePrompt,
@@ -172,6 +164,7 @@ function ConversationCard({
     ) || [];
 
   const hasAnyJobsPending = jobs.some((job) => job.status === "pending");
+
   return (
     <Card>
       <CardHeader>
@@ -208,8 +201,8 @@ function ConversationCard({
             ))
           ) : (
             <div className="text-center text-gray-500 py-8">
-              No conversations yet. Start by describing the changes you&apos;d like
-              to make.
+              No conversations yet. Start by describing the changes you&apos;d
+              like to make.
             </div>
           )}
         </div>
@@ -220,11 +213,13 @@ function ConversationCard({
               finish.
             </div>
           )}
-          <textarea
+          {!hasAnyJobsPending && (
+            <>
+            <textarea
             rows={4}
             value={updatePrompt}
             onChange={(e) => setUpdatePrompt(e.target.value)}
-            placeholder="Describe the changes you'd like to make to your frame..."
+            placeholder="Describe the changes you'd like to make..."
             className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             disabled={isSubmitting || hasAnyJobsPending}
           />
@@ -249,7 +244,8 @@ function ConversationCard({
                 <ArrowUp className="w-4 h-4" />
               </>
             )}
-          </Button>
+          </Button></>
+        )}
         </div>
       </CardContent>
     </Card>
@@ -259,18 +255,16 @@ function ConversationCard({
 function LogViewer({ logs }: { logs: VercelLogData[] }) {
   const [showAllLogs, setShowAllLogs] = useState(false);
 
-  // Filter and process logs
-  const processedLogs = useMemo(() => {
-    if (!logs) return [];
-    return logs
-      .filter((log) => showAllLogs || log.type === "stderr")
-      .filter((log) => log.payload?.text?.trim()) // Remove empty logs
-      .map((log) => ({
-        ...log,
-        timestamp: new Date(log.payload.date).toUTCString(),
-        isError: log.type === "stderr",
-      }));
-  }, [logs, showAllLogs]);
+  const processedLogs = logs
+    ? logs
+        .filter((log) => showAllLogs || log.type === "stderr")
+        .filter((log) => log.payload?.text?.trim())
+        .map((log) => ({
+          ...log,
+          timestamp: new Date(log.payload.date).toUTCString(),
+          isError: log.type === "stderr",
+        }))
+    : [];
 
   return (
     <div className="flex flex-col h-full">
@@ -288,7 +282,6 @@ function LogViewer({ logs }: { logs: VercelLogData[] }) {
           </label>
         </div>
       </div>
-
       <div className="flex-1 overflow-y-auto">
         <div className="divide-y divide-gray-100">
           {processedLogs.map((log, index) => (
@@ -331,7 +324,6 @@ function LogViewer({ logs }: { logs: VercelLogData[] }) {
   );
 }
 
-// Activity Log Card Component
 function ActivityLogCard({ logs }: { logs: Log[] }) {
   const getSourceColor = (source: string) => {
     const colors = {
@@ -342,7 +334,7 @@ function ActivityLogCard({ logs }: { logs: Log[] }) {
       farcaster: "text-pink-600",
       unknown: "text-gray-400",
     };
-    return colors[source as keyof typeof colors] || colors.unknown;
+    return (colors as any)[source] || colors.unknown;
   };
 
   return (
@@ -390,7 +382,6 @@ function ActivityLogCard({ logs }: { logs: Log[] }) {
                               </SheetDescription>
                             </SheetHeader>
                           </div>
-
                           <LogViewer logs={log.data.logs} />
                         </SheetContent>
                       </Sheet>
@@ -418,89 +409,41 @@ export function ProjectDetailView({
   const [deploymentStatus, setDeploymentStatus] = useState<string | null>(null);
   const [vercelBuildStatus, setVercelBuildStatus] =
     useState<VercelBuildStatus | null>(null);
+
   const projectStatus = getProjectStatus(project, vercelBuildStatus);
-  const pollTimeoutRef = useRef<NodeJS.Timeout>();
-  const isPollingActiveRef = useRef(true);
 
   const fetchProject = useCallback(async () => {
+    if (!projectId) return;
     try {
-      if (!projectId) return;
-
       const response = await fetch(`/api/projects?id=${projectId}`);
       if (!response.ok) throw new Error("Failed to fetch project");
       const data = await response.json();
-      const project = data.projects?.[0];
-      setProject(project);
-      console.log("project", project);
-      // Set logs from each job's logs
-      if (project) {
-        const allLogs = project.jobs.flatMap((job: Job) => job.logs || []);
-        // Sort logs by creation date, newest first
+      const fetchedProject: Project = data.projects?.[0];
+      setProject(fetchedProject);
+      if (fetchedProject) {
+        const allLogs =
+          fetchedProject.jobs?.flatMap((job) => job.logs || []) || [];
         const sortedLogs = allLogs.sort(
-          (a: Log, b: Log) =>
+          (a, b) =>
             new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         );
         setLogs(sortedLogs);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load project");
+    } catch (err: any) {
+      setError(err.message || "Failed to load project");
     }
   }, [projectId]);
 
-  const pollJobStatus = useCallback(
-    async (jobId: string) => {
-      try {
-        // Don't continue if polling was cancelled
-        if (!isPollingActiveRef.current) return;
-
-        const response = await fetch(`/api/job/${jobId}`);
-        if (!response.ok) throw new Error("Failed to fetch job status");
-        const data = await response.json();
-        console.log("Job ", jobId, "status:", data);
-
-        // Refetch project data to get latest changes
-        await fetchProject();
-
-        // Update logs with any new entries
-        setLogs((prevLogs) => {
-          const newLogs: Log[] = data.logs || [];
-          const existingLogIds = new Set(prevLogs.map((log) => log.id));
-          const uniqueNewLogs = newLogs.filter(
-            (log) => !existingLogIds.has(log.id)
-          );
-          return [...uniqueNewLogs, ...prevLogs];
-        });
-
-        // Continue polling if job is still pending and polling is active
-        if (data.status === "pending" && isPollingActiveRef.current) {
-          pollTimeoutRef.current = setTimeout(() => pollJobStatus(jobId), 2000);
-        }
-      } catch (err) {
-        console.error("Error polling job status:", err);
-      }
-    },
-    [fetchProject]
-  );
-
-  const pollVercelStatus = useCallback(async () => {
-    if (!project?.vercel_project_id || !isPollingActiveRef.current) return;
-
+  const fetchVercelStatus = useCallback(async () => {
+    if (!project?.vercel_project_id) return;
     try {
       const response = await fetch(`/api/vercel-status/${project.id}`);
       if (!response.ok) throw new Error("Failed to fetch Vercel status");
-
       const data = await response.json();
       setDeploymentStatus(data.status);
-      console.log("Vercel deployment data:", data);
-
-      // Continue polling if build is in progress and polling is active
-      if (
-        (data.status === "BUILDING" || data.status === "INITIALIZING") &&
-        isPollingActiveRef.current
-      ) {
-        pollTimeoutRef.current = setTimeout(() => pollVercelStatus(), 5000);
-      }
       setVercelBuildStatus(data.status);
+
+      // If status changed, add log entry
       if (data.status !== deploymentStatus) {
         setLogs((prev) => [
           {
@@ -508,57 +451,35 @@ export function ProjectDetailView({
             created_at: new Date().toISOString(),
             source: "vercel",
             text: `Deployment status: ${data.status}`,
-            data: data,
+            data,
           },
           ...prev,
         ]);
       }
     } catch (err) {
-      console.error("Error polling Vercel status:", err);
+      console.error("Error fetching Vercel status:", err);
     }
-  }, [project?.id, project?.vercel_project_id, deploymentStatus]);
+  }, [project?.vercel_project_id, project?.id, deploymentStatus]);
 
-  // Add cleanup effect
+  // Consolidated polling approach
   useEffect(() => {
-    // Set polling as active when component mounts
-    isPollingActiveRef.current = true;
+    let interval: NodeJS.Timeout | null = null;
 
-    // Cleanup function to run when component unmounts
+    if (projectId) {
+      fetchProject(); // initial fetch
+      interval = setInterval(() => {
+        fetchProject();
+        fetchVercelStatus();
+      }, 5000);
+    }
+
     return () => {
-      // Stop all polling
-      isPollingActiveRef.current = false;
-
-      // Clear any pending timeouts
-      if (pollTimeoutRef.current) {
-        clearTimeout(pollTimeoutRef.current);
-      }
-
-      console.log("Cleaned up polling for project", projectId);
+      if (interval) clearInterval(interval);
     };
-  }, [projectId]);
-
-  useEffect(() => {
-    fetchProject();
-  }, [fetchProject]);
-
-  useEffect(() => {
-    if (project?.vercel_project_id && isPollingActiveRef.current) {
-      pollVercelStatus();
-    }
-  }, [project?.vercel_project_id, pollVercelStatus]);
-
-  useEffect(() => {
-    if (project?.jobs && isPollingActiveRef.current) {
-      const pendingJobs = project.jobs.filter(
-        (job) => job.status === "pending"
-      );
-      pendingJobs.forEach((job) => pollJobStatus(job.id));
-    }
-  }, [project?.jobs, pollJobStatus]);
+  }, [projectId, fetchProject, fetchVercelStatus]);
 
   const handleSubmitUpdate = async () => {
     if (!updatePrompt.trim()) return;
-
     setIsSubmitting(true);
     try {
       const response = await fetch("/api/update-code", {
@@ -567,34 +488,24 @@ export function ProjectDetailView({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          projectId: projectId,
+          projectId,
           prompt: updatePrompt,
           userContext,
         }),
       });
-
       if (!response.ok) {
         throw new Error("Failed to submit update");
       }
-
-      const data = await response.json();
-      // Start polling the new job
-      if (data.jobId) {
-        pollJobStatus(data.jobId);
-      }
-
-      // Clear the input after successful submission
       setUpdatePrompt("");
-      // Refresh project data to show new job
-      fetchProject();
-    } catch (error) {
-      console.error("Error submitting update:", error);
+      await fetchProject();
+    } catch (err) {
+      console.error("Error submitting update:", err);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (!project) {
+  if (!project && !error) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />

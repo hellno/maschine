@@ -12,9 +12,11 @@ export enum VercelBuildStatus {
   BUILDING = 'BUILDING',
   INITIALIZING = 'INITIALIZING',
   ERROR = 'ERROR',
+  QUEUED = 'QUEUED',
 }
 
 export function getProjectStatus(project: Project | null, vercelStatus: VercelBuildStatus | null): ProjectStatus {
+  console.log('getProjectStatus project:', project, vercelStatus);
   if (!project) {
     return {
       state: 'error',
@@ -55,6 +57,7 @@ export function getProjectStatus(project: Project | null, vercelStatus: VercelBu
           state: 'unknown',
           message: '',
         };
+      case 'QUEUED':
       case 'BUILDING':
       case 'INITIALIZING':
         return {
