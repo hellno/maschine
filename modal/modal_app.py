@@ -39,9 +39,16 @@ env_vars = {
     "PATH": "/root/.local/bin:/usr/local/bin:/usr/bin:/bin"
 }
 
+# Separate volumes for repos and node_modules
 github_repos = modal.Volume.from_name(
     "frameception-github-repos", create_if_missing=True)
-volumes = {"/github-repos": github_repos}
+node_modules = modal.Volume.from_name(
+    "frameception-node-modules", create_if_missing=True)
+
+volumes = {
+    "/github-repos": github_repos,
+    "/shared-node_modules": node_modules
+}
 
 image = modal.Image.debian_slim(python_version="3.12") \
     .env(env_vars) \
@@ -88,30 +95,111 @@ def generate_random_secret() -> str:
     return base64.b64encode(os.urandom(32)).decode('utf-8')
 
 
-def setup_shared_node_modules(repo_dir: str) -> None:
+def verify_shared_node_modules(job_id: str = None, db: Database = None) -> None:
+    """Verify and initialize shared node_modules if needed
+    
+    Args:
+        job_id: Optional job ID for logging
+        db: Optional database instance for logging
+    """
+    import os
+    import subprocess
+    
+    def log_message(msg: str):
+        print(msg)
+        if db and job_id:
+            db.add_log(job_id, "backend", msg)
+    
+    shared_dir = "/shared-node_modules"
+    node_modules_dir = os.path.join(shared_dir, "node_modules")
+    package_json = os.path.join(shared_dir, "package.json")
+    
+    try:
+        # Check if shared node_modules exists and has content
+        if not os.path.exists(node_modules_dir) or not os.listdir(node_modules_dir):
+            log_message("Shared node_modules missing or empty. Initializing...")
+            
+            # Ensure directory exists
+            os.makedirs(shared_dir, exist_ok=True)
+            
+            # Copy package.json if not exists (from template or default)
+            if not os.path.exists(package_json):
+                template_package_json = "/app/package.json"  # Adjust path as needed
+                if os.path.exists(template_package_json):
+                    import shutil
+                    shutil.copy2(template_package_json, package_json)
+                    log_message("Copied template package.json to shared directory")
+                else:
+                    # Create minimal package.json if template not available
+                    with open(package_json, 'w') as f:
+                        f.write('{"private": true}\n')
+                    log_message("Created minimal package.json in shared directory")
+            
+            # Run yarn install in shared directory
+            os.chdir(shared_dir)
+            result = subprocess.run(
+                ["yarn", "install"],
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode != 0:
+                raise Exception(f"yarn install failed: {result.stderr}")
+                
+            log_message("Successfully initialized shared node_modules")
+            
+        else:
+            log_message("Verified shared node_modules exists and has content")
+            
+    except Exception as e:
+        error_msg = f"Error verifying/initializing shared node_modules: {str(e)}"
+        log_message(error_msg)
+        raise Exception(error_msg)
+
+def setup_shared_node_modules(repo_dir: str, job_id: str = None, db: Database = None) -> None:
     """Setup symlink to shared node_modules directory
     
     Args:
         repo_dir: Path to repository directory
+        job_id: Optional job ID for logging
+        db: Optional database instance for logging
     """
     import os
     import shutil
-
+    
+    def log_message(msg: str):
+        print(msg)
+        if db and job_id:
+            db.add_log(job_id, "backend", msg)
+    
     try:
-        # Remove existing node_modules if present
+        # First verify shared node_modules
+        verify_shared_node_modules(job_id, db)
+        
+        # Setup symlink if needed
         node_modules_path = os.path.join(repo_dir, "node_modules")
-        if os.path.exists(node_modules_path):
-            if os.path.islink(node_modules_path):
-                os.unlink(node_modules_path)
+        shared_modules_path = "/shared-node_modules"
+        
+        # Check if symlink already exists and points to correct location
+        if os.path.islink(node_modules_path):
+            existing_target = os.readlink(node_modules_path)
+            if existing_target == shared_modules_path:
+                log_message("Symlink already correctly configured")
+                return
             else:
-                shutil.rmtree(node_modules_path)
+                log_message("Removing incorrect symlink")
+                os.unlink(node_modules_path)
+        elif os.path.exists(node_modules_path):
+            log_message("Removing existing node_modules directory")
+            shutil.rmtree(node_modules_path)
         
         # Create symlink to shared node_modules
-        os.symlink("/shared-node_modules", node_modules_path)
-        print(f"Successfully set up shared node_modules symlink for {repo_dir}")
+        os.symlink(shared_modules_path, node_modules_path)
+        log_message(f"Created symlink to shared node_modules for {repo_dir}")
         
     except Exception as e:
-        print(f"Error setting up shared node_modules: {str(e)}")
+        error_msg = f"Error setting up shared node_modules: {str(e)}"
+        log_message(error_msg)
         raise
 
 def verify_github_setup(gh: Github, job_id: str, db: Database) -> None:
@@ -275,7 +363,7 @@ def update_code(data: dict) -> str:
             repo.remotes.origin.pull()
 
         # Setup shared node_modules
-        setup_shared_node_modules(repo_dir)
+        setup_shared_node_modules(repo_dir, job_id, db)
         db.add_log(job_id, "backend", "Set up shared node_modules")
         os.chdir(repo_dir)  # Change to repo directory
 
@@ -604,7 +692,7 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
                     db.add_log(job_id, "github", "Cloned new repository")
 
                     # Setup shared node_modules
-                    setup_shared_node_modules(new_repo_path)
+                    setup_shared_node_modules(new_repo_path, job_id, db)
                     db.add_log(job_id, "github", "Set up shared node_modules")
 
                     # Configure git user
