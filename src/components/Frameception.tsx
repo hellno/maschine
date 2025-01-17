@@ -115,7 +115,17 @@ export default function Frameception(
         throw new Error("User FID is required");
       }
 
-      // AI! add auto-ask the user to pin the frame here
+      // Check if frame is pinned and ask to pin if not
+      if (!isFramePinned) {
+        const addFrameResult = await sdk.actions.addFrame();
+        if (!addFrameResult.added) {
+          throw new Error("Please pin this frame to continue");
+        }
+        // Update notification details if available
+        if (addFrameResult.notificationDetails) {
+          setNotificationDetails(addFrameResult.notificationDetails);
+        }
+      }
 
       const response = await fetch("/api/new-frame-project", {
         method: "POST",
@@ -144,7 +154,7 @@ export default function Frameception(
       );
       setFlowState("enteringPrompt");
     }
-  }, [inputValue, context?.user]);
+  }, [inputValue, context?.user, isFramePinned, sdk.actions]);
 
   useEffect(() => {
     setNotificationDetails(context?.client.notificationDetails ?? null);
