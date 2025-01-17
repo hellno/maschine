@@ -145,6 +145,7 @@ function ProjectInfoCard({
 
 function ConversationCard({
   project,
+  logs,
   updatePrompt,
   setUpdatePrompt,
   isSubmitting,
@@ -154,6 +155,7 @@ function ConversationCard({
   onHandleTryAutofix,
 }: {
   project: Project;
+  logs: Log[];
   updatePrompt: string;
   setUpdatePrompt: (prompt: string) => void;
   isSubmitting: boolean;
@@ -170,16 +172,13 @@ function ConversationCard({
   const hasAnyJobsPending = jobs.some((job) => job.status === "pending");
   const hasBuildErrors = vercelBuildStatus === "ERROR";
 
-  // Find the most recent Vercel log with build errors
-  const buildErrorLog = project.jobs
-    ?.flatMap(job => job.logs || [])
-    .filter(log => 
-      log.source === 'vercel' && 
-      log.data?.logs?.some(l => l.type === 'stderr')
-    )
-    .sort((a, b) => 
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  const buildErrorLog = logs
+    .filter((log) => log.source === "vercel" && log.data)
+    .sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     )[0];
+
   return (
     <Card>
       <CardHeader>
@@ -233,26 +232,26 @@ function ConversationCard({
               <Button onClick={onHandleTryAutofix} className="w-full">
                 Try Autofix
               </Button>
-              {buildErrorLog && (
-                <Sheet>
-                  <SheetTrigger asChild>
-                    <Button variant="outline" className="w-full">
-                      View Build Errors
-                    </Button>
-                  </SheetTrigger>
-                  <SheetContent className="w-[400px] sm:w-[540px] lg:w-[680px] overflow-y-auto flex flex-col h-full">
-                    <div className="flex-none">
-                      <SheetHeader>
-                        <SheetTitle>Build Error Details</SheetTitle>
-                        <SheetDescription>
-                          {new Date(buildErrorLog.created_at).toLocaleString()}
-                        </SheetDescription>
-                      </SheetHeader>
-                    </div>
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button variant="outline" className="w-full">
+                    View Build Errors
+                  </Button>
+                </SheetTrigger>
+                <SheetContent className="w-[400px] sm:w-[540px] lg:w-[680px] overflow-y-auto flex flex-col h-full">
+                  <div className="flex-none">
+                    <SheetHeader>
+                      <SheetTitle>Build Error Details</SheetTitle>
+                      <SheetDescription>
+                        {new Date(buildErrorLog.created_at).toLocaleString()}
+                      </SheetDescription>
+                    </SheetHeader>
+                  </div>
+                  {buildErrorLog?.data?.logs && (
                     <LogViewer logs={buildErrorLog.data.logs} />
-                  </SheetContent>
-                </Sheet>
-              )}
+                  )}
+                </SheetContent>
+              </Sheet>
             </div>
           )}
           {!hasAnyJobsPending && (
@@ -300,7 +299,11 @@ function LogViewer({ logs }: { logs: VercelLogData[] }) {
 
   const processedLogs = logs
     ? logs
-        .filter((log) => showAllLogs || log.type === "stderr")
+        .filter(
+          (log) =>
+            showAllLogs ||
+            (log.type === "stderr" && !log.payload?.text.startsWith("warning"))
+        )
         .filter((log) => log.payload?.text?.trim())
         .map((log) => ({
           ...log,
@@ -465,24 +468,27 @@ export function ProjectDetailView({
       const fetchedProject: Project = data.projects?.[0];
       setProject(fetchedProject);
       if (fetchedProject) {
-        const allLogs = fetchedProject.jobs?.flatMap((job) => job.logs || []) || [];
+        const allLogs =
+          fetchedProject.jobs?.flatMap((job) => job.logs || []) || [];
         const sortedLogs = allLogs.sort(
           (a, b) =>
             new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         );
-        
+
         // Merge new logs with existing Vercel logs
-        setLogs(prevLogs => {
+        setLogs((prevLogs) => {
           // Keep existing Vercel logs
-          const vercelLogs = prevLogs.filter(log => log.source === 'vercel');
-          
+          const vercelLogs = prevLogs.filter((log) => log.source === "vercel");
+
           // Add new logs, avoiding duplicates by ID
-          const existingIds = new Set(vercelLogs.map(log => log.id));
-          const newLogs = sortedLogs.filter(log => !existingIds.has(log.id));
-          
+          const existingIds = new Set(vercelLogs.map((log) => log.id));
+          const newLogs = sortedLogs.filter((log) => !existingIds.has(log.id));
+
           // Combine and sort all logs
-          return [...vercelLogs, ...newLogs].sort((a, b) => 
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          return [...vercelLogs, ...newLogs].sort(
+            (a, b) =>
+              new Date(b.created_at).getTime() -
+              new Date(a.created_at).getTime()
           );
         });
       }
@@ -567,33 +573,36 @@ export function ProjectDetailView({
     if (!project) return;
     setIsSubmitting(true);
 
-    console.log('logs', logs)
+    console.log("logs", logs);
     // Filter logs to get only stderr entries
     const errorLogs = logs
-      .filter(log => log.data?.logs?.some(l => l.type === 'stderr'))
-      .flatMap(log => log.data.logs.filter(l => l.type === 'stderr'))
-      .map(log => log.payload.text)
-      .join('\n');
+      .filter((log) => log.data?.logs?.some((l) => l.type === "stderr"))
+      .flatMap(
+        (log) =>
+          log.data?.logs && log.data.logs.filter((l) => l.type === "stderr" && l.payload?.text && !l.payload.text.startsWith("warning"))
+      )
+      .map((log) => log?.payload?.text)
+      .join("\n");
 
-    // Create autofix prompt with error context  
+    // Create autofix prompt with error context
     const autofixPrompt = `Please fix the following build errors:\n\n${errorLogs}`;
-    console.log('Autofix prompt:', autofixPrompt);
+    console.log("Autofix prompt:", autofixPrompt);
     try {
-      // const response = await fetch("/api/update-code", {
-      //   method: "POST",
-      //   headers: {
-      //     "Content-Type": "application/json",
-      //   },
-      //   body: JSON.stringify({
-      //     projectId,
-      //     prompt: autofixPrompt,
-      //     userContext,
-      //   }),
-      // });
+      const response = await fetch("/api/update-code", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          projectId,
+          prompt: autofixPrompt,
+          userContext,
+        }),
+      });
 
-      // if (!response.ok) {
-      //   throw new Error("Failed to submit autofix update");
-      // }
+      if (!response.ok) {
+        throw new Error("Failed to submit autofix update");
+      }
 
       // Refresh project data after update
       await fetchProject();
@@ -626,8 +635,9 @@ export function ProjectDetailView({
     <div className={styles.container}>
       <ProjectInfoCard project={project} status={projectStatus} />
       <ConversationCard
-        vercelBuildStatus={vercelBuildStatus}
         project={project}
+        logs={logs}
+        vercelBuildStatus={vercelBuildStatus}
         updatePrompt={updatePrompt}
         setUpdatePrompt={setUpdatePrompt}
         isSubmitting={isSubmitting}
