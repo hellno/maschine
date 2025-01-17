@@ -219,11 +219,11 @@ function ConversationCard({
           )}
           {hasBuildErrors && (
             <div className="grid grid-cols-2 gap-4">
-              <Button variant="outline" className="w-full">
-                View Build Errors
-              </Button>
               <Button onClick={onHandleTryAutofix} className="w-full">
                 Try Autofix
+              </Button>
+              <Button variant="outline" className="w-full">
+                View Build Errors
               </Button>
             </div>
           )}
@@ -426,13 +426,16 @@ export function ProjectDetailView({
     useState<VercelBuildStatus | null>(null);
 
   const projectStatus = getProjectStatus(project, vercelBuildStatus);
+  console.log('logs.length', logs.length)
 
   const fetchProject = useCallback(async () => {
     if (!projectId) return;
     try {
       const response = await fetch(`/api/projects?id=${projectId}`);
       if (!response.ok) throw new Error("Failed to fetch project");
+
       const data = await response.json();
+      console.log('return from project', data)
       const fetchedProject: Project = data.projects?.[0];
       setProject(fetchedProject);
       if (fetchedProject) {
@@ -442,6 +445,7 @@ export function ProjectDetailView({
           (a, b) =>
             new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         );
+        // AI! check if any logs are new, if we simply overwrite we remove vercel logs
         setLogs(sortedLogs);
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -456,7 +460,7 @@ export function ProjectDetailView({
       const response = await fetch(`/api/vercel-status/${project.id}`);
       if (!response.ok) throw new Error("Failed to fetch Vercel status");
       const data = await response.json();
-      console.log("data", data);
+      console.log("return from vercel", data);
       setDeploymentStatus(data.status);
       setVercelBuildStatus(data.status);
 
@@ -524,7 +528,9 @@ export function ProjectDetailView({
 
   const onHandleTryAutofix = async () => {
     if (!project) return;
-    
+    setIsSubmitting(true);
+
+    console.log('logs', logs)
     // Filter logs to get only stderr entries
     const errorLogs = logs
       .filter(log => log.data?.logs?.some(l => l.type === 'stderr'))
@@ -534,28 +540,30 @@ export function ProjectDetailView({
 
     // Create autofix prompt with error context  
     const autofixPrompt = `Please fix the following build errors:\n\n${errorLogs}`;
-
+    console.log('Autofix prompt:', autofixPrompt);
     try {
-      const response = await fetch("/api/update-code", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          projectId,
-          prompt: autofixPrompt,
-          userContext,
-        }),
-      });
+      // const response = await fetch("/api/update-code", {
+      //   method: "POST",
+      //   headers: {
+      //     "Content-Type": "application/json",
+      //   },
+      //   body: JSON.stringify({
+      //     projectId,
+      //     prompt: autofixPrompt,
+      //     userContext,
+      //   }),
+      // });
 
-      if (!response.ok) {
-        throw new Error("Failed to submit autofix update");
-      }
+      // if (!response.ok) {
+      //   throw new Error("Failed to submit autofix update");
+      // }
 
       // Refresh project data after update
       await fetchProject();
     } catch (err) {
       console.error("Error submitting autofix:", err);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
