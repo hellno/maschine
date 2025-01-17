@@ -66,7 +66,10 @@ image = modal.Image.debian_slim(python_version="3.12") \
         # Install yarn
         "npm install -g yarn",
         # Install aider
-        "aider-install") \
+        "aider-install",
+        # Create shared node_modules and install dependencies
+        "mkdir -p /shared-node_modules",
+        "cd /shared-node_modules && yarn install") \
     .run_function(setup_sentry, secrets=[modal.Secret.from_name("sentry-secret")])
 app = modal.App(name="frameception", image=image)
 
@@ -84,6 +87,32 @@ def generate_random_secret() -> str:
     """Generate a random secret for NextAuth"""
     return base64.b64encode(os.urandom(32)).decode('utf-8')
 
+
+def setup_shared_node_modules(repo_dir: str) -> None:
+    """Setup symlink to shared node_modules directory
+    
+    Args:
+        repo_dir: Path to repository directory
+    """
+    import os
+    import shutil
+
+    try:
+        # Remove existing node_modules if present
+        node_modules_path = os.path.join(repo_dir, "node_modules")
+        if os.path.exists(node_modules_path):
+            if os.path.islink(node_modules_path):
+                os.unlink(node_modules_path)
+            else:
+                shutil.rmtree(node_modules_path)
+        
+        # Create symlink to shared node_modules
+        os.symlink("/shared-node_modules", node_modules_path)
+        print(f"Successfully set up shared node_modules symlink for {repo_dir}")
+        
+    except Exception as e:
+        print(f"Error setting up shared node_modules: {str(e)}")
+        raise
 
 def verify_github_setup(gh: Github, job_id: str, db: Database) -> None:
     """Verify GitHub token and organization access"""
@@ -245,10 +274,10 @@ def update_code(data: dict) -> str:
             repo = git.Repo(repo_dir)
             repo.remotes.origin.pull()
 
-        # Add yarn install here
-        db.add_log(job_id, "backend", "Installing dependencies with yarn...")
+        # Setup shared node_modules
+        setup_shared_node_modules(repo_dir)
+        db.add_log(job_id, "backend", "Set up shared node_modules")
         os.chdir(repo_dir)  # Change to repo directory
-        os.system("yarn install")  # Run yarn install
 
         repo.config_writer().set_value("user", "name", "hellno").release()
         repo.config_writer().set_value(
@@ -573,6 +602,10 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
                     new_repo_path = os.path.join(temp_dir, "new-repo")
                     new_repo = git.Repo.clone_from(new_repo_url, new_repo_path)
                     db.add_log(job_id, "github", "Cloned new repository")
+
+                    # Setup shared node_modules
+                    setup_shared_node_modules(new_repo_path)
+                    db.add_log(job_id, "github", "Set up shared node_modules")
 
                     # Configure git user
                     new_repo.config_writer().set_value("user", "name", "hellno").release()
