@@ -6,22 +6,8 @@ const redis = new Redis({
   token: process.env.KV_REST_API_TOKEN,
 });
 
-// User-related functions
-function getUserKey(fid: number): string {
-  return `user:${fid}`;
-}
-
 function getUserNotificationDetailsKey(fid: number): string {
-  return `user:${fid}:notifications`;
-}
-
-export async function createOrUpdateUser(fid: number, username?: string): Promise<void> {
-  const userKey = getUserKey(fid);
-  await redis.hset(userKey, {
-    fid,
-    username: username || '',
-    updatedAt: Date.now()
-  });
+  return `frameception:${fid}:notifications`;
 }
 
 export async function getUserNotificationDetails(

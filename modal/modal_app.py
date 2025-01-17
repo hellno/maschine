@@ -1075,10 +1075,38 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
         db.update_job_status(job_id, "failed", str(e))
 
 
+@app.function(
+    secrets=[
+        modal.Secret.from_name("redis-secret")
+    ]
+)
+@modal.web_endpoint(label="send-test-notification", method="POST", docs=True)
+def send_test_notification(data: dict) -> dict:
+    """Temporary webhook endpoint to test sending notifications to a user's FID"""
+    try:
+        # Validate input
+        if 'fid' not in data:
+            return {"error": "Missing required field: fid"}, 400
 
-# AI! create a temporary webhook endpoint to trigger a notification being sent to an fid
-#   notification_result = send_notification(
-#     fid=user_context["fid"],
-#     title=f"Your {project_name} frame is building",
-#     body=f"Frameception has prepared your frame, it's almost ready! 🚀",
-# )
+        fid = int(data['fid'])
+        title = data.get('title', 'Test Notification')
+        body = data.get(
+            'body', 'This is a test notification from Frameception')
+
+        # Send notification
+        notification_result = send_notification(
+            fid=fid,
+            title=title,
+            body=body
+        )
+
+        print(f"Notification result: {notification_result}")
+        return {
+            "status": "success",
+            "result": notification_result
+        }
+
+    except Exception as e:
+        error_msg = f"Error sending test notification: {str(e)}"
+        print(error_msg)
+        return {"error": error_msg}, 500
