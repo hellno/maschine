@@ -307,7 +307,7 @@ def validate_input(data: dict) -> None:
 def generate_project_name(prompt: str, deepseek: OpenAI) -> str:
     """Generate project name using Deepseek AI"""
     name_response = deepseek.chat.completions.create(
-        model="deepseek-chat",
+        model="deepseek/deepseek-coder",
         messages=[
             {"role": "system", "content": "Generate a concise, aspirational project name. Only respond with the name. No quotation marks, punctuation or quotes."},
             {"role": "user", "content": f"Generate a short project name based on: {prompt}"}
@@ -331,7 +331,8 @@ def improve_user_instructions(prompt: str, deepseek: OpenAI) -> str:
     """Improve user instructions using Deepseek AI"""
     improve_user_instructions_prompt = f"""Take the user’s prompt about a Farcaster frame miniapp and rewrite it as a clear, structured starter prompt for a coding LLM.
     Emphasize a single-page React+TypeScript app using Shadcn UI, Tailwind, wagmi, viem, and minimal Farcaster interactions.
-    Keep the output concise, static or minimally dynamic, and aligned with best practices.
+    Keep the output concise, static or minimally dynamic, and aligned with best practices. 
+    Make sure to update template files and constants as needed to customize the app with title, description and functionality.
     Include:
         1.	A short restatement of the user request with any clarifications (UI, UX, integrations).
         2.	A concise coding plan referencing key components, blockchain hooks, design guidelines, and ensuring a simple one-page layout.
@@ -446,9 +447,7 @@ def update_code(data: dict) -> str:
                 repo.git.clean('-fd')
                 repo.remotes.origin.pull('main', force=True)
 
-        # Setup shared node_modules
         setup_shared_node_modules(repo_dir, job_id, db)
-        db.add_log(job_id, "backend", "Set up shared node_modules")
         os.chdir(repo_dir)  # Change to repo directory
         fnames = [
             f"{repo.working_tree_dir}/{fname}"

@@ -69,7 +69,7 @@ type FlowState =
   | "success";
 
 export default function Frameception(
-  { title }: { title?: string } = { title: "Frameception" },
+  { title }: { title?: string } = { title: "Frameception" }
 ) {
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [context, setContext] = useState<FrameContext>();
@@ -84,7 +84,7 @@ export default function Frameception(
   const [lastEvent, setLastEvent] = useState("");
   const [flowState, setFlowState] = useState<FlowState>(
     // "waitForFrameToBePinned"
-    "enteringPrompt",
+    "enteringPrompt"
   );
 
   const [addFrameResult, setAddFrameResult] = useState("");
@@ -93,13 +93,32 @@ export default function Frameception(
   const [creationError, setCreationError] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
-    null,
+    null
   );
   const [newProjectId, setNewProjectId] = useState<string | null>(null);
 
-  // console.log("context", context);
-  // console.log("flowState", flowState);
-  // console.log("selectedProjectId", selectedProjectId);
+  const addFrame = useCallback(async () => {
+    try {
+      setNotificationDetails(null);
+
+      const result = await sdk.actions.addFrame();
+      console.log("addFrame result", result);
+      if (result.added) {
+        if (result.notificationDetails) {
+          setNotificationDetails(result.notificationDetails);
+        }
+        setAddFrameResult(
+          result.notificationDetails
+            ? `Added, got notificaton token ${result.notificationDetails.token} and url ${result.notificationDetails.url}`
+            : "Added, got no notification details"
+        );
+      } else {
+        setAddFrameResult(`Not added: ${result.reason}`);
+      }
+    } catch (error) {
+      setAddFrameResult(`Error: ${error}`);
+    }
+  }, []);
 
   const handleCreateProject = useCallback(async () => {
     try {
@@ -117,14 +136,7 @@ export default function Frameception(
 
       // Check if frame is pinned and ask to pin if not
       if (!isFramePinned) {
-        const addFrameResult = await sdk.actions.addFrame();
-        if (!addFrameResult.added) {
-          throw new Error("Please pin this frame to continue");
-        }
-        // Update notification details if available
-        if (addFrameResult.notificationDetails) {
-          setNotificationDetails(addFrameResult.notificationDetails);
-        }
+        addFrame();
       }
 
       const response = await fetch("/api/new-frame-project", {
@@ -150,7 +162,7 @@ export default function Frameception(
     } catch (error) {
       console.error("Error creating project:", error);
       setCreationError(
-        error instanceof Error ? error.message : "An unknown error occurred",
+        error instanceof Error ? error.message : "An unknown error occurred"
       );
       setFlowState("enteringPrompt");
     }
@@ -221,7 +233,7 @@ export default function Frameception(
 
       sdk.on("frameAdded", ({ notificationDetails }) => {
         setLastEvent(
-          `frameAdded${notificationDetails ? ", notifications enabled" : ""}`,
+          `frameAdded${notificationDetails ? ", notifications enabled" : ""}`
         );
 
         setIsFramePinned(true);
@@ -279,29 +291,6 @@ export default function Frameception(
     sdk.actions.close();
   }, []);
 
-  const addFrame = useCallback(async () => {
-    try {
-      setNotificationDetails(null);
-
-      const result = await sdk.actions.addFrame();
-      console.log("addFrame result", result);
-      if (result.added) {
-        if (result.notificationDetails) {
-          setNotificationDetails(result.notificationDetails);
-        }
-        setAddFrameResult(
-          result.notificationDetails
-            ? `Added, got notificaton token ${result.notificationDetails.token} and url ${result.notificationDetails.url}`
-            : "Added, got no notification details",
-        );
-      } else {
-        setAddFrameResult(`Not added: ${result.reason}`);
-      }
-    } catch (error) {
-      setAddFrameResult(`Error: ${error}`);
-    }
-  }, []);
-
   const sendNotification = useCallback(async () => {
     setSendNotificationResult("");
     if (!notificationDetails || !context) {
@@ -345,7 +334,7 @@ export default function Frameception(
         onSuccess: (hash) => {
           setTxHash(hash);
         },
-      },
+      }
     );
   }, [sendTransaction]);
 
@@ -394,8 +383,8 @@ export default function Frameception(
     }
 
     return (
-      <Tabs 
-        defaultValue="create_project" 
+      <Tabs
+        defaultValue="create_project"
         className="w-full"
         value={activeTab}
         onValueChange={(value) => {
@@ -736,8 +725,8 @@ export default function Frameception(
                           {isConfirming
                             ? "Confirming..."
                             : isConfirmed
-                              ? "Confirmed!"
-                              : "Pending"}
+                            ? "Confirmed!"
+                            : "Pending"}
                         </div>
                       </div>
                     )}
@@ -855,8 +844,8 @@ function SendEth() {
             {isConfirming
               ? "Confirming..."
               : isConfirmed
-                ? "Confirmed!"
-                : "Pending"}
+              ? "Confirmed!"
+              : "Pending"}
           </div>
         </div>
       )}
@@ -959,7 +948,7 @@ const renderError = (error: Error | null) => {
   if (!error) return null;
   if (error instanceof BaseError) {
     const isUserRejection = error.walk(
-      (e) => e instanceof UserRejectedRequestError,
+      (e) => e instanceof UserRejectedRequestError
     );
     if (isUserRejection) {
       return <div className="text-red-500 text-xs mt-1">Rejected by user.</div>;
