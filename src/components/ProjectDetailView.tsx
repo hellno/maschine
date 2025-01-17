@@ -523,9 +523,40 @@ export function ProjectDetailView({
   };
 
   const onHandleTryAutofix = async () => {
-    // AI! Autofix the build errors
-    // send an update that sends the autofix prompt "Please fix the following errors"
-    // and sends the logs where type is "stderr"
+    if (!project) return;
+    
+    // Filter logs to get only stderr entries
+    const errorLogs = logs
+      .filter(log => log.data?.logs?.some(l => l.type === 'stderr'))
+      .flatMap(log => log.data.logs.filter(l => l.type === 'stderr'))
+      .map(log => log.payload.text)
+      .join('\n');
+
+    // Create autofix prompt with error context  
+    const autofixPrompt = `Please fix the following build errors:\n\n${errorLogs}`;
+
+    try {
+      const response = await fetch("/api/update-code", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          projectId,
+          prompt: autofixPrompt,
+          userContext,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to submit autofix update");
+      }
+
+      // Refresh project data after update
+      await fetchProject();
+    } catch (err) {
+      console.error("Error submitting autofix:", err);
+    }
   };
 
   if (!project && !error) {
