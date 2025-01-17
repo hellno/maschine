@@ -377,31 +377,6 @@ export function ProjectDetailView({
     }
   }, [projectId]);
 
-  const fetchProject = useCallback(async () => {
-    try {
-      if (!projectId) return;
-
-      const response = await fetch(`/api/projects?id=${projectId}`);
-      if (!response.ok) throw new Error("Failed to fetch project");
-      const data = await response.json();
-      const project = data.projects?.[0];
-      setProject(project);
-      console.log("project", project);
-      
-      // Set logs from each job's logs
-      if (project) {
-        const allLogs = project.jobs.flatMap((job: Job) => job.logs || []);
-        // Sort logs by creation date, newest first
-        const sortedLogs = allLogs.sort(
-          (a: Log, b: Log) =>
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
-        setLogs(sortedLogs);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load project");
-    }
-  }, [projectId]);
 
   const pollJobStatus = useCallback(async (jobId: string) => {
     try {
