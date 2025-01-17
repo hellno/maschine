@@ -89,6 +89,50 @@ def sanitize_project_name(name: str) -> str:
     return sanitized or 'new-frame-project'
 
 
+def get_unique_repo_name(gh: Github, base_name: str) -> str:
+    """Get a unique repository name by adding/incrementing a number suffix if needed
+    
+    Args:
+        gh: GitHub client instance
+        base_name: Base repository name to check
+        
+    Returns:
+        str: Unique repository name
+    """
+    org = gh.get_organization(GITHUB_ORG_NAME)
+    
+    # Check if base name exists
+    try:
+        org.get_repo(base_name)
+        # Repo exists, need to modify name
+    except:
+        # Repo doesn't exist, can use base name
+        return base_name
+        
+    # Check if name already ends with -number
+    import re
+    number_match = re.match(r'(.+)-(\d+)$', base_name)
+    
+    if number_match:
+        # Name ends with number, increment it
+        name_base = number_match.group(1)
+        number = int(number_match.group(2))
+        current_try = number + 1
+    else:
+        # Add -1 to the name
+        name_base = base_name
+        current_try = 1
+        
+    # Keep incrementing until we find an available name
+    while True:
+        new_name = f"{name_base}-{current_try}"
+        try:
+            org.get_repo(new_name)
+            current_try += 1
+        except:
+            return new_name
+
+
 def generate_random_secret() -> str:
     """Generate a random secret for NextAuth"""
     return base64.b64encode(os.urandom(32)).decode('utf-8')
@@ -854,11 +898,8 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
         user_context = data.get("userContext")
         project_name = generate_project_name(data["prompt"], deepseek)
         username = user_context["username"]
-        sanitized_name = f'{username}-{sanitize_project_name(project_name)}'
-        # AI! validate that github_org / sanitized_name doesn't exist.
-        # if it already has a number after the final dash, increment it by 1
-        # if it exists, add a dash and a number to the end of the sanitized_name 
-        # incrementing the number until it doesn't exist
+        base_sanitized_name = f'{username}-{sanitize_project_name(project_name)}'
+        sanitized_name = get_unique_repo_name(gh, base_sanitized_name)
 
         # Setup GitHub repository
         db.add_log(job_id, "github",
