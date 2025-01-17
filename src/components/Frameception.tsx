@@ -115,6 +115,8 @@ export default function Frameception(
         throw new Error("User FID is required");
       }
 
+      // AI! add auto-ask the user to pin the frame here
+
       const response = await fetch("/api/new-frame-project", {
         method: "POST",
         headers: {
