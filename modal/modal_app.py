@@ -995,6 +995,39 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
             db.add_log(job_id, "backend", f"Initial code update completed: {
                        code_update_response}")
 
+            # Add metadata update after initial code update
+            metadata_update_prompt = f"""
+            Update the following files to customize the project metadata:
+
+            1. In src/lib/constants.ts:
+            - Update NEXT_PUBLIC_TITLE to "{project_name}"
+            - Update NEXT_PUBLIC_DESCRIPTION to "{data['description']}"
+            - Update NEXT_PUBLIC_URL to "{frontend_url}"
+
+            2. In src/app/opengraph-image.tsx:
+            - Update the OpenGraph image to reflect the project "{project_name}"
+            - Use a relevant background color and layout that matches the project theme
+            - Include the project name prominently
+            - Add a brief description if space allows
+            - Keep the Farcaster Frame branding but make it specific to this project
+
+            Make sure the changes maintain type safety and follow the existing code structure.
+            """
+
+            try:
+                metadata_update_response = update_code.remote({
+                    "project_id": project_id,
+                    "repo_path": repo_path,
+                    "prompt": metadata_update_prompt,
+                    "job_type": "update_code_for_metadata"
+                })
+                db.add_log(job_id, "backend", f"Metadata update completed: {metadata_update_response}")
+            except Exception as e:
+                error_msg = f"Error updating project metadata: {str(e)}"
+                db.add_log(job_id, "backend", error_msg)
+                # Continue with setup even if metadata update fails
+                print(f"Warning: {error_msg}")
+
             print("Starting post-deployment setup with deployment data", deployment)
             # Extract and validate domain
             try:
