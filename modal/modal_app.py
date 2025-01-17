@@ -489,8 +489,10 @@ def update_code(data: dict) -> str:
             print(f"Error getting last line of output: {e}")
         db.add_log(job_id, "backend", f"Finished code update")
         db.update_job_status(job_id, "completed")
+
         repo.git.push()
         volumes["/github-repos"].commit()
+        volumes["/shared-node-modules"].commit()
         return f"Successfully ran prompt for repo {repo_path} in project {project_id}"
     except Exception as e:
         repo.git.push()
