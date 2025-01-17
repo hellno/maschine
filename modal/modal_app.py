@@ -337,6 +337,7 @@ def improve_user_instructions(prompt: str, deepseek: OpenAI) -> str:
         2.	A concise coding plan referencing key components, blockchain hooks, design guidelines, and ensuring a simple one-page layout.
     Your final response: the improved starter prompt, ready for the coding LLM.
     """
+    print(f"Improving user instructions: {prompt}")
     try:
         instructions_response = deepseek.chat.completions.create(
             model="deepskeek-chat",
@@ -346,6 +347,7 @@ def improve_user_instructions(prompt: str, deepseek: OpenAI) -> str:
             ],
             temperature=0.5,
         )
+        print(f"Improved user instructions: {json.dumps(instructions_response)}")
         return instructions_response.choices[0].message.content.strip()
     except Exception as e:
         print(f"Error improving user instructions: {str(e)}")
