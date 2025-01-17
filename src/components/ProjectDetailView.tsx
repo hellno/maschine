@@ -35,8 +35,8 @@ const styles = {
     "px-2.5 py-0.5 rounded-full text-xs font-medium inline-flex items-center gap-1",
   link: "text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 inline-flex items-center gap-2 transition-colors",
   chat: {
-    userMessage: "bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg",
-    botMessage: "bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg",
+    userMessage: "bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg break-words",
+    botMessage: "bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg break-words",
     timestamp: "text-xs text-gray-500 mt-1",
     container: "space-y-4",
   },
@@ -185,28 +185,28 @@ function ConversationCard({
         <CardTitle>Conversation</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
+        <div className="space-y-4 max-w-full">
           {jobs.length > 0 ? (
             jobs.map((job) => (
               <div key={job.id} className="space-y-2">
-                <div className={styles.chat.userMessage}>
-                  <p className="text-sm text-gray-900 dark:text-gray-100">
+                <div className={`${styles.chat.userMessage} overflow-hidden`}>
+                  <p className="text-sm text-gray-900 dark:text-gray-100 break-words overflow-wrap-anywhere">
                     {job.data.prompt}
                   </p>
                   <p className={styles.chat.timestamp}>
                     {new Date(job.created_at).toLocaleString()}
                   </p>
                 </div>
-                <div className={styles.chat.botMessage}>
+                <div className={`${styles.chat.botMessage} overflow-hidden`}>
                   {job.status === "pending" ? (
                     <div className="flex items-center gap-2 text-gray-500">
                       <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" />
                       Processing...
                     </div>
                   ) : job.data.error ? (
-                    <p className="text-red-600">{job.data.error}</p>
+                    <p className="text-red-600 break-words overflow-wrap-anywhere">{job.data.error}</p>
                   ) : (
-                    <p className="text-gray-700 dark:text-gray-300">
+                    <p className="text-gray-700 dark:text-gray-300 break-words overflow-wrap-anywhere">
                       {job.data.result || "✅"}
                     </p>
                   )}
@@ -220,7 +220,7 @@ function ConversationCard({
             </div>
           )}
         </div>
-        <div className="mt-8 space-y-4">
+        <div className="mt-8 space-y-4 max-w-full">
           {hasAnyJobsPending && (
             <div className="p-4 bg-gray-50 rounded-lg text-sm text-gray-500">
               There are pending jobs for this project. Please wait for them to
@@ -265,7 +265,7 @@ function ConversationCard({
                 value={updatePrompt}
                 onChange={(e) => setUpdatePrompt(e.target.value)}
                 placeholder="Describe the changes you'd like to make..."
-                className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 break-words overflow-wrap-anywhere"
                 disabled={isSubmitting || hasAnyJobsPending}
               />
               <Button

@@ -402,7 +402,7 @@ export default function Frameception(
               fetchProjects();
             }}
           >
-            View Projects
+            Your Frames
           </TabsTrigger>
         </TabsList>
 
