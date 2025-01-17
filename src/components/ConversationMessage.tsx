@@ -49,6 +49,15 @@ export function ConversationMessage({ text, timestamp, type, isError }: Conversa
           Read more...
         </Button>
       )}
+      {isExpanded && (
+        <Button
+          variant="outline"
+          className="mt-2 text-sm"
+          onClick={() => setIsExpanded(false)}
+        >
+          Show less
+        </Button>
+      )}
       
       <p className="text-xs text-gray-500 mt-1">
         {timestamp}
