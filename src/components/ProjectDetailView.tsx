@@ -150,6 +150,8 @@ function ConversationCard({
   isSubmitting,
   handleSubmitUpdate,
   userContext,
+  vercelBuildStatus,
+  onHandleTryAutofix,
 }: {
   project: Project;
   updatePrompt: string;
@@ -157,6 +159,8 @@ function ConversationCard({
   isSubmitting: boolean;
   handleSubmitUpdate: () => void;
   userContext?: FrameContext["user"];
+  vercelBuildStatus: VercelBuildStatus | null;
+  onHandleTryAutofix: () => void;
 }) {
   const jobs =
     project.jobs?.filter(
@@ -164,7 +168,7 @@ function ConversationCard({
     ) || [];
 
   const hasAnyJobsPending = jobs.some((job) => job.status === "pending");
-
+  const hasBuildErrors = vercelBuildStatus === "ERROR";
   return (
     <Card>
       <CardHeader>
@@ -206,11 +210,21 @@ function ConversationCard({
             </div>
           )}
         </div>
-        <div className="mt-12 space-y-4">
+        <div className="mt-8 space-y-4">
           {hasAnyJobsPending && (
             <div className="p-4 bg-gray-50 rounded-lg text-sm text-gray-500">
               There are pending jobs for this project. Please wait for them to
               finish.
+            </div>
+          )}
+          {hasBuildErrors && (
+            <div className="grid grid-cols-2 gap-4">
+              <Button variant="outline" className="w-full">
+                View Build Errors
+              </Button>
+              <Button onClick={onHandleTryAutofix} className="w-full">
+                Try Autofix
+              </Button>
             </div>
           )}
           {!hasAnyJobsPending && (
@@ -442,6 +456,7 @@ export function ProjectDetailView({
       const response = await fetch(`/api/vercel-status/${project.id}`);
       if (!response.ok) throw new Error("Failed to fetch Vercel status");
       const data = await response.json();
+      console.log("data", data);
       setDeploymentStatus(data.status);
       setVercelBuildStatus(data.status);
 
@@ -507,6 +522,12 @@ export function ProjectDetailView({
     }
   };
 
+  const onHandleTryAutofix = async () => {
+    // AI! Autofix the build errors
+    // send an update that sends the autofix prompt "Please fix the following errors"
+    // and sends the logs where type is "stderr"
+  };
+
   if (!project && !error) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -529,11 +550,13 @@ export function ProjectDetailView({
     <div className={styles.container}>
       <ProjectInfoCard project={project} status={projectStatus} />
       <ConversationCard
+        vercelBuildStatus={vercelBuildStatus}
         project={project}
         updatePrompt={updatePrompt}
         setUpdatePrompt={setUpdatePrompt}
         isSubmitting={isSubmitting}
         handleSubmitUpdate={handleSubmitUpdate}
+        onHandleTryAutofix={onHandleTryAutofix}
         userContext={userContext}
       />
       <ActivityLogCard logs={logs} />
