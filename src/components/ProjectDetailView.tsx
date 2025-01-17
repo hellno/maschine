@@ -18,14 +18,18 @@ import { Job, Log, Project, VercelLogData } from "~/lib/types";
 
 // Styles object
 const styles = {
-  chatBubble: {
-    base: "w-fit max-w-[85%] sm:max-w-[75%] rounded-lg py-2 px-3 mb-2 break-words",
-    user: "ml-auto bg-blue-500 text-white rounded-br-none",
-    bot: "mr-auto bg-gray-100 text-gray-900 rounded-bl-none",
+  container: "max-w-4xl mx-auto space-y-6 p-6",
+  card: "bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700",
+  cardHeader: "px-6 py-4 border-b border-gray-100 dark:border-gray-700",
+  cardContent: "p-6",
+  deploymentStatus: {
+    ready: "text-green-600 bg-green-50 dark:bg-green-900/20",
+    error: "text-red-600 bg-red-50 dark:bg-red-900/20",
+    building: "text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20",
+    pending: "text-blue-600 bg-blue-50 dark:bg-blue-900/20",
   },
-  container: "space-y-6 max-w-3xl mx-auto",
-  loadingSpinner:
-    "animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900",
+  badge: "px-2.5 py-0.5 rounded-full text-xs font-medium inline-flex items-center gap-1",
+  link: "text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 inline-flex items-center gap-2 transition-colors",
 };
 
 interface ProjectDetailViewProps {
@@ -42,66 +46,59 @@ interface PollingRefs {
 // Project Info Card Component
 function ProjectInfoCard({ project }: { project: Project }) {
   const status = getProjectStatus(project);
-
-  const handleShare = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent card click event
-    if (project.frontend_url) {
-      const shareText = `Check out my frame ${project.name} built with frameception`;
-      const shareUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(
-        shareText
-      )}&embeds[]=${encodeURIComponent(project.frontend_url)}`;
-      sdk.actions.openUrl(shareUrl);
-    }
-  };
-
+  
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          {project.name || "Project Details"}
+    <div className={styles.card}>
+      <div className="p-6 space-y-4">
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+              {project.name}
+            </h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Created {new Date(project.created_at).toLocaleDateString()}
+            </p>
+          </div>
           {project.frontend_url && (
-            <Button variant="secondary" size="sm" onClick={handleShare}>
-              Share Frame
-              <Share className="w-5 h-5 flex-shrink-0" />
+            <Button variant="outline" size="sm" onClick={() => 
+              sdk.actions.openUrl(`https://warpcast.com/~/frames/launch?domain=${project.frontend_url}`)
+            }>
+              <Globe className="w-4 h-4 mr-2" />
+              Open Frame
             </Button>
           )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid gap-4">
-          <ProjectStatusIndicator status={status} />
-
-          <div className="flex items-center gap-2">
-            <GitBranch className="w-5 h-5 flex-shrink-0" />
-            <button
-              onClick={() => sdk.actions.openUrl(project.repo_url)}
-              className="text-blue-500 hover:text-blue-700 flex items-center gap-1 break-all"
-            >
-              GitHub Repository
-            </button>
-          </div>
-
-          {status.state === "ready" && project.frontend_url && (
-            <div className="flex items-center gap-2">
-              <Globe className="w-5 h-5 flex-shrink-0" />
-              <button
-                onClick={() =>
-                  sdk.actions.openUrl(
-                    `https://warpcast.com/~/frames/launch?domain=${project.frontend_url!}`
-                  )
-                }
-                className="text-blue-500 hover:text-blue-700 flex items-center gap-1 break-all"
-              >
-                Open Frame
-              </button>
-            </div>
-          )}
-          <div className="text-sm text-gray-500">
-            Created on {new Date(project.created_at).toLocaleDateString()}
-          </div>
         </div>
-      </CardContent>
-    </Card>
+
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+          <div className="flex items-center gap-2">
+            <div className={cn(
+              styles.badge,
+              status.state === 'ready' && styles.deploymentStatus.ready,
+              status.state === 'error' && styles.deploymentStatus.error,
+              status.state === 'building' && styles.deploymentStatus.building,
+              status.state === 'setting_up' && styles.deploymentStatus.pending,
+            )}>
+              {status.state === 'building' && <div className="w-2 h-2 rounded-full bg-yellow-600 animate-pulse" />}
+              {status.message}
+            </div>
+          </div>
+          
+          <a href={project.repo_url} 
+             target="_blank" 
+             rel="noopener noreferrer" 
+             className={styles.link}>
+            <GitBranch className="w-4 h-4" />
+            View Repository
+          </a>
+        </div>
+
+        {status.error && (
+          <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-600 dark:text-red-400 text-sm">
+            {status.error}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
