@@ -9,6 +9,7 @@ import {
   setUserNotificationDetails,
 } from "~/lib/kv";
 import { sendFrameNotification } from "~/lib/notifs";
+import { supabaseClient } from "~/lib/supabase";
 
 export async function POST(request: NextRequest) {
   const requestJson = await request.json();
@@ -51,6 +52,12 @@ export async function POST(request: NextRequest) {
 
   switch (event.event) {
     case "frame_added":
+      // First increment the frame_pinned_count for any projects owned by this user
+      await supabaseClient
+        .from('projects')
+        .update({ frame_pinned_count: supabaseClient.rpc('increment') })
+        .eq('fid_owner', fid);
+
       if (event.notificationDetails) {
         await setUserNotificationDetails(fid, event.notificationDetails);
         await sendFrameNotification({
@@ -61,7 +68,6 @@ export async function POST(request: NextRequest) {
       } else {
         await deleteUserNotificationDetails(fid);
       }
-
       break;
     case "frame_removed":
       await deleteUserNotificationDetails(fid);
