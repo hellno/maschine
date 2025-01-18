@@ -566,6 +566,9 @@ def update_code(data: dict) -> str:
                 """Support string concatenation from the left"""
                 return other + str(self)
 
+        # Create the test command object
+        sandbox_test_cmd = SandboxTestCmd(sandbox, job_id, db)
+
         # Test the sandbox_test_cmd with various scenarios
         test_commands = [
             "yarn --version",  # Should succeed
