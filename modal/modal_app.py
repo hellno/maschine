@@ -277,7 +277,6 @@ def generate_random_secret() -> str:
     return base64.b64encode(os.urandom(32)).decode('utf-8')
 
 
-
 def verify_github_setup(gh: Github, job_id: str, db: Database) -> None:
     """Verify GitHub token and organization access"""
     required_scopes = ['repo', 'admin:org']
@@ -456,9 +455,9 @@ def update_code(data: dict) -> str:
         else:
             repo = git.Repo(repo_dir)
             # Configure git before operations
-            repo.config_writer().set_value("user", "name", "hellno").release()
+            repo.config_writer().set_value("user", "name", GITHUB_COMMIT_NAME).release()
             repo.config_writer().set_value(
-                "user", "email", "686075+hellno@users.noreply.github.com").release()
+                "user", "email", GITHUB_COMMIT_EMAIL).release()
 
             try:
                 # Fetch latest changes
@@ -928,11 +927,10 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
                     new_repo = git.Repo.clone_from(new_repo_url, new_repo_path)
                     db.add_log(job_id, "github", "Cloned new repository")
 
-
                     # Configure git user
-                    new_repo.config_writer().set_value("user", "name", "hellno").release()
+                    new_repo.config_writer().set_value("user", "name", GITHUB_COMMIT_NAME).release()
                     new_repo.config_writer().set_value(
-                        "user", "email", "686075+hellno@users.noreply.github.com").release()
+                        "user", "email", GITHUB_COMMIT_EMAIL).release()
 
                     # Copy template contents to new repo
                     for item in os.listdir(template_path):
@@ -1283,20 +1281,20 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
 @modal.web_endpoint(label="update-template-snapshot-webhook", method="POST")
 def update_template_snapshot_webhook() -> dict:
     """Webhook to manually trigger a template snapshot update.
-    
+
     Usage:
         curl -X POST <endpoint>
     """
     try:
         # Create new snapshot - don't return anything from the function
         create_template_snapshot.remote()
-        
+
         return {
             "status": "success",
             "message": "Template snapshot updated successfully",
             "timestamp": str(datetime.datetime.now(datetime.UTC))
         }
-        
+
     except Exception as e:
         error_msg = f"Failed to update template snapshot: {str(e)}"
         print(error_msg)
