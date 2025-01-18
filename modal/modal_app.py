@@ -130,7 +130,6 @@ app = modal.App(name=MODAL_APP_NAME, image=image)
         modal.Secret.from_name("github-secret"),
     ]
 )
-@cache
 def create_template_snapshot() -> modal.Image:
     """Create a snapshot of the template repository with node_modules installed"""
     import git
