@@ -7,8 +7,6 @@ from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel, ValidationError, Field
 from typing import Optional, List
 
-app = FastAPI()
-
 KV_REST_API_URL = os.getenv("KV_REST_API_URL", "")
 KV_REST_API_TOKEN = os.getenv("KV_REST_API_TOKEN", "")
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://farcasterframeception.vercel.app')
