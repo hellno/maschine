@@ -38,11 +38,9 @@ PROJECT_SETUP_TIMEOUT_SECONDS = 3600  # 1 hour
 
 # Volume Names
 GITHUB_REPOS_VOLUME_NAME = "frameception-github-repos"
-NODE_MODULES_VOLUME_NAME = "frameception-node-modules"
 
 # File Paths
 GITHUB_REPOS_PATH = "/github-repos"
-SHARED_NODE_MODULES_PATH = "/shared-node-modules"
 
 # Default Project Files to Modify
 DEFAULT_PROJECT_FILES = [
@@ -93,12 +91,9 @@ env_vars = {
 
 github_repos = modal.Volume.from_name(
     GITHUB_REPOS_VOLUME_NAME, create_if_missing=True)
-node_modules = modal.Volume.from_name(
-    NODE_MODULES_VOLUME_NAME, create_if_missing=True)
 
 volumes = {
-    GITHUB_REPOS_PATH: github_repos,
-    SHARED_NODE_MODULES_PATH: node_modules
+    GITHUB_REPOS_PATH: github_repos
 }
 
 image = modal.Image.debian_slim(python_version="3.12") \
@@ -124,10 +119,7 @@ image = modal.Image.debian_slim(python_version="3.12") \
         # Install yarn
         "npm install -g yarn",
         # Install aider
-        "aider-install",
-        # Create shared node_modules and install dependencies
-        # "mkdir -p /shared-node-modules",
-        # "cd /shared-node-modules && yarn install"
+        "aider-install"
 ) \
     .run_function(setup_sentry, secrets=[modal.Secret.from_name("sentry-secret")])
 app = modal.App(name=MODAL_APP_NAME, image=image)
@@ -1103,9 +1095,6 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
                     new_repo = git.Repo.clone_from(new_repo_url, new_repo_path)
                     db.add_log(job_id, "github", "Cloned new repository")
 
-                    # Setup shared node_modules
-                    setup_shared_node_modules(new_repo_path, job_id, db)
-                    db.add_log(job_id, "github", "Set up shared node_modules")
 
                     # Configure git user
                     new_repo.config_writer().set_value("user", "name", "hellno").release()
