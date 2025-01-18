@@ -630,7 +630,17 @@ def update_code(data: dict) -> str:
         volumes["/github-repos"].commit()
         return f"Successfully ran prompt for repo {repo_path} in project {project_id}"
     except Exception as e:
-        repo.git.push()
+        if 'repo' in locals() and repo:
+            try:
+                repo.git.push()
+            except:
+                pass
+        if 'sandbox' in locals() and sandbox:
+            try:
+                sandbox.terminate()
+            except:
+                pass
+            
         volumes["/github-repos"].commit()
         print(f"Error updating code: {e}")
         error_msg = f"Error updating code: {str(e)}"
