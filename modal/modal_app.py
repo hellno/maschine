@@ -147,20 +147,20 @@ def create_template_snapshot() -> modal.Image:
     # Clone template repository
     with tempfile.TemporaryDirectory() as temp_dir:
         repo = git.Repo.clone_from(TEMPLATE_REPO_URL, temp_dir)
-        
+
         # Create sandbox with Node.js with proper output streaming and resource limits
         with modal.enable_output():
             sandbox = modal.Sandbox.create(
                 image=modal.Image.debian_slim()
-                    .apt_install("nodejs", "npm")
-                    .run_commands("npm install -g yarn"),
+                .apt_install("nodejs", "npm")
+                .run_commands("npm install -g yarn"),
                 workdir=temp_dir,
                 app=modal.App.lookup(MODAL_APP_NAME, create_if_missing=True),
                 cpu=2.0,  # 2 CPU cores for build
                 memory=4096,  # 4GB RAM
                 timeout=1800,  # 30 minutes timeout
             )
-            
+
             # Tag sandbox for tracking
             sandbox.set_tags({
                 "purpose": "template_snapshot",
@@ -173,13 +173,13 @@ def create_template_snapshot() -> modal.Image:
             for line in process.stdout:
                 print(line.strip())
             process.wait()
-            
+
             if process.returncode != 0:
                 raise Exception("Failed to install dependencies")
 
             # Create snapshot
             image = sandbox.snapshot_filesystem()
-            
+
             # No need to call terminate() - Modal will handle cleanup
             return image
 
@@ -192,7 +192,7 @@ def list_active_sandboxes() -> dict:
     try:
         sandboxes = []
         app = modal.App.lookup(MODAL_APP_NAME)
-        
+
         for sandbox in modal.Sandbox.list(app_id=app.app_id):
             tags = sandbox.get_tags()
             sandboxes.append({
@@ -202,7 +202,7 @@ def list_active_sandboxes() -> dict:
                 "job_id": tags.get("job_id"),
                 "created_at": tags.get("created_at")
             })
-        
+
         return {
             "status": "success",
             "sandboxes": sandboxes
@@ -213,26 +213,15 @@ def list_active_sandboxes() -> dict:
             "message": str(e)
         }
 
+
 @app.function(
     secrets=[modal.Secret.from_name("supabase-secret")]
 )
 @modal.web_endpoint(label="list-sandboxes", method="GET")
 def list_sandboxes_webhook() -> dict:
     """Webhook to list all active sandboxes
-    
-    Usage:
-        curl https://frameception--list-sandboxes-dev.modal.run
     """
     return list_active_sandboxes.remote()
-
-@app.function(
-    schedule=modal.Period(days=UPDATE_SNAPSHOT_INTERVAL_DAYS),
-    secrets=[modal.Secret.from_name("github-secret")]
-)
-def update_template_snapshot():
-    """Update the template snapshot if template repository has changed"""
-    create_template_snapshot.cache_clear()
-    create_template_snapshot.remote()
 
 
 def sanitize_project_name(name: str) -> str:
@@ -628,7 +617,7 @@ def update_code(data: dict) -> str:
     try:
         # Get template snapshot when needed
         template_snapshot = create_template_snapshot.remote()
-        
+
         is_repo_stored_locally = os.path.exists(repo_dir)
         repo = None
         if not is_repo_stored_locally:
@@ -685,7 +674,7 @@ def update_code(data: dict) -> str:
                     modal.Secret.from_name("vercel-secret")
                 ]
             )
-            
+
             # Tag sandbox for tracking
             sandbox.set_tags({
                 "purpose": "code_update",
@@ -1477,8 +1466,6 @@ def update_template_snapshot_webhook() -> dict:
         curl -X POST <endpoint>
     """
     try:
-        # Clear the cache and create new snapshot
-        create_template_snapshot.cache_clear()
         new_snapshot = create_template_snapshot.remote()
 
         return {
