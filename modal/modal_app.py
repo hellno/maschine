@@ -2,7 +2,6 @@ import json
 from typing import TypedDict, Optional
 import modal
 import sys
-from functools import cache
 from pathlib import Path
 import os
 import requests
@@ -141,6 +140,7 @@ def create_template_snapshot() -> modal.Image:
 
         # Create sandbox with Node.js with proper output streaming and resource limits
         with modal.enable_output():
+            print('Creating template snapshot...')
             sandbox = modal.Sandbox.create(
                 image=modal.Image.debian_slim()
                 .apt_install("nodejs", "npm")
@@ -151,6 +151,7 @@ def create_template_snapshot() -> modal.Image:
                 memory=4096,  # 4GB RAM
                 timeout=1800,  # 30 minutes timeout
             )
+            print('sandbox:', sandbox)
 
             # Tag sandbox for tracking
             sandbox.set_tags({
@@ -158,17 +159,21 @@ def create_template_snapshot() -> modal.Image:
                 "template_version": repo.head.commit.hexsha[:8],
                 "created_at": datetime.datetime.now(datetime.UTC).isoformat()
             })
+            print('set some tags and run yarn install')
 
             # Install dependencies
             process = sandbox.exec("yarn", "install")
+            print('start yarn install')
             for line in process.stdout:
                 print(line.strip())
             process.wait()
-
+            print('yarn install done', process)
             if process.returncode != 0:
+                print('Failed to install dependencies')
                 raise Exception("Failed to install dependencies")
 
             # Create snapshot
+            print('create snapshot')
             image = sandbox.snapshot_filesystem()
 
             # No need to call terminate() - Modal will handle cleanup
@@ -913,9 +918,8 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
             with tempfile.TemporaryDirectory() as temp_dir:
                 try:
                     # Clone template repository
-                    template_url = "https://github.com/hellno/farcaster-frames-template.git"
                     template_path = os.path.join(temp_dir, "template")
-                    git.Repo.clone_from(template_url, template_path)
+                    git.Repo.clone_from(TEMPLATE_REPO_URL, template_path)
                     db.add_log(job_id, "github", "Cloned template repository")
 
                     # Clone new repository
