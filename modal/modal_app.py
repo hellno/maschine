@@ -668,14 +668,29 @@ def update_code(data: dict) -> str:
                 repo.git.clean('-fd')
                 repo.remotes.origin.pull('main', force=True)
 
-        # Create sandbox using template snapshot
-        db.add_log(job_id, "backend",
-                   "Creating sandbox from template snapshot")
-        sandbox = modal.Sandbox.create(
-            image=template_snapshot,
-            workdir=repo_dir,
-            app=modal.App.lookup("frameception", create_if_missing=True)
-        )
+        # Create sandbox with proper resource limits and output streaming
+        with modal.enable_output():
+            sandbox = modal.Sandbox.create(
+                image=template_snapshot,
+                workdir=repo_dir,
+                app=modal.App.lookup(MODAL_APP_NAME, create_if_missing=True),
+                cpu=2.0,
+                memory=4096,
+                timeout=CODE_UPDATE_TIMEOUT_SECONDS,
+                secrets=[
+                    modal.Secret.from_name("github-secret"),
+                    modal.Secret.from_name("vercel-secret")
+                ]
+            )
+            
+            # Tag sandbox for tracking
+            sandbox.set_tags({
+                "purpose": "code_update",
+                "project_id": project_id,
+                "job_id": job_id,
+                "repo_path": repo_path,
+                "created_at": datetime.datetime.now(datetime.UTC).isoformat()
+            })
 
         # Verify dependencies
         db.add_log(job_id, "backend", "Verifying dependencies")
