@@ -658,9 +658,12 @@ def update_code(data: dict) -> str:
                 pass
 
         volumes["/github-repos"].commit()
-        # AI! can I get a traceback here?
-        print(f"Error updating code: {e}")
-        error_msg = f"Error updating code: {str(e)}"
+        
+        # Get full traceback
+        import traceback
+        tb = traceback.format_exc()
+        print(f"Error updating code: {e}\nTraceback:\n{tb}")
+        error_msg = f"Error updating code: {str(e)}\nTraceback:\n{tb}"
         db.add_log(job_id, "backend", error_msg)
         db.update_job_status(job_id, "failed", str(e))
         return error_msg
