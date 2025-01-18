@@ -515,38 +515,56 @@ def update_code(data: dict) -> str:
         for line in process.stdout:
             db.add_log(job_id, "backend", line.strip())
 
-        def sandbox_test_cmd(cmd: str) -> Optional[str]:
-            """Run a command in the sandbox and return error output if it fails, None if successful"""
-            try:
-                cmd_parts = cmd.split()
-                db.add_log(job_id, "backend",
-                           f"Running command in sandbox: {cmd}")
-                process = sandbox.exec(*cmd_parts)
+        class SandboxTestCmd:
+            def __init__(self, sandbox, job_id, db):
+                self.sandbox = sandbox
+                self.job_id = job_id
+                self.db = db
+                self._cmd_str = "yarn test"  # Default command string representation
 
-                # Collect all output
-                output = []
-                for line in process.stdout:
-                    line_str = line.strip()
-                    output.append(line_str)
-                    db.add_log(job_id, "backend", line_str)
+            def __call__(self, cmd: str = None) -> Optional[str]:
+                """Run a command in the sandbox and return error output if it fails, None if successful"""
+                try:
+                    cmd_to_run = cmd or self._cmd_str
+                    cmd_parts = cmd_to_run.split()
+                    self.db.add_log(self.job_id, "backend", f"Running command in sandbox: {cmd_to_run}")
+                    process = self.sandbox.exec(*cmd_parts)
 
-                process.wait()
+                    # Collect all output
+                    output = []
+                    for line in process.stdout:
+                        line_str = line.strip()
+                        output.append(line_str)
+                        self.db.add_log(self.job_id, "backend", line_str)
 
-                # If command failed, return the output as error message
-                if process.returncode != 0:
-                    error_msg = "\n".join(output)
-                    db.add_log(job_id, "backend",
-                               f"Command failed with output: {error_msg}")
+                    process.wait()
+
+                    # If command failed, return the output as error message
+                    if process.returncode != 0:
+                        error_msg = "\n".join(output)
+                        self.db.add_log(self.job_id, "backend", f"Command failed with output: {error_msg}")
+                        return error_msg
+
+                    # Command succeeded
+                    self.db.add_log(self.job_id, "backend", "Command completed successfully")
+                    return None
+
+                except Exception as e:
+                    error_msg = f"Error running command in sandbox: {str(e)}"
+                    self.db.add_log(self.job_id, "backend", error_msg)
                     return error_msg
 
-                # Command succeeded
-                db.add_log(job_id, "backend", "Command completed successfully")
-                return None
+            def __str__(self) -> str:
+                """String representation for concatenation and display"""
+                return self._cmd_str
 
-            except Exception as e:
-                error_msg = f"Error running command in sandbox: {str(e)}"
-                db.add_log(job_id, "backend", error_msg)
-                return error_msg
+            def __add__(self, other: str) -> str:
+                """Support string concatenation"""
+                return str(self) + other
+
+            def __radd__(self, other: str) -> str:
+                """Support string concatenation from the left"""
+                return other + str(self)
 
         # Test the sandbox_test_cmd with various scenarios
         test_commands = [
