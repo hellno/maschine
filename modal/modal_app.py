@@ -225,7 +225,7 @@ def setup_shared_node_modules(repo_dir: str, job_id: str = None, db: Database = 
         log_message(f"Repository directory: {repo_dir}")
         log_message(f"Target node_modules path: {node_modules_path}")
         log_message(f"Shared modules path: {shared_modules_path}")
-        
+
         # Check package.json
         package_json_path = os.path.join(repo_dir, "package.json")
         if os.path.exists(package_json_path):
@@ -244,13 +244,15 @@ def setup_shared_node_modules(repo_dir: str, job_id: str = None, db: Database = 
                 shutil.rmtree(node_modules_path)
 
         # Create new symlink
-        os.symlink(shared_modules_path, node_modules_path, target_is_directory=True)
-        
+        os.symlink(shared_modules_path, node_modules_path,
+                   target_is_directory=True)
+
         # Verify symlink
         if os.path.islink(node_modules_path):
             target = os.readlink(node_modules_path)
-            log_message(f"Symlink created successfully: {node_modules_path} -> {target}")
-            
+            log_message(f"Symlink created successfully: {
+                        node_modules_path} -> {target}")
+
             # Check next package
             next_package = os.path.join(node_modules_path, "next")
             if os.path.exists(next_package):
@@ -259,11 +261,12 @@ def setup_shared_node_modules(repo_dir: str, job_id: str = None, db: Database = 
                 log_message("❌ next package not found in node_modules!")
                 if os.path.exists(node_modules_path):
                     contents = os.listdir(node_modules_path)
-                    log_message(f"Available packages in node_modules: {contents[:10]}")
+                    log_message(f"Available packages in node_modules: {
+                                contents[:10]}")
 
         # Change to project directory for yarn commands
         os.chdir(repo_dir)
-        
+
         # Run yarn install to ensure dependencies are properly linked
         log_message("Running yarn install --check-files")
         install_result = subprocess.run(
@@ -284,7 +287,8 @@ def setup_shared_node_modules(repo_dir: str, job_id: str = None, db: Database = 
         )
         log_message(f"Package resolution check:\n{resolution_result.stdout}")
         if resolution_result.stderr:
-            log_message(f"Resolution check errors:\n{resolution_result.stderr}")
+            log_message(f"Resolution check errors:\n{
+                        resolution_result.stderr}")
 
         # Verify dependency tree
         log_message("Verifying dependency tree")
@@ -384,7 +388,7 @@ def improve_user_instructions(prompt: str, deepseek: OpenAI) -> str:
     """Improve user instructions using Deepseek AI"""
     improve_user_instructions_prompt = f"""Take the user’s prompt about a Farcaster frame miniapp and rewrite it as a clear, structured starter prompt for a coding LLM.
     Emphasize a single-page React+TypeScript app using Shadcn UI, Tailwind, wagmi, viem, and minimal Farcaster interactions.
-    Keep the output concise, static or minimally dynamic, and aligned with best practices. 
+    Keep the output concise, static or minimally dynamic, and aligned with best practices.
     Make sure to update template files and constants as needed to customize the app with title, description and functionality.
     Include:
         1.	A short restatement of the user request with any clarifications (UI, UX, integrations).
@@ -401,7 +405,8 @@ def improve_user_instructions(prompt: str, deepseek: OpenAI) -> str:
             ],
             temperature=0.5,
         )
-        print(f"Improved user instructions: {json.dumps(instructions_response)}")
+        print(f"Improved user instructions: {
+              json.dumps(instructions_response)}")
         return instructions_response.choices[0].message.content.strip()
     except Exception as e:
         print(f"Error improving user instructions: {str(e)}")
@@ -475,32 +480,36 @@ def update_code(data: dict) -> str:
             repo.config_writer().set_value("user", "name", "hellno").release()
             repo.config_writer().set_value(
                 "user", "email", "686075+hellno@users.noreply.github.com").release()
-            
+
         else:
             repo = git.Repo(repo_dir)
             # Configure git before operations
             repo.config_writer().set_value("user", "name", "hellno").release()
             repo.config_writer().set_value(
                 "user", "email", "686075+hellno@users.noreply.github.com").release()
-            
+
             try:
                 # Fetch latest changes
-                db.add_log(job_id, "backend", "Fetching latest changes from remote")
+                db.add_log(job_id, "backend",
+                           "Fetching latest changes from remote")
                 repo.remotes.origin.fetch()
-                
+
                 # Try to pull, handling potential conflicts
                 try:
                     repo.git.pull('origin', 'main')
                 except git.GitCommandError as pull_error:
                     # If there are conflicts, reset to remote state
-                    db.add_log(job_id, "backend", "Conflicts detected, resetting to remote state")
+                    db.add_log(job_id, "backend",
+                               "Conflicts detected, resetting to remote state")
                     repo.git.reset('--hard', 'origin/main')
                     repo.git.clean('-fd')
-                    
+
             except Exception as e:
-                db.add_log(job_id, "backend", f"Warning: Error syncing with remote: {str(e)}")
+                db.add_log(job_id, "backend",
+                           f"Warning: Error syncing with remote: {str(e)}")
                 # If all sync attempts fail, reset the repository
-                db.add_log(job_id, "backend", "Performing full repository reset")
+                db.add_log(job_id, "backend",
+                           "Performing full repository reset")
                 repo.git.reset('--hard')
                 repo.git.clean('-fd')
                 repo.remotes.origin.pull('main', force=True)
@@ -533,7 +542,7 @@ def update_code(data: dict) -> str:
             fnames=fnames,
             io=io,
             auto_test=True,
-            test_cmd=f"cd {repo.working_tree_dir} && yarn install --check-files && yarn lint",  # Ensure dependencies are linked before linting
+            test_cmd=f"cd {repo.working_tree_dir} && echo 'running aider lint' && yarn lint",
             read_only_fnames=read_only_fnames
             # if we want to use yarn build, separate into beefier cpu/memory function
             # like they do on vercel: https://vercel.com/docs/limits/overview#build-container-resources
@@ -572,7 +581,8 @@ def update_code(data: dict) -> str:
             repo.git.push()
         except git.GitCommandError as push_error:
             if "fetch first" in str(push_error):
-                db.add_log(job_id, "backend", "Push rejected, trying to sync and retry")
+                db.add_log(job_id, "backend",
+                           "Push rejected, trying to sync and retry")
                 # Pull latest changes
                 repo.remotes.origin.pull('main')
                 # Try push again
@@ -1080,7 +1090,8 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
                     "prompt": metadata_update_prompt,
                     "job_type": "update_code_for_metadata"
                 })
-                db.add_log(job_id, "backend", f"Metadata update completed: {metadata_update_response}")
+                db.add_log(job_id, "backend", f"Metadata update completed: {
+                           metadata_update_response}")
             except Exception as e:
                 error_msg = f"Error updating project metadata: {str(e)}"
                 db.add_log(job_id, "backend", error_msg)
