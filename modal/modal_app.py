@@ -617,8 +617,8 @@ def update_code(data: dict) -> str:
         if should_expand_prompt and user_context:
             prompt = expand_user_prompt_with_farcaster_context(
                 prompt, user_context)
-        print(f'Prompt for aider: {prompt}\nmodel: {model}\nfnames: {
-              fnames}\ncwd: {repo.working_tree_dir}\ncoder: {coder}')
+        print(f'Prompt for aider: {prompt}\nmodel: {str(model)}\nfnames: {
+              fnames}\ncwd: {repo.working_tree_dir}\ncoder: {str(coder)}')
 
         res = coder.run(prompt)
         print(f"Result from aider (first 250 chars): {res[:250]}")
