@@ -1284,27 +1284,29 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
 @modal.web_endpoint(label="update-template-snapshot-webhook", method="POST")
 def update_template_snapshot_webhook() -> dict:
     """Webhook to manually trigger a template snapshot update.
-
+    
     Usage:
         curl -X POST <endpoint>
     """
     try:
-        new_snapshot = create_template_snapshot.remote()
-
+        # Create new snapshot - don't try to return it
+        create_template_snapshot.remote()
+        
         return {
             "status": "success",
             "message": "Template snapshot updated successfully",
             "timestamp": str(datetime.datetime.now(datetime.UTC))
         }
-
+        
     except Exception as e:
         error_msg = f"Failed to update template snapshot: {str(e)}"
         print(error_msg)
         return {
             "status": "error",
             "message": error_msg,
-            "timestamp": str(datetime.datetime.now(datetime.UTC))
-        }, 500
+            "timestamp": str(datetime.datetime.now(datetime.UTC)),
+            "error_code": 500
+        }
 
 
 @app.function(
