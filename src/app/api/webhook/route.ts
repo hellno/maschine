@@ -13,7 +13,7 @@ import { sendFrameNotification } from "~/lib/notifs";
 export async function POST(request: NextRequest) {
   const requestJson = await request.json();
   console.log('Received webhook request:', requestJson);
-  
+
   let data;
   try {
     data = await parseWebhookEvent(requestJson, verifyAppKeyWithNeynar);
@@ -61,7 +61,6 @@ export async function POST(request: NextRequest) {
       } else {
         await deleteUserNotificationDetails(fid);
       }
-
       break;
     case "frame_removed":
       await deleteUserNotificationDetails(fid);

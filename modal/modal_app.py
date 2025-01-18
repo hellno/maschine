@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 import os
 import requests
+import datetime
 from db import Database
 from openai import OpenAI
 from github import Github
@@ -21,6 +22,54 @@ from neynar import get_user_casts, format_cast
 import sentry_sdk
 from notifications import send_notification
 import time
+
+# GitHub Configuration
+GITHUB_ORG_NAME = "frameception-v2"
+TEMPLATE_REPO_URL = "https://github.com/hellno/farcaster-frames-template.git"
+GITHUB_COMMIT_NAME = "hellno"
+GITHUB_COMMIT_EMAIL = "686075+hellno@users.noreply.github.com"
+
+# Modal Configuration
+MODAL_APP_NAME = "frameception"
+UPDATE_SNAPSHOT_INTERVAL_DAYS = 1
+CODE_UPDATE_TIMEOUT_SECONDS = 1200  # 20 mins
+PROJECT_SETUP_TIMEOUT_SECONDS = 3600  # 1 hour
+
+# Volume Names
+GITHUB_REPOS_VOLUME_NAME = "frameception-github-repos"
+
+# File Paths
+GITHUB_REPOS_PATH = "/github-repos"
+
+# Default Project Files to Modify
+DEFAULT_PROJECT_FILES = [
+    "src/components/Frame.tsx",
+    "src/lib/constants.ts"
+]
+
+# Environment Variables for Container
+CONTAINER_ENV_VARS = {
+    "PATH": "/root/.local/bin:/usr/local/bin:/usr/bin:/bin"
+}
+
+# Default Project Files to Modify
+DEFAULT_PROJECT_FILES = [
+    "src/components/Frame.tsx",
+    "src/lib/constants.ts"
+]
+
+# File Paths for Domain Association
+DOMAIN_ASSOCIATION_PATH = "src/app/.well-known/farcaster.json/route.ts"
+
+# Vercel Configuration
+VERCEL_FRAMEWORK = "nextjs"
+VERCEL_INSTALL_COMMAND = "yarn install"
+VERCEL_BUILD_COMMAND = "yarn build"
+VERCEL_OUTPUT_DIR = ".next"
+
+# Notification Settings
+DEFAULT_NOTIFICATION_TITLE = "Your {project_name} frame is building"
+DEFAULT_NOTIFICATION_BODY = "Frameception has prepared your frame, it's almost ready! 🚀"
 
 
 def setup_sentry():
@@ -40,17 +89,14 @@ env_vars = {
 }
 
 github_repos = modal.Volume.from_name(
-    "frameception-github-repos", create_if_missing=True)
-node_modules = modal.Volume.from_name(
-    "frameception-node-modules", create_if_missing=True)
+    GITHUB_REPOS_VOLUME_NAME, create_if_missing=True)
 
 volumes = {
-    "/github-repos": github_repos,
-    "/shared-node-modules": node_modules
+    GITHUB_REPOS_PATH: github_repos
 }
 
 image = modal.Image.debian_slim(python_version="3.12") \
-    .env(env_vars) \
+    .env(CONTAINER_ENV_VARS) \
     .apt_install("git", "curl") \
     .pip_install(
         "fastapi[standard]",
@@ -72,13 +118,105 @@ image = modal.Image.debian_slim(python_version="3.12") \
         # Install yarn
         "npm install -g yarn",
         # Install aider
-        "aider-install",
-        # Create shared node_modules and install dependencies
-        # "mkdir -p /shared-node-modules",
-        # "cd /shared-node-modules && yarn install"
+        "aider-install"
 ) \
     .run_function(setup_sentry, secrets=[modal.Secret.from_name("sentry-secret")])
-app = modal.App(name="frameception", image=image)
+app = modal.App(name=MODAL_APP_NAME, image=image)
+
+
+@app.function(
+    secrets=[
+        modal.Secret.from_name("github-secret"),
+    ]
+)
+def create_template_snapshot() -> None:
+    """Create a snapshot of the template repository with node_modules installed"""
+    import git
+    import tempfile
+
+    # Clone template repository
+    with tempfile.TemporaryDirectory() as temp_dir:
+        repo = git.Repo.clone_from(TEMPLATE_REPO_URL, temp_dir)
+
+        # Create sandbox with Node.js with proper output streaming and resource limits
+        with modal.enable_output():
+            print('Creating template snapshot...')
+            sandbox = modal.Sandbox.create(
+                image=modal.Image.debian_slim()
+                .apt_install("nodejs", "npm")
+                .run_commands("npm install -g yarn"),
+                workdir=temp_dir,
+                app=modal.App.lookup(MODAL_APP_NAME, create_if_missing=True),
+                cpu=2.0,
+                memory=4096,
+                timeout=1800,
+            )
+            print('sandbox:', sandbox)
+
+            # Tag sandbox for tracking
+            template_version = repo.head.commit.hexsha[:8]
+            sandbox.set_tags({
+                "purpose": "template_snapshot",
+                "template_version": template_version,
+                "created_at": datetime.datetime.now(datetime.UTC).isoformat()
+            })
+            print('set some tags and run yarn install')
+
+            # Install dependencies
+            process = sandbox.exec("yarn", "install")
+            print('start yarn install')
+            for line in process.stdout:
+                print(line.strip())
+            process.wait()
+            print('yarn install done', process)
+            if process.returncode != 0:
+                print('Failed to install dependencies')
+                raise Exception("Failed to install dependencies")
+
+            # Create snapshot
+            print('create snapshot')
+            sandbox.snapshot_filesystem()
+            print('snapshot created successfully')
+
+
+@app.function(
+    secrets=[modal.Secret.from_name("supabase-secret")]
+)
+def list_active_sandboxes() -> dict:
+    """List all active sandboxes and their status"""
+    try:
+        sandboxes = []
+        app = modal.App.lookup(MODAL_APP_NAME)
+
+        for sandbox in modal.Sandbox.list(app_id=app.app_id):
+            tags = sandbox.get_tags()
+            sandboxes.append({
+                "id": sandbox.object_id,
+                "purpose": tags.get("purpose"),
+                "project_id": tags.get("project_id"),
+                "job_id": tags.get("job_id"),
+                "created_at": tags.get("created_at")
+            })
+
+        return {
+            "status": "success",
+            "sandboxes": sandboxes
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
+@app.function(
+    secrets=[modal.Secret.from_name("supabase-secret")]
+)
+@modal.web_endpoint(label="list-sandboxes", method="GET")
+def list_sandboxes_webhook() -> dict:
+    """Webhook to list all active sandboxes
+    """
+    return list_active_sandboxes.remote()
 
 
 def sanitize_project_name(name: str) -> str:
@@ -137,172 +275,6 @@ def get_unique_repo_name(gh: Github, base_name: str) -> str:
 def generate_random_secret() -> str:
     """Generate a random secret for NextAuth"""
     return base64.b64encode(os.urandom(32)).decode('utf-8')
-
-
-def verify_shared_node_modules(job_id: str = None, db: Database = None) -> None:
-    """Verify and initialize shared node_modules if needed
-
-    Args:
-        job_id: Optional job ID for logging
-        db: Optional database instance for logging
-    """
-    import os
-    import subprocess
-
-    def log_message(msg: str):
-        print(msg)
-        if db and job_id:
-            db.add_log(job_id, "backend", msg)
-
-    shared_dir = "/shared-node-modules"
-    node_modules_dir = os.path.join(shared_dir, "node_modules")
-    package_json = os.path.join(shared_dir, "package.json")
-
-    try:
-        # Check if shared node_modules exists and has content
-        if not os.path.exists(node_modules_dir) or not os.listdir(node_modules_dir):
-            log_message(
-                "Shared node_modules missing or empty. Initializing...")
-
-            # Ensure directory exists
-            os.makedirs(shared_dir, exist_ok=True)
-
-            # Copy package.json if not exists (from template or default)
-            if not os.path.exists(package_json):
-                template_package_json = "/app/package.json"  # Adjust path as needed
-                if os.path.exists(template_package_json):
-                    import shutil
-                    shutil.copy2(template_package_json, package_json)
-                    log_message(
-                        "Copied template package.json to shared directory")
-                else:
-                    # Create minimal package.json if template not available
-                    with open(package_json, 'w') as f:
-                        f.write('{"private": true}\n')
-                    log_message(
-                        "Created minimal package.json in shared directory")
-
-            # Run yarn install in shared directory
-            os.chdir(shared_dir)
-            result = subprocess.run(
-                ["yarn", "install"],
-                capture_output=True,
-                text=True
-            )
-
-            if result.returncode != 0:
-                raise Exception(f"yarn install failed: {result.stderr}")
-
-            log_message("Successfully initialized shared node_modules")
-
-        else:
-            log_message("Verified shared node_modules exists and has content")
-
-    except Exception as e:
-        error_msg = f"Error verifying/initializing shared node_modules: {
-            str(e)}"
-        log_message(error_msg)
-        raise Exception(error_msg)
-
-
-def setup_shared_node_modules(repo_dir: str, job_id: str = None, db: Database = None) -> None:
-    """Setup symlink to shared node_modules directory and verify module resolution"""
-    import os
-    import subprocess
-    import shutil
-
-    def log_message(msg: str):
-        print(msg)
-        if db and job_id:
-            db.add_log(job_id, "backend", msg)
-
-    try:
-        node_modules_path = os.path.join(repo_dir, "node_modules")
-        shared_modules_path = "/shared-node-modules"
-
-        # Debug logging
-        log_message("=== Node Modules Setup Debug Info ===")
-        log_message(f"Repository directory: {repo_dir}")
-        log_message(f"Target node_modules path: {node_modules_path}")
-        log_message(f"Shared modules path: {shared_modules_path}")
-        
-        # Check package.json
-        package_json_path = os.path.join(repo_dir, "package.json")
-        if os.path.exists(package_json_path):
-            with open(package_json_path, 'r') as f:
-                log_message(f"Project package.json contents:\n{f.read()}")
-        else:
-            log_message("WARNING: No package.json found in project directory!")
-
-        # Setup symlink
-        if os.path.exists(node_modules_path):
-            if os.path.islink(node_modules_path):
-                log_message("Removing existing symlink")
-                os.unlink(node_modules_path)
-            else:
-                log_message("Removing existing node_modules directory")
-                shutil.rmtree(node_modules_path)
-
-        # Create new symlink
-        os.symlink(shared_modules_path, node_modules_path, target_is_directory=True)
-        
-        # Verify symlink
-        if os.path.islink(node_modules_path):
-            target = os.readlink(node_modules_path)
-            log_message(f"Symlink created successfully: {node_modules_path} -> {target}")
-            
-            # Check next package
-            next_package = os.path.join(node_modules_path, "next")
-            if os.path.exists(next_package):
-                log_message("✅ next package is accessible in node_modules")
-            else:
-                log_message("❌ next package not found in node_modules!")
-                if os.path.exists(node_modules_path):
-                    contents = os.listdir(node_modules_path)
-                    log_message(f"Available packages in node_modules: {contents[:10]}")
-
-        # Change to project directory for yarn commands
-        os.chdir(repo_dir)
-        
-        # Run yarn install to ensure dependencies are properly linked
-        log_message("Running yarn install --check-files")
-        install_result = subprocess.run(
-            ["yarn", "install", "--check-files"],
-            capture_output=True,
-            text=True
-        )
-        log_message(f"Yarn install result:\n{install_result.stdout}")
-        if install_result.stderr:
-            log_message(f"Yarn install errors:\n{install_result.stderr}")
-
-        # Check next package resolution
-        log_message("Checking next package resolution")
-        resolution_result = subprocess.run(
-            ["yarn", "why", "next"],
-            capture_output=True,
-            text=True
-        )
-        log_message(f"Package resolution check:\n{resolution_result.stdout}")
-        if resolution_result.stderr:
-            log_message(f"Resolution check errors:\n{resolution_result.stderr}")
-
-        # Verify dependency tree
-        log_message("Verifying dependency tree")
-        check_result = subprocess.run(
-            ["yarn", "check", "--verify-tree"],
-            capture_output=True,
-            text=True
-        )
-        log_message(f"Dependency tree verification:\n{check_result.stdout}")
-        if check_result.stderr:
-            log_message(f"Verification errors:\n{check_result.stderr}")
-
-        log_message("=== Node Modules Setup Complete ===")
-
-    except Exception as e:
-        error_msg = f"Error setting up shared node_modules: {str(e)}"
-        log_message(error_msg)
-        raise
 
 
 def verify_github_setup(gh: Github, job_id: str, db: Database) -> None:
@@ -384,7 +356,7 @@ def improve_user_instructions(prompt: str, deepseek: OpenAI) -> str:
     """Improve user instructions using Deepseek AI"""
     improve_user_instructions_prompt = f"""Take the user’s prompt about a Farcaster frame miniapp and rewrite it as a clear, structured starter prompt for a coding LLM.
     Emphasize a single-page React+TypeScript app using Shadcn UI, Tailwind, wagmi, viem, and minimal Farcaster interactions.
-    Keep the output concise, static or minimally dynamic, and aligned with best practices. 
+    Keep the output concise, static or minimally dynamic, and aligned with best practices.
     Make sure to update template files and constants as needed to customize the app with title, description and functionality.
     Include:
         1.	A short restatement of the user request with any clarifications (UI, UX, integrations).
@@ -401,7 +373,8 @@ def improve_user_instructions(prompt: str, deepseek: OpenAI) -> str:
             ],
             temperature=0.5,
         )
-        print(f"Improved user instructions: {json.dumps(instructions_response)}")
+        print(f"Improved user instructions: {
+              json.dumps(instructions_response)}")
         return instructions_response.choices[0].message.content.strip()
     except Exception as e:
         print(f"Error improving user instructions: {str(e)}")
@@ -423,7 +396,7 @@ def update_code_webhook(data: dict) -> str:
 @app.function(
     retries=1,
     volumes=volumes,
-    timeout=1200,  # 20 mins
+    timeout=CODE_UPDATE_TIMEOUT_SECONDS,
     secrets=[
         modal.Secret.from_name("github-secret"),
         modal.Secret.from_name("vercel-secret"),
@@ -467,49 +440,157 @@ def update_code(data: dict) -> str:
 
     print(f"Processing repository: {repo_path}, saving to {repo_dir}")
     try:
+        # Get template snapshot when needed
+        template_snapshot = create_template_snapshot.remote()
+
         is_repo_stored_locally = os.path.exists(repo_dir)
         repo = None
         if not is_repo_stored_locally:
             repo = git.Repo.clone_from(
                 repo_url, repo_dir, depth=1, single_branch=True, branch="main")
-            repo.config_writer().set_value("user", "name", "hellno").release()
+            repo.config_writer().set_value("user", "name", GITHUB_COMMIT_NAME).release()
             repo.config_writer().set_value(
-                "user", "email", "686075+hellno@users.noreply.github.com").release()
-            
+                "user", "email", GITHUB_COMMIT_EMAIL).release()
+
         else:
             repo = git.Repo(repo_dir)
             # Configure git before operations
-            repo.config_writer().set_value("user", "name", "hellno").release()
+            repo.config_writer().set_value("user", "name", GITHUB_COMMIT_NAME).release()
             repo.config_writer().set_value(
-                "user", "email", "686075+hellno@users.noreply.github.com").release()
-            
+                "user", "email", GITHUB_COMMIT_EMAIL).release()
+
             try:
                 # Fetch latest changes
-                db.add_log(job_id, "backend", "Fetching latest changes from remote")
+                db.add_log(job_id, "backend",
+                           "Fetching latest changes from remote")
                 repo.remotes.origin.fetch()
-                
+
                 # Try to pull, handling potential conflicts
                 try:
                     repo.git.pull('origin', 'main')
                 except git.GitCommandError as pull_error:
                     # If there are conflicts, reset to remote state
-                    db.add_log(job_id, "backend", "Conflicts detected, resetting to remote state")
+                    db.add_log(job_id, "backend",
+                               "Conflicts detected, resetting to remote state")
                     repo.git.reset('--hard', 'origin/main')
                     repo.git.clean('-fd')
-                    
+
             except Exception as e:
-                db.add_log(job_id, "backend", f"Warning: Error syncing with remote: {str(e)}")
+                db.add_log(job_id, "backend",
+                           f"Warning: Error syncing with remote: {str(e)}")
                 # If all sync attempts fail, reset the repository
-                db.add_log(job_id, "backend", "Performing full repository reset")
+                db.add_log(job_id, "backend",
+                           "Performing full repository reset")
                 repo.git.reset('--hard')
                 repo.git.clean('-fd')
                 repo.remotes.origin.pull('main', force=True)
 
-        setup_shared_node_modules(repo_dir, job_id, db)
+        # Create sandbox with proper resource limits and output streaming
+        with modal.enable_output():
+            sandbox = modal.Sandbox.create(
+                image=template_snapshot,
+                workdir=repo_dir,
+                app=modal.App.lookup(MODAL_APP_NAME, create_if_missing=True),
+                cpu=2.0,
+                memory=4096,
+                timeout=CODE_UPDATE_TIMEOUT_SECONDS,
+                secrets=[
+                    modal.Secret.from_name("github-secret"),
+                    modal.Secret.from_name("vercel-secret")
+                ]
+            )
+
+            # Tag sandbox for tracking
+            sandbox.set_tags({
+                "purpose": "code_update",
+                "project_id": project_id,
+                "job_id": job_id,
+                "repo_path": repo_path,
+                "created_at": datetime.datetime.now(datetime.UTC).isoformat()
+            })
+
+        # Verify dependencies
+        db.add_log(job_id, "backend", "Verifying dependencies")
+        process = sandbox.exec("yarn", "install", "--check-files")
+        for line in process.stdout:
+            db.add_log(job_id, "backend", line.strip())
+
+        class SandboxTestCmd:
+            def __init__(self, sandbox, job_id, db):
+                self.sandbox = sandbox
+                self.job_id = job_id
+                self.db = db
+                self._cmd_str = "yarn lint"  # Default command string representation
+
+            def __call__(self, cmd: str = None) -> Optional[str]:
+                """Run a command in the sandbox and return error output if it fails, None if successful"""
+                try:
+                    cmd_to_run = cmd or self._cmd_str
+                    cmd_parts = cmd_to_run.split()
+                    print(f"Running command in sandbox: {cmd_to_run}")
+                    process = self.sandbox.exec(*cmd_parts)
+
+                    # Collect all output
+                    output = []
+                    for line in process.stdout:
+                        line_str = line.strip()
+                        output.append(line_str)
+                        print(line_str)
+
+                    process.wait()
+                    print(f"Command completed with return code: {process.returncode}")
+                    # If command failed, return the output as error message
+                    if process.returncode != 0:
+                        error_msg = "\n".join(output)
+                        self.db.add_log(
+                            self.job_id, "backend", f"Command failed with output: {error_msg}")
+                        return error_msg
+
+                    # Command succeeded
+                    print(f"Command {cmd_to_run} completed successfully")
+                    return None
+
+                except Exception as e:
+                    error_msg = f"Error running command in sandbox: {str(e)}"
+                    self.db.add_log(self.job_id, "backend", error_msg)
+                    return error_msg
+
+            def __str__(self) -> str:
+                """String representation for concatenation and display"""
+                return self._cmd_str
+
+            def __add__(self, other: str) -> str:
+                """Support string concatenation"""
+                return str(self) + other
+
+            def __radd__(self, other: str) -> str:
+                """Support string concatenation from the left"""
+                return other + str(self)
+
+        # Create the test command object
+        sandbox_test_cmd = SandboxTestCmd(sandbox, job_id, db)
+
+        # Test the sandbox_test_cmd with various scenarios
+        test_commands = [
+            "yarn --version",  # Should succeed
+            "yarn lint",       # Should succeed if code is valid
+        ]
+
+        db.add_log(job_id, "backend", "Testing sandbox command execution...")
+        for test_cmd in test_commands:
+            db.add_log(job_id, "backend", f"\nTesting command: {test_cmd}")
+            result = sandbox_test_cmd(test_cmd)
+            if result is None:
+                db.add_log(job_id, "backend",
+                           f"✅ Command succeeded: {test_cmd}")
+            else:
+                db.add_log(job_id, "backend", f"❌ Command failed: {
+                           test_cmd}\nError: {result}")
+
         os.chdir(repo_dir)  # Change to repo directory
         fnames = [
             f"{repo.working_tree_dir}/{fname}"
-            for fname in ["src/components/Frame.tsx", "src/lib/constants.ts"]
+            for fname in DEFAULT_PROJECT_FILES
         ]
 
         # Get all files from llm_docs directory
@@ -533,7 +614,7 @@ def update_code(data: dict) -> str:
             fnames=fnames,
             io=io,
             auto_test=True,
-            test_cmd=f"cd {repo.working_tree_dir} && yarn install --check-files && yarn lint",  # Ensure dependencies are linked before linting
+            test_cmd=sandbox_test_cmd,  # Use our sandbox test command
             read_only_fnames=read_only_fnames
             # if we want to use yarn build, separate into beefier cpu/memory function
             # like they do on vercel: https://vercel.com/docs/limits/overview#build-container-resources
@@ -556,9 +637,10 @@ def update_code(data: dict) -> str:
         if should_expand_prompt and user_context:
             prompt = expand_user_prompt_with_farcaster_context(
                 prompt, user_context)
-        print(f'Prompt for aider: {prompt}\nmodel: {model}\nfnames: {
-              fnames}\ncwd: {repo.working_tree_dir}\ncoder: {coder}')
+        print(f'Prompt for aider: {prompt}\nmodel: {str(model)}\nfnames: {
+              fnames}\ncwd: {repo.working_tree_dir}\ncoder: {str(coder)}')
 
+        print('running coder')
         res = coder.run(prompt)
         print(f"Result from aider (first 250 chars): {res[:250]}")
         try:
@@ -572,20 +654,35 @@ def update_code(data: dict) -> str:
             repo.git.push()
         except git.GitCommandError as push_error:
             if "fetch first" in str(push_error):
-                db.add_log(job_id, "backend", "Push rejected, trying to sync and retry")
+                db.add_log(job_id, "backend",
+                           "Push rejected, trying to sync and retry")
                 # Pull latest changes
                 repo.remotes.origin.pull('main')
                 # Try push again
                 repo.git.push()
             else:
                 raise
+        # No need for explicit termination
         volumes["/github-repos"].commit()
-        volumes["/shared-node-modules"].commit()
         return f"Successfully ran prompt for repo {repo_path} in project {project_id}"
     except Exception as e:
-        repo.git.push()
+        if 'repo' in locals() and repo:
+            try:
+                repo.git.push()
+            except:
+                pass
+        if 'sandbox' in locals() and sandbox:
+            try:
+                sandbox.terminate()
+            except:
+                pass
+
         volumes["/github-repos"].commit()
-        print(f"Error updating code: {e}")
+
+        # Get full traceback
+        import traceback
+        tb = traceback.format_exc()
+        print(f"Error updating code: {e}\nTraceback:\n{tb}")
         error_msg = f"Error updating code: {str(e)}"
         db.add_log(job_id, "backend", error_msg)
         db.update_job_status(job_id, "failed", str(e))
@@ -785,7 +882,7 @@ def generate_domain_association(domain: str) -> dict:
 @app.function(
     retries=1,
     volumes=volumes,
-    timeout=3600,  # 1 hour
+    timeout=PROJECT_SETUP_TIMEOUT_SECONDS,
     secrets=[
         modal.Secret.from_name("github-secret"),
         modal.Secret.from_name("vercel-secret"),
@@ -793,6 +890,7 @@ def generate_domain_association(domain: str) -> dict:
         modal.Secret.from_name("supabase-secret"),
         modal.Secret.from_name("upstash-secret"),
         modal.Secret.from_name("farcaster-secret"),
+        modal.Secret.from_name("neynar-secret"),
         modal.Secret.from_name("redis-secret"),
         modal.Secret.from_dict({"MODAL_LOGLEVEL": "DEBUG"})
     ]
@@ -844,9 +942,8 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
             with tempfile.TemporaryDirectory() as temp_dir:
                 try:
                     # Clone template repository
-                    template_url = "https://github.com/hellno/farcaster-frames-template.git"
                     template_path = os.path.join(temp_dir, "template")
-                    git.Repo.clone_from(template_url, template_path)
+                    git.Repo.clone_from(TEMPLATE_REPO_URL, template_path)
                     db.add_log(job_id, "github", "Cloned template repository")
 
                     # Clone new repository
@@ -856,14 +953,10 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
                     new_repo = git.Repo.clone_from(new_repo_url, new_repo_path)
                     db.add_log(job_id, "github", "Cloned new repository")
 
-                    # Setup shared node_modules
-                    setup_shared_node_modules(new_repo_path, job_id, db)
-                    db.add_log(job_id, "github", "Set up shared node_modules")
-
                     # Configure git user
-                    new_repo.config_writer().set_value("user", "name", "hellno").release()
+                    new_repo.config_writer().set_value("user", "name", GITHUB_COMMIT_NAME).release()
                     new_repo.config_writer().set_value(
-                        "user", "email", "686075+hellno@users.noreply.github.com").release()
+                        "user", "email", GITHUB_COMMIT_EMAIL).release()
 
                     # Copy template contents to new repo
                     for item in os.listdir(template_path):
@@ -948,6 +1041,12 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
             {
                 "key": "KV_REST_API_TOKEN",
                 "value": os.environ["KV_REST_API_TOKEN"],
+                "type": "encrypted",
+                "target": ["production", "preview", "development"]
+            },
+            {
+                "key": "NEYNAR_API_KEY",
+                "value": os.environ["NEYNAR_API_KEY"],
                 "type": "encrypted",
                 "target": ["production", "preview", "development"]
             }
@@ -1080,7 +1179,8 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
                     "prompt": metadata_update_prompt,
                     "job_type": "update_code_for_metadata"
                 })
-                db.add_log(job_id, "backend", f"Metadata update completed: {metadata_update_response}")
+                db.add_log(job_id, "backend", f"Metadata update completed: {
+                           metadata_update_response}")
             except Exception as e:
                 error_msg = f"Error updating project metadata: {str(e)}"
                 db.add_log(job_id, "backend", error_msg)
@@ -1203,6 +1303,39 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
         error_msg = f"Error creating project: {str(e)}"
         print('Error setup_frame_project:', error_msg)
         db.update_job_status(job_id, "failed", str(e))
+
+
+@app.function(
+    secrets=[
+        modal.Secret.from_name("github-secret"),
+    ]
+)
+@modal.web_endpoint(label="update-template-snapshot-webhook", method="POST")
+def update_template_snapshot_webhook() -> dict:
+    """Webhook to manually trigger a template snapshot update.
+
+    Usage:
+        curl -X POST <endpoint>
+    """
+    try:
+        # Create new snapshot - don't return anything from the function
+        create_template_snapshot.remote()
+
+        return {
+            "status": "success",
+            "message": "Template snapshot updated successfully",
+            "timestamp": str(datetime.datetime.now(datetime.UTC))
+        }
+
+    except Exception as e:
+        error_msg = f"Failed to update template snapshot: {str(e)}"
+        print(error_msg)
+        return {
+            "status": "error",
+            "message": error_msg,
+            "timestamp": str(datetime.datetime.now(datetime.UTC)),
+            "error_code": 500
+        }
 
 
 @app.function(
