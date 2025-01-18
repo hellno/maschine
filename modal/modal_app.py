@@ -6,6 +6,7 @@ from functools import cache
 from pathlib import Path
 import os
 import requests
+import datetime
 from db import Database
 from openai import OpenAI
 from github import Github
@@ -1391,6 +1392,39 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
         error_msg = f"Error creating project: {str(e)}"
         print('Error setup_frame_project:', error_msg)
         db.update_job_status(job_id, "failed", str(e))
+
+
+@app.function(
+    secrets=[
+        modal.Secret.from_name("github-secret"),
+    ]
+)
+@modal.web_endpoint(label="update-template-snapshot-webhook", method="POST")
+def update_template_snapshot_webhook() -> dict:
+    """Webhook to manually trigger a template snapshot update.
+    
+    Usage:
+        curl -X POST https://frameception--update-template-snapshot-webhook-dev.modal.run
+    """
+    try:
+        # Clear the cache and create new snapshot
+        create_template_snapshot.cache_clear()
+        new_snapshot = create_template_snapshot.remote()
+        
+        return {
+            "status": "success", 
+            "message": "Template snapshot updated successfully",
+            "timestamp": str(datetime.datetime.now(datetime.UTC))
+        }
+        
+    except Exception as e:
+        error_msg = f"Failed to update template snapshot: {str(e)}"
+        print(error_msg)
+        return {
+            "status": "error",
+            "message": error_msg,
+            "timestamp": str(datetime.datetime.now(datetime.UTC))
+        }, 500
 
 
 @app.function(
