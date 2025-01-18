@@ -626,6 +626,9 @@ def update_code(data: dict) -> str:
 
     print(f"Processing repository: {repo_path}, saving to {repo_dir}")
     try:
+        # Get template snapshot when needed
+        template_snapshot = create_template_snapshot.remote()
+        
         is_repo_stored_locally = os.path.exists(repo_dir)
         repo = None
         if not is_repo_stored_locally:
