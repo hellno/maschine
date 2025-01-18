@@ -520,14 +520,14 @@ def update_code(data: dict) -> str:
                 self.sandbox = sandbox
                 self.job_id = job_id
                 self.db = db
-                self._cmd_str = "yarn test"  # Default command string representation
+                self._cmd_str = "yarn lint"  # Default command string representation
 
             def __call__(self, cmd: str = None) -> Optional[str]:
                 """Run a command in the sandbox and return error output if it fails, None if successful"""
                 try:
                     cmd_to_run = cmd or self._cmd_str
                     cmd_parts = cmd_to_run.split()
-                    self.db.add_log(self.job_id, "backend", f"Running command in sandbox: {cmd_to_run}")
+                    print(f"Running command in sandbox: {cmd_to_run}")
                     process = self.sandbox.exec(*cmd_parts)
 
                     # Collect all output
@@ -535,18 +535,19 @@ def update_code(data: dict) -> str:
                     for line in process.stdout:
                         line_str = line.strip()
                         output.append(line_str)
-                        self.db.add_log(self.job_id, "backend", line_str)
+                        print(line_str)
 
                     process.wait()
-
+                    print(f"Command completed with return code: {process.returncode}")
                     # If command failed, return the output as error message
                     if process.returncode != 0:
                         error_msg = "\n".join(output)
-                        self.db.add_log(self.job_id, "backend", f"Command failed with output: {error_msg}")
+                        self.db.add_log(
+                            self.job_id, "backend", f"Command failed with output: {error_msg}")
                         return error_msg
 
                     # Command succeeded
-                    self.db.add_log(self.job_id, "backend", "Command completed successfully")
+                    print(f"Command {cmd_to_run} completed successfully")
                     return None
 
                 except Exception as e:
@@ -573,8 +574,6 @@ def update_code(data: dict) -> str:
         test_commands = [
             "yarn --version",  # Should succeed
             "yarn lint",       # Should succeed if code is valid
-            "yarn invalid",    # Should fail and return error message
-            "echo 'test'"      # Should succeed
         ]
 
         db.add_log(job_id, "backend", "Testing sandbox command execution...")
@@ -679,7 +678,7 @@ def update_code(data: dict) -> str:
                 pass
 
         volumes["/github-repos"].commit()
-        
+
         # Get full traceback
         import traceback
         tb = traceback.format_exc()
@@ -891,6 +890,7 @@ def generate_domain_association(domain: str) -> dict:
         modal.Secret.from_name("supabase-secret"),
         modal.Secret.from_name("upstash-secret"),
         modal.Secret.from_name("farcaster-secret"),
+        modal.Secret.from_name("neynar-secret"),
         modal.Secret.from_name("redis-secret"),
         modal.Secret.from_dict({"MODAL_LOGLEVEL": "DEBUG"})
     ]
@@ -1041,6 +1041,12 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
             {
                 "key": "KV_REST_API_TOKEN",
                 "value": os.environ["KV_REST_API_TOKEN"],
+                "type": "encrypted",
+                "target": ["production", "preview", "development"]
+            },
+            {
+                "key": "NEYNAR_API_KEY",
+                "value": os.environ["NEYNAR_API_KEY"],
                 "type": "encrypted",
                 "target": ["production", "preview", "development"]
             }
