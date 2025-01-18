@@ -2,6 +2,7 @@ import json
 from typing import TypedDict, Optional
 import modal
 import sys
+from functools import cache
 from pathlib import Path
 import os
 import requests
@@ -79,6 +80,55 @@ image = modal.Image.debian_slim(python_version="3.12") \
 ) \
     .run_function(setup_sentry, secrets=[modal.Secret.from_name("sentry-secret")])
 app = modal.App(name="frameception", image=image)
+
+@app.function(
+    secrets=[
+        modal.Secret.from_name("github-secret"),
+    ]
+)
+@cache
+def create_template_snapshot() -> modal.Image:
+    """Create a snapshot of the template repository with node_modules installed"""
+    import git
+    import tempfile
+    
+    # Clone template repository
+    with tempfile.TemporaryDirectory() as temp_dir:
+        template_url = "https://github.com/hellno/farcaster-frames-template.git"
+        repo = git.Repo.clone_from(template_url, temp_dir)
+        
+        # Create sandbox with Node.js
+        sandbox = modal.Sandbox.create(
+            image=modal.Image.debian_slim()
+                .apt_install("nodejs", "npm")
+                .run_commands("npm install -g yarn"),
+            workdir=temp_dir,
+            app=modal.App.lookup("frameception", create_if_missing=True)
+        )
+        
+        # Install dependencies
+        process = sandbox.exec("yarn", "install")
+        for line in process.stdout:
+            print(line.strip())
+        process.wait()
+        
+        # Create snapshot
+        image = sandbox.snapshot_filesystem()
+        sandbox.terminate()
+        
+        return image
+
+@app.function(
+    schedule=modal.Period(days=1),
+    secrets=[modal.Secret.from_name("github-secret")]
+)
+def update_template_snapshot():
+    """Update the template snapshot if template repository has changed"""
+    create_template_snapshot.cache_clear()
+    create_template_snapshot.remote()
+
+# Initialize template snapshot
+template_snapshot = create_template_snapshot.remote()
 
 
 def sanitize_project_name(name: str) -> str:
@@ -514,19 +564,17 @@ def update_code(data: dict) -> str:
                 repo.git.clean('-fd')
                 repo.remotes.origin.pull('main', force=True)
 
-        # Create sandbox for Node.js operations
-        db.add_log(job_id, "backend", "Creating Node.js sandbox environment")
+        # Create sandbox using template snapshot
+        db.add_log(job_id, "backend", "Creating sandbox from template snapshot")
         sandbox = modal.Sandbox.create(
-            image=modal.Image.debian_slim()
-                .apt_install("nodejs", "npm")
-                .run_commands("npm install -g yarn"),
+            image=template_snapshot,
             workdir=repo_dir,
             app=modal.App.lookup("frameception", create_if_missing=True)
         )
 
-        # Run initial yarn install
-        db.add_log(job_id, "backend", "Running initial yarn install in sandbox")
-        process = sandbox.exec("yarn", "install")
+        # Verify dependencies
+        db.add_log(job_id, "backend", "Verifying dependencies")
+        process = sandbox.exec("yarn", "install", "--check-files")
         for line in process.stdout:
             db.add_log(job_id, "backend", line.strip())
 
