@@ -81,6 +81,7 @@ image = modal.Image.debian_slim(python_version="3.12") \
     .run_function(setup_sentry, secrets=[modal.Secret.from_name("sentry-secret")])
 app = modal.App(name="frameception", image=image)
 
+
 @app.function(
     secrets=[
         modal.Secret.from_name("github-secret"),
@@ -91,32 +92,33 @@ def create_template_snapshot() -> modal.Image:
     """Create a snapshot of the template repository with node_modules installed"""
     import git
     import tempfile
-    
+
     # Clone template repository
     with tempfile.TemporaryDirectory() as temp_dir:
         template_url = "https://github.com/hellno/farcaster-frames-template.git"
         repo = git.Repo.clone_from(template_url, temp_dir)
-        
+
         # Create sandbox with Node.js
         sandbox = modal.Sandbox.create(
             image=modal.Image.debian_slim()
-                .apt_install("nodejs", "npm")
-                .run_commands("npm install -g yarn"),
+            .apt_install("nodejs", "npm")
+            .run_commands("npm install -g yarn"),
             workdir=temp_dir,
             app=modal.App.lookup("frameception", create_if_missing=True)
         )
-        
+
         # Install dependencies
         process = sandbox.exec("yarn", "install")
         for line in process.stdout:
             print(line.strip())
         process.wait()
-        
+
         # Create snapshot
         image = sandbox.snapshot_filesystem()
         sandbox.terminate()
-        
+
         return image
+
 
 @app.function(
     schedule=modal.Period(days=1),
@@ -126,6 +128,7 @@ def update_template_snapshot():
     """Update the template snapshot if template repository has changed"""
     create_template_snapshot.cache_clear()
     create_template_snapshot.remote()
+
 
 # Initialize template snapshot
 template_snapshot = create_template_snapshot.remote()
@@ -565,7 +568,8 @@ def update_code(data: dict) -> str:
                 repo.remotes.origin.pull('main', force=True)
 
         # Create sandbox using template snapshot
-        db.add_log(job_id, "backend", "Creating sandbox from template snapshot")
+        db.add_log(job_id, "backend",
+                   "Creating sandbox from template snapshot")
         sandbox = modal.Sandbox.create(
             image=template_snapshot,
             workdir=repo_dir,
@@ -582,20 +586,22 @@ def update_code(data: dict) -> str:
             """Run a command in the sandbox and return True if it succeeds"""
             try:
                 cmd_parts = cmd.split()
-                db.add_log(job_id, "backend", f"Running command in sandbox: {cmd}")
+                db.add_log(job_id, "backend",
+                           f"Running command in sandbox: {cmd}")
                 process = sandbox.exec(*cmd_parts)
-                
+
                 for line in process.stdout:
                     db.add_log(job_id, "backend", line.strip())
-                
+
                 process.wait()
                 success = process.returncode == 0
-                db.add_log(job_id, "backend", 
-                    f"Command completed with {'success' if success else 'failure'}")
+                db.add_log(job_id, "backend",
+                           f"Command completed with {'success' if success else 'failure'}")
                 return success
-                
+
             except Exception as e:
-                db.add_log(job_id, "backend", f"Error running command in sandbox: {str(e)}")
+                db.add_log(job_id, "backend",
+                           f"Error running command in sandbox: {str(e)}")
                 return False
 
         os.chdir(repo_dir)  # Change to repo directory
@@ -674,7 +680,7 @@ def update_code(data: dict) -> str:
                 raise
         # Clean up sandbox
         sandbox.terminate()
-        
+
         volumes["/github-repos"].commit()
         return f"Successfully ran prompt for repo {repo_path} in project {project_id}"
     except Exception as e:
@@ -688,7 +694,7 @@ def update_code(data: dict) -> str:
                 sandbox.terminate()
             except:
                 pass
-            
+
         volumes["/github-repos"].commit()
         print(f"Error updating code: {e}")
         error_msg = f"Error updating code: {str(e)}"
