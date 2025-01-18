@@ -180,10 +180,6 @@ def update_template_snapshot():
     create_template_snapshot.remote()
 
 
-# Initialize template snapshot
-template_snapshot = create_template_snapshot.remote()
-
-
 def sanitize_project_name(name: str) -> str:
     """Sanitize project name for Vercel compatibility"""
     import re
@@ -639,22 +635,23 @@ def update_code(data: dict) -> str:
                 db.add_log(job_id, "backend",
                            f"Running command in sandbox: {cmd}")
                 process = sandbox.exec(*cmd_parts)
-                
+
                 # Collect all output
                 output = []
                 for line in process.stdout:
                     line_str = line.strip()
                     output.append(line_str)
                     db.add_log(job_id, "backend", line_str)
-                
+
                 process.wait()
-                
+
                 # If command failed, return the output as error message
                 if process.returncode != 0:
                     error_msg = "\n".join(output)
-                    db.add_log(job_id, "backend", f"Command failed with output: {error_msg}")
+                    db.add_log(job_id, "backend",
+                               f"Command failed with output: {error_msg}")
                     return error_msg
-                
+
                 # Command succeeded
                 db.add_log(job_id, "backend", "Command completed successfully")
                 return None
@@ -677,9 +674,11 @@ def update_code(data: dict) -> str:
             db.add_log(job_id, "backend", f"\nTesting command: {test_cmd}")
             result = sandbox_test_cmd(test_cmd)
             if result is None:
-                db.add_log(job_id, "backend", f"✅ Command succeeded: {test_cmd}")
+                db.add_log(job_id, "backend",
+                           f"✅ Command succeeded: {test_cmd}")
             else:
-                db.add_log(job_id, "backend", f"❌ Command failed: {test_cmd}\nError: {result}")
+                db.add_log(job_id, "backend", f"❌ Command failed: {
+                           test_cmd}\nError: {result}")
 
         os.chdir(repo_dir)  # Change to repo directory
         fnames = [
@@ -1402,21 +1401,21 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
 @modal.web_endpoint(label="update-template-snapshot-webhook", method="POST")
 def update_template_snapshot_webhook() -> dict:
     """Webhook to manually trigger a template snapshot update.
-    
+
     Usage:
-        curl -X POST https://frameception--update-template-snapshot-webhook-dev.modal.run
+        curl -X POST <endpoint>
     """
     try:
         # Clear the cache and create new snapshot
         create_template_snapshot.cache_clear()
         new_snapshot = create_template_snapshot.remote()
-        
+
         return {
-            "status": "success", 
+            "status": "success",
             "message": "Template snapshot updated successfully",
             "timestamp": str(datetime.datetime.now(datetime.UTC))
         }
-        
+
     except Exception as e:
         error_msg = f"Failed to update template snapshot: {str(e)}"
         print(error_msg)
