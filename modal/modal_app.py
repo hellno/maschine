@@ -620,6 +620,7 @@ def update_code(data: dict) -> str:
         print(f'Prompt for aider: {prompt}\nmodel: {str(model)}\nfnames: {
               fnames}\ncwd: {repo.working_tree_dir}\ncoder: {str(coder)}')
 
+        print('running coder')
         res = coder.run(prompt)
         print(f"Result from aider (first 250 chars): {res[:250]}")
         try:
@@ -657,6 +658,7 @@ def update_code(data: dict) -> str:
                 pass
 
         volumes["/github-repos"].commit()
+        # AI! can I get a traceback here?
         print(f"Error updating code: {e}")
         error_msg = f"Error updating code: {str(e)}"
         db.add_log(job_id, "backend", error_msg)
