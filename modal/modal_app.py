@@ -23,6 +23,50 @@ import sentry_sdk
 from notifications import send_notification
 import time
 
+# GitHub Configuration
+GITHUB_ORG_NAME = "frameception-v2"
+TEMPLATE_REPO_URL = "https://github.com/hellno/farcaster-frames-template.git"
+GITHUB_COMMIT_NAME = "hellno"
+GITHUB_COMMIT_EMAIL = "686075+hellno@users.noreply.github.com"
+
+# Modal Configuration
+MODAL_APP_NAME = "frameception"
+UPDATE_SNAPSHOT_INTERVAL_DAYS = 1
+CODE_UPDATE_TIMEOUT_SECONDS = 1200  # 20 mins
+PROJECT_SETUP_TIMEOUT_SECONDS = 3600  # 1 hour
+
+# Volume Names
+GITHUB_REPOS_VOLUME_NAME = "frameception-github-repos"
+NODE_MODULES_VOLUME_NAME = "frameception-node-modules"
+
+# File Paths
+GITHUB_REPOS_PATH = "/github-repos"
+SHARED_NODE_MODULES_PATH = "/shared-node-modules"
+
+# Environment Variables for Container
+CONTAINER_ENV_VARS = {
+    "PATH": "/root/.local/bin:/usr/local/bin:/usr/bin:/bin"
+}
+
+# Default Project Files to Modify
+DEFAULT_PROJECT_FILES = [
+    "src/components/Frame.tsx",
+    "src/lib/constants.ts"
+]
+
+# File Paths for Domain Association
+DOMAIN_ASSOCIATION_PATH = "src/app/.well-known/farcaster.json/route.ts"
+
+# Vercel Configuration
+VERCEL_FRAMEWORK = "nextjs"
+VERCEL_INSTALL_COMMAND = "yarn install"
+VERCEL_BUILD_COMMAND = "yarn build"
+VERCEL_OUTPUT_DIR = ".next"
+
+# Notification Settings
+DEFAULT_NOTIFICATION_TITLE = "Your {project_name} frame is building"
+DEFAULT_NOTIFICATION_BODY = "Frameception has prepared your frame, it's almost ready! 🚀"
+
 
 def setup_sentry():
     sentry_sdk.init(
@@ -41,17 +85,17 @@ env_vars = {
 }
 
 github_repos = modal.Volume.from_name(
-    "frameception-github-repos", create_if_missing=True)
+    GITHUB_REPOS_VOLUME_NAME, create_if_missing=True)
 node_modules = modal.Volume.from_name(
-    "frameception-node-modules", create_if_missing=True)
+    NODE_MODULES_VOLUME_NAME, create_if_missing=True)
 
 volumes = {
-    "/github-repos": github_repos,
-    "/shared-node-modules": node_modules
+    GITHUB_REPOS_PATH: github_repos,
+    SHARED_NODE_MODULES_PATH: node_modules
 }
 
 image = modal.Image.debian_slim(python_version="3.12") \
-    .env(env_vars) \
+    .env(CONTAINER_ENV_VARS) \
     .apt_install("git", "curl") \
     .pip_install(
         "fastapi[standard]",
@@ -79,7 +123,7 @@ image = modal.Image.debian_slim(python_version="3.12") \
         # "cd /shared-node-modules && yarn install"
 ) \
     .run_function(setup_sentry, secrets=[modal.Secret.from_name("sentry-secret")])
-app = modal.App(name="frameception", image=image)
+app = modal.App(name=MODAL_APP_NAME, image=image)
 
 
 @app.function(
@@ -95,8 +139,7 @@ def create_template_snapshot() -> modal.Image:
 
     # Clone template repository
     with tempfile.TemporaryDirectory() as temp_dir:
-        template_url = "https://github.com/hellno/farcaster-frames-template.git"
-        repo = git.Repo.clone_from(template_url, temp_dir)
+        repo = git.Repo.clone_from(TEMPLATE_REPO_URL, temp_dir)
 
         # Create sandbox with Node.js
         sandbox = modal.Sandbox.create(
@@ -121,7 +164,7 @@ def create_template_snapshot() -> modal.Image:
 
 
 @app.function(
-    schedule=modal.Period(days=1),
+    schedule=modal.Period(days=UPDATE_SNAPSHOT_INTERVAL_DAYS),
     secrets=[modal.Secret.from_name("github-secret")]
 )
 def update_template_snapshot():
@@ -481,7 +524,7 @@ def update_code_webhook(data: dict) -> str:
 @app.function(
     retries=1,
     volumes=volumes,
-    timeout=1200,  # 20 mins
+    timeout=CODE_UPDATE_TIMEOUT_SECONDS,
     secrets=[
         modal.Secret.from_name("github-secret"),
         modal.Secret.from_name("vercel-secret"),
@@ -530,9 +573,9 @@ def update_code(data: dict) -> str:
         if not is_repo_stored_locally:
             repo = git.Repo.clone_from(
                 repo_url, repo_dir, depth=1, single_branch=True, branch="main")
-            repo.config_writer().set_value("user", "name", "hellno").release()
+            repo.config_writer().set_value("user", "name", GITHUB_COMMIT_NAME).release()
             repo.config_writer().set_value(
-                "user", "email", "686075+hellno@users.noreply.github.com").release()
+                "user", "email", GITHUB_COMMIT_EMAIL).release()
 
         else:
             repo = git.Repo(repo_dir)
@@ -896,7 +939,7 @@ def generate_domain_association(domain: str) -> dict:
 @app.function(
     retries=1,
     volumes=volumes,
-    timeout=3600,  # 1 hour
+    timeout=PROJECT_SETUP_TIMEOUT_SECONDS,
     secrets=[
         modal.Secret.from_name("github-secret"),
         modal.Secret.from_name("vercel-secret"),
