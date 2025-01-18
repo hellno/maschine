@@ -129,7 +129,7 @@ app = modal.App(name=MODAL_APP_NAME, image=image)
         modal.Secret.from_name("github-secret"),
     ]
 )
-def create_template_snapshot() -> modal.Image:
+def create_template_snapshot() -> None:
     """Create a snapshot of the template repository with node_modules installed"""
     import git
     import tempfile
@@ -147,16 +147,17 @@ def create_template_snapshot() -> modal.Image:
                 .run_commands("npm install -g yarn"),
                 workdir=temp_dir,
                 app=modal.App.lookup(MODAL_APP_NAME, create_if_missing=True),
-                cpu=2.0,  # 2 CPU cores for build
-                memory=4096,  # 4GB RAM
-                timeout=1800,  # 30 minutes timeout
+                cpu=2.0,
+                memory=4096,
+                timeout=1800,
             )
             print('sandbox:', sandbox)
 
             # Tag sandbox for tracking
+            template_version = repo.head.commit.hexsha[:8]
             sandbox.set_tags({
                 "purpose": "template_snapshot",
-                "template_version": repo.head.commit.hexsha[:8],
+                "template_version": template_version,
                 "created_at": datetime.datetime.now(datetime.UTC).isoformat()
             })
             print('set some tags and run yarn install')
@@ -174,10 +175,8 @@ def create_template_snapshot() -> modal.Image:
 
             # Create snapshot
             print('create snapshot')
-            image = sandbox.snapshot_filesystem()
-
-            # No need to call terminate() - Modal will handle cleanup
-            return image
+            sandbox.snapshot_filesystem()
+            print('snapshot created successfully')
 
 
 @app.function(
@@ -1289,7 +1288,7 @@ def update_template_snapshot_webhook() -> dict:
         curl -X POST <endpoint>
     """
     try:
-        # Create new snapshot - don't try to return it
+        # Create new snapshot - don't return anything from the function
         create_template_snapshot.remote()
         
         return {
