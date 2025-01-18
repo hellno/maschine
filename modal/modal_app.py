@@ -43,6 +43,12 @@ NODE_MODULES_VOLUME_NAME = "frameception-node-modules"
 GITHUB_REPOS_PATH = "/github-repos"
 SHARED_NODE_MODULES_PATH = "/shared-node-modules"
 
+# Default Project Files to Modify
+DEFAULT_PROJECT_FILES = [
+    "src/components/Frame.tsx",
+    "src/lib/constants.ts"
+]
+
 # Environment Variables for Container
 CONTAINER_ENV_VARS = {
     "PATH": "/root/.local/bin:/usr/local/bin:/usr/bin:/bin"
@@ -647,10 +653,27 @@ def update_code(data: dict) -> str:
                            f"Error running command in sandbox: {str(e)}")
                 return False
 
+        # Test the sandbox_test_cmd with various scenarios
+        test_commands = [
+            "yarn --version",  # Should succeed
+            "yarn lint",       # Should succeed if code is valid
+            "yarn invalid",    # Should fail and return error message
+            "echo 'test'"      # Should succeed
+        ]
+
+        db.add_log(job_id, "backend", "Testing sandbox command execution...")
+        for test_cmd in test_commands:
+            db.add_log(job_id, "backend", f"\nTesting command: {test_cmd}")
+            result = sandbox_test_cmd(test_cmd)
+            if result is None:
+                db.add_log(job_id, "backend", f"✅ Command succeeded: {test_cmd}")
+            else:
+                db.add_log(job_id, "backend", f"❌ Command failed: {test_cmd}\nError: {result}")
+
         os.chdir(repo_dir)  # Change to repo directory
         fnames = [
             f"{repo.working_tree_dir}/{fname}"
-            for fname in ["src/components/Frame.tsx", "src/lib/constants.ts"]
+            for fname in DEFAULT_PROJECT_FILES
         ]
 
         # Get all files from llm_docs directory
