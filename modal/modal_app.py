@@ -631,27 +631,37 @@ def update_code(data: dict) -> str:
         for line in process.stdout:
             db.add_log(job_id, "backend", line.strip())
 
-        def sandbox_test_cmd(cmd: str) -> bool:
-            """Run a command in the sandbox and return True if it succeeds"""
+        def sandbox_test_cmd(cmd: str) -> Optional[str]:
+            """Run a command in the sandbox and return error output if it fails, None if successful"""
             try:
                 cmd_parts = cmd.split()
                 db.add_log(job_id, "backend",
                            f"Running command in sandbox: {cmd}")
                 process = sandbox.exec(*cmd_parts)
-
+                
+                # Collect all output
+                output = []
                 for line in process.stdout:
-                    db.add_log(job_id, "backend", line.strip())
-
+                    line_str = line.strip()
+                    output.append(line_str)
+                    db.add_log(job_id, "backend", line_str)
+                
                 process.wait()
-                success = process.returncode == 0
-                db.add_log(job_id, "backend",
-                           f"Command completed with {'success' if success else 'failure'}")
-                return success
+                
+                # If command failed, return the output as error message
+                if process.returncode != 0:
+                    error_msg = "\n".join(output)
+                    db.add_log(job_id, "backend", f"Command failed with output: {error_msg}")
+                    return error_msg
+                
+                # Command succeeded
+                db.add_log(job_id, "backend", "Command completed successfully")
+                return None
 
             except Exception as e:
-                db.add_log(job_id, "backend",
-                           f"Error running command in sandbox: {str(e)}")
-                return False
+                error_msg = f"Error running command in sandbox: {str(e)}"
+                db.add_log(job_id, "backend", error_msg)
+                return error_msg
 
         # Test the sandbox_test_cmd with various scenarios
         test_commands = [
