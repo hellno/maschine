@@ -147,28 +147,83 @@ def create_template_snapshot() -> modal.Image:
     # Clone template repository
     with tempfile.TemporaryDirectory() as temp_dir:
         repo = git.Repo.clone_from(TEMPLATE_REPO_URL, temp_dir)
+        
+        # Create sandbox with Node.js with proper output streaming and resource limits
+        with modal.enable_output():
+            sandbox = modal.Sandbox.create(
+                image=modal.Image.debian_slim()
+                    .apt_install("nodejs", "npm")
+                    .run_commands("npm install -g yarn"),
+                workdir=temp_dir,
+                app=modal.App.lookup(MODAL_APP_NAME, create_if_missing=True),
+                cpu=2.0,  # 2 CPU cores for build
+                memory=4096,  # 4GB RAM
+                timeout=1800,  # 30 minutes timeout
+            )
+            
+            # Tag sandbox for tracking
+            sandbox.set_tags({
+                "purpose": "template_snapshot",
+                "template_version": repo.head.commit.hexsha[:8],
+                "created_at": datetime.datetime.now(datetime.UTC).isoformat()
+            })
 
-        # Create sandbox with Node.js
-        sandbox = modal.Sandbox.create(
-            image=modal.Image.debian_slim()
-            .apt_install("nodejs", "npm")
-            .run_commands("npm install -g yarn"),
-            workdir=temp_dir,
-            app=modal.App.lookup("frameception", create_if_missing=True)
-        )
+            # Install dependencies
+            process = sandbox.exec("yarn", "install")
+            for line in process.stdout:
+                print(line.strip())
+            process.wait()
+            
+            if process.returncode != 0:
+                raise Exception("Failed to install dependencies")
 
-        # Install dependencies
-        process = sandbox.exec("yarn", "install")
-        for line in process.stdout:
-            print(line.strip())
-        process.wait()
+            # Create snapshot
+            image = sandbox.snapshot_filesystem()
+            
+            # No need to call terminate() - Modal will handle cleanup
+            return image
 
-        # Create snapshot
-        image = sandbox.snapshot_filesystem()
-        sandbox.terminate()
 
-        return image
+@app.function(
+    secrets=[modal.Secret.from_name("supabase-secret")]
+)
+def list_active_sandboxes() -> dict:
+    """List all active sandboxes and their status"""
+    try:
+        sandboxes = []
+        app = modal.App.lookup(MODAL_APP_NAME)
+        
+        for sandbox in modal.Sandbox.list(app_id=app.app_id):
+            tags = sandbox.get_tags()
+            sandboxes.append({
+                "id": sandbox.object_id,
+                "purpose": tags.get("purpose"),
+                "project_id": tags.get("project_id"),
+                "job_id": tags.get("job_id"),
+                "created_at": tags.get("created_at")
+            })
+        
+        return {
+            "status": "success",
+            "sandboxes": sandboxes
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
 
+@app.function(
+    secrets=[modal.Secret.from_name("supabase-secret")]
+)
+@modal.web_endpoint(label="list-sandboxes", method="GET")
+def list_sandboxes_webhook() -> dict:
+    """Webhook to list all active sandboxes
+    
+    Usage:
+        curl https://frameception--list-sandboxes-dev.modal.run
+    """
+    return list_active_sandboxes.remote()
 
 @app.function(
     schedule=modal.Period(days=UPDATE_SNAPSHOT_INTERVAL_DAYS),
@@ -754,9 +809,7 @@ def update_code(data: dict) -> str:
                 repo.git.push()
             else:
                 raise
-        # Clean up sandbox
-        sandbox.terminate()
-
+        # No need for explicit termination
         volumes["/github-repos"].commit()
         return f"Successfully ran prompt for repo {repo_path} in project {project_id}"
     except Exception as e:
