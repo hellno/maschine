@@ -514,7 +514,42 @@ def update_code(data: dict) -> str:
                 repo.git.clean('-fd')
                 repo.remotes.origin.pull('main', force=True)
 
-        setup_shared_node_modules(repo_dir, job_id, db)
+        # Create sandbox for Node.js operations
+        db.add_log(job_id, "backend", "Creating Node.js sandbox environment")
+        sandbox = modal.Sandbox.create(
+            image=modal.Image.debian_slim()
+                .apt_install("nodejs", "npm")
+                .run_commands("npm install -g yarn"),
+            workdir=repo_dir,
+            app=modal.App.lookup("frameception", create_if_missing=True)
+        )
+
+        # Run initial yarn install
+        db.add_log(job_id, "backend", "Running initial yarn install in sandbox")
+        process = sandbox.exec("yarn", "install")
+        for line in process.stdout:
+            db.add_log(job_id, "backend", line.strip())
+
+        def sandbox_test_cmd(cmd: str) -> bool:
+            """Run a command in the sandbox and return True if it succeeds"""
+            try:
+                cmd_parts = cmd.split()
+                db.add_log(job_id, "backend", f"Running command in sandbox: {cmd}")
+                process = sandbox.exec(*cmd_parts)
+                
+                for line in process.stdout:
+                    db.add_log(job_id, "backend", line.strip())
+                
+                process.wait()
+                success = process.returncode == 0
+                db.add_log(job_id, "backend", 
+                    f"Command completed with {'success' if success else 'failure'}")
+                return success
+                
+            except Exception as e:
+                db.add_log(job_id, "backend", f"Error running command in sandbox: {str(e)}")
+                return False
+
         os.chdir(repo_dir)  # Change to repo directory
         fnames = [
             f"{repo.working_tree_dir}/{fname}"
@@ -542,7 +577,7 @@ def update_code(data: dict) -> str:
             fnames=fnames,
             io=io,
             auto_test=True,
-            test_cmd=f"cd {repo.working_tree_dir} && echo 'running aider lint' && yarn lint",
+            test_cmd=sandbox_test_cmd,  # Use our sandbox test command
             read_only_fnames=read_only_fnames
             # if we want to use yarn build, separate into beefier cpu/memory function
             # like they do on vercel: https://vercel.com/docs/limits/overview#build-container-resources
@@ -589,8 +624,10 @@ def update_code(data: dict) -> str:
                 repo.git.push()
             else:
                 raise
+        # Clean up sandbox
+        sandbox.terminate()
+        
         volumes["/github-repos"].commit()
-        volumes["/shared-node-modules"].commit()
         return f"Successfully ran prompt for repo {repo_path} in project {project_id}"
     except Exception as e:
         repo.git.push()
