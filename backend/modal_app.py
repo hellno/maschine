@@ -9,7 +9,6 @@ import datetime
 import shutil
 import time
 import tempfile
-import re
 import sentry_sdk
 from typing import Dict, Any, List, Optional, Tuple
 from pathlib import Path
@@ -17,9 +16,14 @@ from pathlib import Path
 from db import Database
 from openai import OpenAI
 from github import Github
-from eth_account import Account
-from eth_account.messages import encode_defunct
 import git
+from backend.utils.project_utils import (
+    generate_project_name,
+    get_project_setup_prompt,
+    get_metadata_prompt,
+    generate_domain_association,
+    sanitize_project_name
+)
 from aider.coders import Coder
 from aider.models import Model
 from aider.io import InputOutput
@@ -46,11 +50,6 @@ DEFAULT_PROJECT_FILES = [
 
 # Additional Constants
 DOMAIN_ASSOCIATION_PATH = "src/app/.well-known/farcaster.json/route.ts"
-VERCEL_FRAMEWORK = ProjectConfig.VERCEL["FRAMEWORK"]
-VERCEL_INSTALL_COMMAND = ProjectConfig.VERCEL["INSTALL_CMD"]
-VERCEL_BUILD_COMMAND = ProjectConfig.VERCEL["BUILD_CMD"]
-VERCEL_OUTPUT_DIR = ProjectConfig.VERCEL["OUTPUT_DIR"]
-
 DEFAULT_NOTIFICATION_TITLE = "Your {project_name} frame is building"
 DEFAULT_NOTIFICATION_BODY = "Frameception has prepared your frame, it's almost ready! 🚀"
 
@@ -97,6 +96,7 @@ base_image = (
         "eth-account",
         "sentry-sdk[fastapi]",
         "redis",
+        "tenacity",
     )
     .run_commands(
         "playwright install --with-deps chromium",
@@ -104,7 +104,7 @@ base_image = (
         "apt-get install -y nodejs",
         "curl -fsSL https://get.pnpm.io/install.sh | SHELL=/bin/bash bash -",  # Set SHELL here
         "pnpm add -g node-gyp",
-        "aider-install",
+        "aider-install --install-main-branch",
     )
     .run_function(setup_sentry, secrets=[modal.Secret.from_name("sentry-secret")])
 )
@@ -122,28 +122,6 @@ def verify_github_setup(gh: Github, job_id: str, db: Database) -> None:
         db.add_log(job_id, "github", "GitHub organization access verified")
     except Exception as e:
         raise Exception(f"GitHub organization access failed: {str(e)}")
-
-
-def generate_project_name(prompt: str, llm_client: OpenAI) -> str:
-    """Generate a project name from the user's prompt using LLM."""
-    try:
-        response = llm_client.chat.completions.create(
-            model="deepseek-coder",
-            messages=[{
-                "role": "system",
-                "content": "You are a helpful assistant that generates short, memorable project names for a Farcaster Frame project. Only respond with the project name, 2-3 words max, no 'or' or &*/ chars."
-            }, {
-                "role": "user",
-                "content": f"Generate a short, memorable project name based on this description: {prompt}"
-            }],
-            max_tokens=50
-        )
-        project_name = response.choices[0].message.content.strip().replace(
-            '"', '')
-        return project_name[:50]  # Limit length
-    except Exception as e:
-        print(f"Warning: Could not generate project name: {str(e)}")
-        return "new-frame-project"
 
 
 def get_unique_repo_name(gh: Github, base_name: str, max_attempts: int = 100) -> str:
@@ -188,7 +166,7 @@ def improve_user_instructions(prompt: str, llm_client: OpenAI) -> str:
     """Use LLM to improve and expand the user's instructions."""
     try:
         response = llm_client.chat.completions.create(
-            model="deepseek-coder",
+            model="deepseek-reasoner",
             messages=[{
                 "role": "system",
                 "content": "You are an expert at improving and clarifying instructions for creating Farcaster Frames."
@@ -198,39 +176,15 @@ def improve_user_instructions(prompt: str, llm_client: OpenAI) -> str:
             }],
             max_tokens=500
         )
-        return response.choices[0].message.content.strip()
+        reasoning_content = response.choices[0].message.reasoning_content
+        content = response.choices[0].message.content.strip()
+        print(f"Reasoning content: {reasoning_content}")
+        print(f"Improved instructions: {content}")
+        return content
     except Exception as e:
         print(f"Warning: Could not improve instructions: {str(e)}")
         return prompt
 
-
-def generate_domain_association(domain: str) -> Dict[str, Any]:
-    """Generate Farcaster domain association data."""
-    # Create a new Ethereum account for signing
-    account = Account.create()
-
-    # Prepare the message
-    message = {
-        "domain": domain,
-        "timestamp": int(time.time()),
-        "expirationTime": int(time.time()) + (90 * 24 * 60 * 60)  # 90 days
-    }
-
-    # Sign the message
-    encoded_message = encode_defunct(
-        text=json.dumps(message, separators=(',', ':')))
-    signature = account.sign_message(encoded_message)
-
-    return {
-        "message": message,
-        "signature": signature.signature.hex(),
-        "signingKey": account.key.hex(),
-        "json": {
-            "message": message,
-            "signature": signature.signature.hex(),
-            "signingKey": account.key.hex()
-        }
-    }
 
 ###############################################################################
 # Utility Functions
@@ -256,12 +210,6 @@ def expand_user_prompt_with_farcaster_context(prompt: str, user_context: UserCon
             f"Warning: expand_user_prompt_with_farcaster_context error: {str(e)}")
         return prompt
 
-
-def sanitize_project_name(name: str) -> str:
-    import re
-    sanitized = re.sub(r"[^a-z0-9._-]", "-", name.lower())
-    sanitized = re.sub(r"-+", "-", sanitized)
-    return sanitized[:100].strip("-") or "new-frame-project"
 
 ###############################################################################
 # update_code_webhook -> triggers update_code()
@@ -430,9 +378,19 @@ def update_code(data: dict) -> str:
 
             io = InputOutput(yes=True, root=repo_dir)
             model = Model(
-                model="deepseek/deepseek-coder",
-                weak_model=None,
-                editor_model="deepseek/deepseek-coder"
+                edit_format="diff",
+                model="deepseek/deepseek-reasoner",
+                weak_model="deepseek/deepseek-chat",
+                editor_model="deepseek/deepseek-chat",
+                editor_edit_format="editor-diff",
+                use_repo_map=True,
+                examples_as_sys_msg=True,
+                use_temperature=False,
+                reminder="user",
+                caches_by_default=True,
+                extra_params={
+                    "max_tokens": 8192,
+                },
             )
             coder = Coder.create(
                 io=io,
@@ -604,33 +562,6 @@ class SetupError:
             print(f"Warning: cleanup failed: {str(e)}")
 
 
-class ProjectSetupValidator:
-    """Validates project setup input data."""
-
-    @staticmethod
-    def validate_user_context(user_context: dict) -> None:
-        """Validate required user context fields."""
-        if not user_context:
-            raise ValueError("Missing userContext in request data")
-
-        if not user_context.get("username"):
-            raise ValueError("Missing username in userContext")
-
-        if not user_context.get("fid"):
-            raise ValueError("Missing fid in userContext")
-
-    @staticmethod
-    def validate_project_data(data: dict) -> None:
-        """Validate required project data fields."""
-        required_fields = ["prompt", "description", "userContext"]
-        missing_fields = [
-            field for field in required_fields if field not in data]
-
-        if missing_fields:
-            raise ValueError(f"Missing required fields: {
-                             ', '.join(missing_fields)}")
-
-
 @app.function(
     retries=1,
     volumes=volumes,
@@ -702,207 +633,18 @@ def setup_github_repo(gh: Github, repo_name: str, description: str, job_id: str,
             raise Exception(f"Failed during repository setup: {str(e2)}")
 
 
-def get_vercel_config() -> dict:
-    """Get Vercel configuration with required environment variables."""
-    required_vars = ["VERCEL_TEAM_ID", "VERCEL_TOKEN"]
-    for var in required_vars:
-        if var not in os.environ:
-            raise EnvironmentError(
-                f"Missing required environment variable: {var}")
-
-    return {
-        "TEAM_ID": os.environ["VERCEL_TEAM_ID"],
-        "TOKEN": os.environ["VERCEL_TOKEN"],
-        "FRAMEWORK": VERCEL_FRAMEWORK,
-        "INSTALL_CMD": VERCEL_INSTALL_COMMAND,
-        "BUILD_CMD": VERCEL_BUILD_COMMAND,
-        "OUTPUT_DIR": VERCEL_OUTPUT_DIR
-    }
-
-
-class ProjectSetup:
-    """Manages the frame project setup process."""
-
-    def __init__(self, data: dict, project_id: str, job_id: str):
-        self.data = data
-        self.project_id = project_id
-        self.job_id = job_id
-        self.db = Database()
-        self.error_handler = SetupError(self.db, self.job_id)
-
-    def run(self) -> None:
-        """Execute the full setup process."""
-        try:
-            self._validate_and_init()
-            repo = self._setup_github()
-            vercel_info = self._setup_vercel(repo)
-            self._update_project_info(repo, vercel_info)
-            self._run_code_updates(repo)
-            self._send_notification()
-            self._cleanup(repo)
-        except Exception as e:
-            self.error_handler.handle(e, "project setup",
-                                      cleanup_repo=getattr(self, 'repo', None))
-            return
-
-    def _validate_and_init(self) -> None:
-        """Validate input and initialize services."""
-        ProjectSetupValidator.validate_project_data(self.data)
-        ProjectSetupValidator.validate_user_context(self.data["userContext"])
-
-        self.gh = Github(os.environ["GITHUB_TOKEN"])
-        verify_github_setup(self.gh, self.job_id, self.db)
-
-        self.deepseek = OpenAI(
-            api_key=os.environ["DEEPSEEK_API_KEY"],
-            base_url="https://api.deepseek.com/v1"
-        )
-
-        self.user_context = self.data["userContext"]
-        self.project_name = generate_project_name(
-            self.data["prompt"], self.deepseek)
-
-    def _setup_github(self) -> object:
-        """Set up GitHub repository."""
-        base_repo_name = f"{
-            self.user_context['username']}-{sanitize_project_name(self.project_name)}"
-        repo_name = get_unique_repo_name(self.gh, base_repo_name)
-
-        self.db.add_log(self.job_id, "github",
-                        f"Creating GitHub repository: {repo_name}")
-        repo = setup_github_repo(
-            self.gh, repo_name, self.data["description"], self.job_id, self.db)
-        self.db.add_log(self.job_id, "github",
-                        f"Created GitHub repo: {repo.html_url}")
-
-        return repo
-
-    def _setup_vercel(self, repo: object) -> dict:
-        """Set up Vercel project and deployment."""
-        vercel_config = get_vercel_config()
-        vercel_service = VercelService(vercel_config, self.db, self.job_id)
-
-        self.db.add_log(self.job_id, "vercel", "Creating Vercel project")
-        vercel_project = vercel_service.create_project(repo.name, repo)
-
-        return vercel_project
-
-    def _update_project_info(self, repo: object, vercel_info: dict) -> None:
-        """Update project information in database."""
-        frontend_url = f"https://{get_shortest_vercel_domain(repo.name)}"
-        self.db.client.table("projects").update({
-            "name": self.project_name,
-            "repo_url": repo.html_url,
-            "frontend_url": frontend_url
-        }).eq("id", self.project_id).execute()
-
-        self.db.add_log(self.job_id, "vercel",
-                        f"Deployment created at: {frontend_url}")
-
-    def _run_code_updates(self, repo: object) -> None:
-        """Run initial code updates and configurations."""
-        setup_prompt = get_project_setup_prompt(
-            self.project_name, self.data["prompt"], self.user_context)
-        improved_prompt = improve_user_instructions(
-            setup_prompt, self.deepseek)
-
-        update_code.remote({
-            "project_id": self.project_id,
-            "repo_path": repo.full_name,
-            "prompt": improved_prompt,
-            "user_context": self.user_context,
-            "job_type": "update_code_for_setup",
-        })
-
-        self._update_metadata(repo)
-        self._setup_domain_association(repo)
-
-    def _update_metadata(self, repo: object) -> None:
-        """Update project metadata."""
-        metadata_prompt = f"""
-            Update the following files to customize the project metadata:
-            1. In src/lib/constants.ts:
-               set PROJECT_ID to "{self.project_name}"
-               set PROJECT_TITLE to "{self.project_name}"
-               set PROJECT_DESCRIPTION to a brief description of the project
-            2. In src/app/opengraph-image.tsx:
-               - Reflect the project name "{self.project_name}"
-               - Include a matching color or layout
-               - Keep a simple one-page brand layout
-        """
-
-        update_code.remote({
-            "project_id": self.project_id,
-            "repo_path": repo.full_name,
-            "prompt": metadata_prompt,
-            "job_type": "update_code_for_metadata",
-        })
-
-    def _setup_domain_association(self, repo: object) -> None:
-        """Set up Farcaster domain association."""
-        frontend_url = f"https://{get_shortest_vercel_domain(repo.name)}"
-        domain = frontend_url[8:] if frontend_url.startswith(
-            "https://") else frontend_url
-
-        domain_assoc = generate_domain_association(domain)
-        update_prompt = f"""
-        Update src/app/.well-known/farcaster.json/route.ts so that the 'accountAssociation' field
-        returns the following domain association:
-        {json.dumps(domain_assoc['json'], indent=2)}
-        Only update the accountAssociation field.
-        """
-
-        update_code.remote({
-            "project_id": self.project_id,
-            "repo_path": repo.full_name,
-            "prompt": update_prompt,
-            "job_type": "update_code_for_domain_association",
-        })
-
-    def _send_notification(self) -> None:
-        """Send completion notification to user."""
-        if "fid" in self.user_context:
-            try:
-                result = send_notification(
-                    fid=self.user_context["fid"],
-                    title=DEFAULT_NOTIFICATION_TITLE.format(
-                        project_name=self.project_name),
-                    body=DEFAULT_NOTIFICATION_BODY,
-                )
-                if result["state"] == "success":
-                    self.db.add_log(
-                        self.job_id,
-                        "backend",
-                        f"Sent completion notification to FID {
-                            self.user_context['fid']}"
-                    )
-            except Exception as e:
-                print("Warning: Could not send notification:", e)
-
-    def _cleanup(self, repo: object) -> None:
-        """Clean up temporary files."""
-        try:
-            cleanup_project_repo(repo.full_name)
-        except Exception as e:
-            print(f"Warning: cleanup failed: {str(e)}")
-
-
-def create_vercel_deployment(repo_name: str, repo: object, headers: dict, vercel_config: dict) -> dict:
-    """Create a deployment for the Vercel project."""
-    deployment = requests.post(
-        f"https://api.vercel.com/v13/deployments?teamId={
-            vercel_config['TEAM_ID']}",
-        headers=headers,
-        json={"name": repo_name, "gitSource": {
-            "type": "github", "repoId": str(repo.id), "ref": "main"}},
-    ).json()
-
-    if "error" in deployment:
-        raise Exception(f"Failed to create deployment: {deployment['error']}")
-
-    return deployment
-
-
+@app.function(
+    retries=1,
+    volumes=volumes,
+    timeout=ProjectConfig.TIMEOUTS["PROJECT_SETUP"],
+    secrets=[
+        modal.Secret.from_name("github-secret"),
+        modal.Secret.from_name("vercel-secret"),
+        modal.Secret.from_name("llm-api-keys"),
+        modal.Secret.from_name("supabase-secret"),
+        modal.Secret.from_name("neynar-secret"),
+    ],
+)
 def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
     """Full project creation job using state machine."""
     from backend.services.project_setup_service import ProjectSetupService, SetupState
@@ -935,3 +677,80 @@ def send_test_notification(data: dict) -> dict:
     result = send_notification(fid=fid, title=title, body=body)
     print("[send-test-notification]", result)
     return {"status": "success", "result": result}
+
+
+@app.function(
+    secrets=[modal.Secret.from_name("supabase-secret")]
+)
+@modal.web_endpoint(label="retry-project-setup", method="POST", docs=True)
+def retry_project_setup_webhook(data: dict) -> dict:
+    """
+    Webhook to retry/resume project setup for a given project.
+    Uses prompt/description from last failed job or from provided parameters.
+    """
+    if not data.get("project_id"):
+        return {"error": "Missing required field: project_id"}, 400
+
+    db = Database()
+    project = db.get_project(data["project_id"])
+    if not project:
+        return {"error": f"Project {data['project_id']} not found"}, 404
+
+    # Get latest failed job for this project
+    latest_failed_job = db.client.table('jobs')\
+        .select('*')\
+        .eq('project_id', data["project_id"])\
+        .eq('status', 'failed')\
+        .order('created_at', desc=True)\
+        .limit(1)\
+        .execute()\
+        .data
+
+    # Get prompt and description from last failed job or new request
+    retry_data = {
+        "userContext": {"fid": project["fid_owner"]},
+        "retry_attempt": True,
+        "retry_reason": data.get("reason", "manual_retry")
+    }
+
+    if latest_failed_job and latest_failed_job[0].get('data'):
+        last_job_data = latest_failed_job[0]['data']
+        retry_data["prompt"] = data.get("prompt") or last_job_data.get("prompt")
+        retry_data["description"] = data.get("description") or last_job_data.get("description")
+        retry_data["previous_job"] = latest_failed_job[0]
+    else:
+        # Fallback to provided parameters
+        if not data.get("prompt") or not data.get("description"):
+            return {
+                "error": "No previous job found and missing required fields: prompt and description needed for fresh start"
+            }, 400
+        retry_data["prompt"] = data["prompt"]
+        retry_data["description"] = data["description"]
+
+    # Create new job for retry attempt
+    job_id = db.create_job(
+        project_id=data["project_id"],
+        job_type="retry_setup",
+        data=retry_data
+    )
+
+    db.add_log(
+        job_id,
+        "retry",
+        f"Initiating setup retry for project {data['project_id']} with prompt: {retry_data['prompt'][:100]}..."
+    )
+
+    # Spawn setup process
+    setup_frame_project.spawn(
+        data=retry_data,
+        project_id=data["project_id"],
+        job_id=job_id
+    )
+
+    return {
+        "status": "pending",
+        "projectId": data["project_id"],
+        "jobId": job_id,
+        "message": "Project setup retry initiated",
+        "using_previous_job_data": bool(latest_failed_job)
+    }

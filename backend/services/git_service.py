@@ -161,7 +161,11 @@ class GitService:
                 print(f"[GitService] Removing existing directory: {self.repo_dir}")
                 shutil.rmtree(self.repo_dir)
                 
-            print(f"[GitService] Cloning from: {self.repo_path}")
+            print(f"[GitService] Starting clone...")
+            print(f"[GitService] Repo path: {self.repo_path}")
+            print(f"[GitService] Has GitHub token: {bool(os.environ['GITHUB_TOKEN'])}")
+            print(f"[GitService] Clone URL: https://[token]@github.com/{self.repo_path}.git")
+            
             clone_url = f"https://{os.environ['GITHUB_TOKEN']}@github.com/{self.repo_path}.git"
             self.repo = git.Repo.clone_from(
                 clone_url, 
@@ -173,18 +177,20 @@ class GitService:
             
             # Verify repo contents
             print(f"[GitService] Verifying repository contents in: {self.repo_dir}")
-            if not os.path.exists(os.path.join(self.repo_dir, "package.json")):
-                raise Exception(f"package.json not found after clone in {self.repo_dir}")
-                
             files = os.listdir(self.repo_dir)
             print(f"[GitService] Repository contents: {files}")
             
-            print(f"[GitService] Fresh clone completed: {self.repo_path}")
+            if not os.path.exists(os.path.join(self.repo_dir, "package.json")):
+                raise Exception(f"package.json not found after clone in {self.repo_dir}")
+                
+            print(f"[GitService] Fresh clone completed successfully")
             return self.repo
             
         except Exception as e:
             error_msg = f"Clone failed: {str(e)}"
             print(f"[GitService] {error_msg}")
+            print(f"[GitService] Exception type: {type(e)}")
+            print(f"[GitService] Full exception details: {str(e)}")
             self.db.add_log(self.job_id, "git", error_msg)
             raise
 
