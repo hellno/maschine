@@ -633,6 +633,7 @@ def setup_github_repo(gh: Github, repo_name: str, description: str, job_id: str,
         modal.Secret.from_name("llm-api-keys"),
         modal.Secret.from_name("supabase-secret"),
         modal.Secret.from_name("neynar-secret"),
+        modal.Secret.from_name("redis-secret"),
     ],
 )
 def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
@@ -651,7 +652,11 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
 ###############################################################################
 
 
-@app.function()
+@app.function(
+    secrets=[
+        modal.Secret.from_name("redis-secret")
+    ]
+)
 @modal.web_endpoint(label="send-test-notification", method="POST", docs=True)
 def send_test_notification(data: dict) -> dict:
     """

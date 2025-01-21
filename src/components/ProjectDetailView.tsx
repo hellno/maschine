@@ -20,6 +20,7 @@ import { Button } from "./ui/button";
 import { FrameContext } from "@farcaster/frame-core";
 import sdk from "@farcaster/frame-sdk";
 import { Log, Project, VercelLogData } from "~/lib/types";
+import Link from "next/link";
 
 const styles = {
   container: "max-w-4xl mx-auto space-y-6 py-2",
@@ -93,18 +94,12 @@ function ProjectInfoCard({
         <div className="flex flex-col sm:flex-row gap-3">
           {project.frontend_url && (
             <>
-              <Button
-                variant="outline"
-                onClick={() =>
-                  sdk.actions.openUrl(
-                    `https://warpcast.com/~/frames/launch?domain=${project.frontend_url}`
-                  )
-                }
-                className="flex-1"
-              >
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Open Frame
-              </Button>
+              <Link href={project.frontend_url}>
+                <Button variant="outline" className="flex-1">
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Open Frame
+                </Button>
+              </Link>
               <Button
                 variant="outline"
                 onClick={handleShare}
@@ -196,11 +191,13 @@ function ConversationCard({
                   type="user"
                 />
                 <ConversationMessage
-                  text={job.status === "pending"
-                    ? "Processing..."
-                    : job.data.error
-                    ? job.data.error
-                    : job.data.result || "✅"}
+                  text={
+                    job.status === "pending"
+                      ? "Processing..."
+                      : job.data.error
+                      ? job.data.error
+                      : job.data.result || "✅"
+                  }
                   timestamp={new Date(job.created_at).toLocaleString()}
                   type="bot"
                   isError={!!job.data.error}

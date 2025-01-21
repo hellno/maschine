@@ -1,129 +1,155 @@
+"""
+Notification service for sending user notifications via Farcaster.
+Handles Redis connection management and notification delivery with proper error handling.
+"""
+
 import os
 import uuid
 import time
 import requests
 import redis
-from fastapi import FastAPI, Request, HTTPException
-from pydantic import BaseModel, ValidationError, Field
-from typing import Optional, List
-
-KV_REST_API_URL = os.getenv("KV_REST_API_URL", "")
-KV_REST_API_TOKEN = os.getenv("KV_REST_API_TOKEN", "")
-FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://farcasterframeception.vercel.app')
-
-
-r = redis.Redis(
-    host=KV_REST_API_URL.replace('https://', ''),
-    password=KV_REST_API_TOKEN,
-    port=6379,
-    ssl=True,
-    decode_responses=True
-)
+from typing import Optional, Dict, Any
+from pydantic import BaseModel
 
 
 class FrameNotificationDetails(BaseModel):
+    """Details required to send notifications to a user"""
     url: str
     token: str
 
 
-class SendNotificationRequest(BaseModel):
-    notificationId: str
-    title: str
-    body: str
-    targetUrl: str
-    tokens: List[str]
+class NotificationResult(BaseModel):
+    """Result of a notification attempt"""
+    state: str
+    error: Optional[str] = None
 
 
-class SendNotificationResponse(BaseModel):
-    result: dict
+class NotificationService:
+    """Manages notification operations with proper connection handling and error recovery"""
 
+    def __init__(self, frontend_url: Optional[str] = None):
+        self.frontend_url = frontend_url or os.getenv(
+            'FRONTEND_URL', 'https://farcasterframeception.vercel.app')
+        self._redis_client = None
 
-class RequestSchema(BaseModel):
-    fid: int
-    notificationDetails: FrameNotificationDetails
+    def send_notification(self, fid: int, title: str, body: str) -> NotificationResult:
+        """
+        Send a notification to a user with proper error handling and logging.
 
+        Args:
+            fid: Farcaster ID of the recipient
+            title: Notification title
+            body: Notification body
 
-def get_user_notification_details_key(fid: int) -> str:
-    return f"frameception:{fid}:notifications"
+        Returns:
+            NotificationResult indicating success or failure state
+        """
+        try:
+            print(f"Attempting to send notification to FID {
+                  fid} with title: {title}")
 
+            details = self._get_notification_details(fid)
+            if not details:
+                return NotificationResult(state="no_token")
 
-def get_user_notification_details(fid: int) -> Optional[FrameNotificationDetails]:
-    data = r.get(get_user_notification_details_key(fid))
-    if not data:
-        return None
-    try:
-        # Redis returns string; parse into FrameNotificationDetails
-        return FrameNotificationDetails.parse_raw(data)
-    except:
-        return None
+            payload = self._build_notification_payload(
+                title, body, details.token)
+            result = self._send_notification_request(details.url, payload)
 
+            self._handle_notification_response(result, fid, details.token)
 
-def set_user_notification_details(fid: int, details: FrameNotificationDetails) -> None:
-    r.set(get_user_notification_details_key(fid), details.json())
+            print(f"Successfully sent notification to FID {fid}")
+            return NotificationResult(state="success")
 
+        except Exception as e:
+            error_msg = f"Unexpected error sending notification to FID {
+                fid}: {str(e)}"
+            print(error_msg)
+            return NotificationResult(state="error", error=error_msg)
 
-def delete_user_notification_details(fid: int) -> None:
-    r.delete(get_user_notification_details_key(fid))
+    def _get_redis_client(self) -> redis.Redis:
+        """Get or create Redis client with proper connection handling"""
+        if self._redis_client is None:
+            redis_url = os.getenv(
+                "KV_REST_API_URL", "").replace('https://', '')
+            redis_token = os.getenv("KV_REST_API_TOKEN", "")
 
+            if not redis_url or not redis_token:
+                raise ValueError("Missing Redis credentials")
 
-def send_notification(fid: int, title: str, body: str) -> dict:
-    """Send a notification to a user
+            self._redis_client = redis.Redis(
+                host=redis_url,
+                password=redis_token,
+                port=6379,
+                ssl=True,
+                decode_responses=True
+            )
+        return self._redis_client
 
-    Args:
-        fid: The user's Farcaster ID
-        title: The notification title
-        body: The notification body
+    def _get_notification_details(self, fid: int) -> Optional[FrameNotificationDetails]:
+        """Retrieve notification details for a user from Redis"""
+        try:
+            redis_client = self._get_redis_client()
+            data = redis_client.get(self._get_details_key(fid))
+            return FrameNotificationDetails.parse_raw(data) if data else None
+        except Exception as e:
+            print(f"Error getting notification details: {str(e)}")
+            return None
 
-    Returns:
-        dict with state of notification attempt
-    """
-    print(f"Attempting to send notification to FID {fid} with title: {title}")
-    try:
-        # Get notification details from Redis
-        details = get_user_notification_details(fid)
-        if not details:
-            print(f"No notification details found for FID {fid}")
-            return {"state": "no_token"}
-
-        # Prepare notification payload
-        payload = {
+    def _build_notification_payload(self, title: str, body: str, token: str) -> Dict[str, Any]:
+        """Build the notification payload with proper structure"""
+        return {
             "notificationId": str(uuid.uuid4()),
             "title": title,
             "body": body,
-            "targetUrl": FRONTEND_URL,
-            "tokens": [details.token]
+            "targetUrl": self.frontend_url,
+            "tokens": [token]
         }
-        print(f"Sending notification payload: {payload}")
 
+    def _send_notification_request(self, url: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Send notification request with proper error handling"""
+        response = requests.post(
+            url,
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=10
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def _handle_notification_response(self, result: Dict[str, Any], fid: int, token: str) -> None:
+        """Handle notification response and cleanup invalid tokens"""
+        result_data = result.get("result", {})
+
+        if token in result_data.get("invalidTokens", []):
+            print(f"Invalid token found for FID {fid}, cleaning up")
+            self._delete_notification_details(fid)
+
+        if token in result_data.get("rateLimitedTokens", []):
+            print(f"Rate limit hit for FID {fid}")
+
+    def _delete_notification_details(self, fid: int) -> None:
+        """Delete notification details for a user"""
         try:
-            response = requests.post(
-                details.url,
-                json=payload,
-                headers={"Content-Type": "application/json"},
-                timeout=10
-            )
-            response.raise_for_status()
-            result = response.json()
-            print(f"Notification response: {result}")
+            redis_client = self._get_redis_client()
+            redis_client.delete(self._get_details_key(fid))
+        except Exception as e:
+            print(f"Error deleting notification details: {str(e)}")
 
-            # Check for invalid tokens
-            if details.token in result.get("result", {}).get("invalidTokens", []):
-                print(f"Invalid token found for FID {fid}, cleaning up")
-                delete_user_notification_details(fid)
-                return {"state": "invalid_token"}
+    @staticmethod
+    def _get_details_key(fid: int) -> str:
+        """Generate Redis key for user notification details"""
+        return f"frameception:{fid}:notifications"
 
-            # Check for rate limits
-            if details.token in result.get("result", {}).get("rateLimitedTokens", []):
-                print(f"Rate limit hit for FID {fid}")
-                return {"state": "rate_limit"}
 
-            print(f"Successfully sent notification to FID {fid}")
-            return {"state": "success"}
+# Create singleton instance for use in Modal functions
 
-        except requests.exceptions.RequestException as e:
-            print(f"Request error sending notification to FID {fid}: {str(e)}")
-            return {"state": "error", "error": str(e)}
 
-    except Exception as e:
-        print(f"Unexpected error sending notification to FID {fid}: {str(e)}")
-        return {"state": "error", "error": str(e)}
+def send_notification(fid: int, title: str, body: str) -> Dict[str, Any]:
+    """
+    Convenience function for sending notifications from Modal functions.
+    Maintains backward compatibility with existing code.
+    """
+    notification_service = NotificationService()
+    result = notification_service.send_notification(fid, title, body)
+    return {"state": result.state, "error": result.error}

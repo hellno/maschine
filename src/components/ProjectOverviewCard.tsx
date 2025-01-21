@@ -10,6 +10,7 @@ import { Share, ExternalLink } from "lucide-react";
 import sdk from "@farcaster/frame-sdk";
 import { cn } from "~/lib/utils";
 import { Project } from "~/lib/types";
+import Link from "next/link";
 
 interface ProjectOverviewCardProps {
   project: Project;
@@ -41,11 +42,12 @@ export function ProjectOverviewCard({
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleOpenFrame = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (frontendUrl) {
       sdk.actions.openUrl(
-        `https://warpcast.com/~/frames/launch?domain=${frontendUrl.replace('https://','')}`
+        `https://warpcast.com/~/frames/launch?domain=${frontendUrl}`
       );
     }
   };
@@ -76,7 +78,7 @@ export function ProjectOverviewCard({
                 <Share className="w-4 h-4 mr-2" />
                 Share
               </Button>
-              <Button
+              {/* <Button
                 variant="secondary"
                 size="sm"
                 onClick={handleOpenFrame}
@@ -84,7 +86,13 @@ export function ProjectOverviewCard({
               >
                 <ExternalLink className="w-4 h-4 mr-2" />
                 Open
-              </Button>
+              </Button> */}
+              <Link href={frontendUrl} className="flex-1 w-full">
+                <Button variant="outline" size="sm" className="flex-1 w-full">
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Open
+                </Button>
+              </Link>
             </>
           )}
         </div>

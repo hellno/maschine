@@ -1,3 +1,4 @@
+import os
 from typing import Optional, Tuple, List
 from modal.container_process import ContainerProcess
 from modal import Sandbox
@@ -13,7 +14,7 @@ class SandboxCommandExecutor:
         self.sandbox = sandbox
         self.job_id = job_id
         self.db = db
-        self.repo_dir = repo_dir
+        self.workdir = repo_dir  # Store working directory
         self._cmd_str = "pnpm build"  # Default command string for Aider's string representation
 
     def execute(self, command: str, capture_output: bool = True) -> Tuple[int, List[str]]:
@@ -28,16 +29,28 @@ class SandboxCommandExecutor:
             Tuple of (exit_code, output_lines)
         """
         try:
+            # Reload volumes before executing command
+            from modal_app import github_repos
+            github_repos.reload()
+            
+            print(f"[SandboxCommandExecutor] Running command: {command}")
+            
+            # Verify working directory exists
+            if not os.path.exists(self.workdir):
+                error_msg = f"Working directory not found: {self.workdir}"
+                print(f"[SandboxCommandExecutor] {error_msg}")
+                self.db.add_log(self.job_id, "sandbox", error_msg)
+                return 1, [error_msg]
+
             # Split command string into list of arguments
             if isinstance(command, str):
                 command_args = command.split()
             else:
                 raise ValueError(f"Command must be string, got {type(command)}")
                 
-            print(f"[SandboxCommandExecutor] Running command: {command}")
             process = self.sandbox.exec(
                 *command_args,  # Unpack command arguments 
-                workdir=self.repo_dir
+                workdir=self.workdir
             )
 
             output = []
@@ -47,12 +60,16 @@ class SandboxCommandExecutor:
                     line_str = line.strip()
                     output.append(line_str)
                     print(f"[STDOUT] {line_str}")
+                    if self.db and self.job_id:
+                        self.db.add_log(self.job_id, "sandbox", line_str)
 
                 # Capture stderr
                 for line in process.stderr:
                     line_str = line.strip()
-                    output.append(line_str)
+                    output.append(f"ERROR: {line_str}")
                     print(f"[STDERR] {line_str}")
+                    if self.db and self.job_id:
+                        self.db.add_log(self.job_id, "sandbox", f"ERROR: {line_str}")
 
             exit_code = process.wait()
             print(f"[SandboxCommandExecutor] Command completed with exit code: {exit_code}")
@@ -62,7 +79,9 @@ class SandboxCommandExecutor:
         except Exception as e:
             error_msg = f"Error executing command '{command}': {str(e)}"
             print(f"[SandboxCommandExecutor] {error_msg}")
-            return 1
+            if self.db and self.job_id:
+                self.db.add_log(self.job_id, "sandbox", error_msg)
+            return 1, [error_msg]
 
     def __call__(self, cmd: str = None) -> Optional[str]:
         """
