@@ -11,16 +11,18 @@ import { PostHogProvider } from "posthog-js/react";
 if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_POSTHOG_KEY) {
   posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY!, {
     api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST,
-    persistence: 'memory', // Avoid cookies/localStorage
-    person_profiles: 'identified_only',
-    loaded: (posthog) => {
-      // Generate anonymous ID server-side when needed
-      if (posthog.get_distinct_id() === null) {
-        posthog.register({
-          distinct_id: crypto.randomUUID() // Generate temp browser-session-only ID
-        })
+    persistence: "memory",
+    person_profiles: "identified_only",
+    loaded: (ph) => {
+      // Generate anonymous session ID without identifying
+      const sessionId = ph.get_distinct_id() || crypto.randomUUID();
+      ph.register({ session_id: sessionId });
+
+      // Temporary distinct ID that will be aliased later
+      if (!ph.get_distinct_id()) {
+        ph.reset(true); // Ensure clean state
       }
-    }
+    },
   });
 }
 

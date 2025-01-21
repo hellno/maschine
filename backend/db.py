@@ -7,8 +7,15 @@ from datetime import datetime
 
 class Database:
     def __init__(self):
-        url = os.environ["SUPABASE_URL"]
-        key = os.environ["SUPABASE_API_KEY"]
+        url = os.environ.get("SUPABASE_URL")
+        key = os.environ.get("SUPABASE_API_KEY")
+        
+        if not url or not key:
+            raise RuntimeError(
+                "Supabase credentials not configured. "
+                "Ensure you've added the supabase-secret to your Modal function."
+            )
+            
         self.client = create_client(url, key)
 
     def create_project(self, fid_owner: int, repo_url: str, frontend_url: str) -> str:

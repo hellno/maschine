@@ -26,7 +26,7 @@ def generate_project_name(prompt: str, deepseek: OpenAI) -> str:
         print(f"Warning: Could not generate project name: {str(e)}")
         return "new-frame-project"
 
-def get_project_setup_prompt(project_name: str, user_prompt: str) -> str:
+def get_template_customization_prompt(project_name: str, user_prompt: str) -> str:
     """Generate the initial setup prompt for the project."""
     return f"""Create a Farcaster Frame called "{project_name}" based on this description:
 {user_prompt}
@@ -82,6 +82,9 @@ def generate_domain_association(domain: str) -> dict:
 
 def sanitize_project_name(name: str) -> str:
     """Sanitize project name for use in URLs and file systems."""
+    # get only the first line
+    name = name.split("\n")[0]
+
     # Convert to lowercase
     sanitized = name.lower()
     
