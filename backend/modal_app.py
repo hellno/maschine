@@ -378,19 +378,9 @@ def update_code(data: dict) -> str:
 
             io = InputOutput(yes=True, root=repo_dir)
             model = Model(
-                edit_format="diff",
-                model="deepseek/deepseek-reasoner",
+                model="r1",
                 weak_model="deepseek/deepseek-chat",
                 editor_model="deepseek/deepseek-chat",
-                editor_edit_format="editor-diff",
-                use_repo_map=True,
-                examples_as_sys_msg=True,
-                use_temperature=False,
-                reminder="user",
-                caches_by_default=True,
-                extra_params={
-                    "max_tokens": 8192,
-                },
             )
             coder = Coder.create(
                 io=io,
@@ -715,8 +705,10 @@ def retry_project_setup_webhook(data: dict) -> dict:
 
     if latest_failed_job and latest_failed_job[0].get('data'):
         last_job_data = latest_failed_job[0]['data']
-        retry_data["prompt"] = data.get("prompt") or last_job_data.get("prompt")
-        retry_data["description"] = data.get("description") or last_job_data.get("description")
+        retry_data["prompt"] = data.get(
+            "prompt") or last_job_data.get("prompt")
+        retry_data["description"] = data.get(
+            "description") or last_job_data.get("description")
         retry_data["previous_job"] = latest_failed_job[0]
     else:
         # Fallback to provided parameters
@@ -737,7 +729,8 @@ def retry_project_setup_webhook(data: dict) -> dict:
     db.add_log(
         job_id,
         "retry",
-        f"Initiating setup retry for project {data['project_id']} with prompt: {retry_data['prompt'][:100]}..."
+        f"Initiating setup retry for project {
+            data['project_id']} with prompt: {retry_data['prompt'][:100]}..."
     )
 
     # Spawn setup process

@@ -5,7 +5,10 @@ import { createAppClient, viemConnector } from "@farcaster/auth-client";
 declare module "next-auth" {
   interface Session {
     user: {
-      fid: number;
+      fid?: number;
+      email?: string;
+      walletAddress?: string;
+      authMethod: 'farcaster' | 'email' | 'web3' | 'anonymous';
     };
   }
 }
@@ -60,14 +63,20 @@ export const authOptions: AuthOptions = {
 
         return {
           id: fid.toString(),
+          authMethod: 'farcaster',
+          fid: fid,
         };
       },
     }),
   ],
   callbacks: {
-    session: async ({ session, token }) => {
-      if (session?.user) {
-        session.user.fid = parseInt(token.sub ?? '');
+    session: async ({ session, token, user }) => {
+      if (session.user) {
+        session.user = {
+          ...session.user,
+          ...user, // Contains authMethod and other fields
+          fid: token.sub ? parseInt(token.sub) : undefined
+        };
       }
       return session;
     },

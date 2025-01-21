@@ -5,6 +5,7 @@ import { ProjectOverviewCard } from "./ProjectOverviewCard";
 import { ProjectDetailView } from "./ProjectDetailView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { signIn, signOut, getCsrfToken } from "next-auth/react";
+import posthog from "posthog-js";
 import {
   Card,
   CardHeader,
@@ -38,6 +39,7 @@ import { base } from "wagmi/chains";
 import { Button } from "./ui/button";
 import { ArrowUp } from "lucide-react";
 import { Project } from "~/lib/types";
+import { hashEmail } from "~/lib/utils";
 
 const promptTemplates = [
   {
@@ -893,10 +895,46 @@ function SignIn() {
     }
   }, [getNonce]);
 
+  useEffect(() => {
+    if (status === 'authenticated' && session?.user) {
+      const { user } = session;
+      let authId: string;
+      
+      // Generate appropriate ID
+      if (user.fid) {
+        authId = `fc_${user.fid}`;
+      } else if (user.email) {
+        authId = `email_${hashEmail(user.email)}`;
+      } else if (user.walletAddress) {
+        authId = `wallet_${user.walletAddress.toLowerCase()}`;
+      } else {
+        authId = `anon_${crypto.randomUUID()}`;
+      }
+
+      // Link previous anonymous session
+      const anonymousId = posthog.get_distinct_id();
+      if (anonymousId.startsWith('anon_')) {
+        posthog.alias({
+          distinctId: authId,
+          alias: anonymousId
+        });
+      }
+
+      // Identify with consolidated properties
+      posthog.identify(authId, {
+        auth_method: user.authMethod,
+        fid: user.fid,
+        email: user.email,
+        wallet_address: user.walletAddress
+      });
+    }
+  }, [status, session]);
+
   const handleSignOut = useCallback(async () => {
     try {
       setSigningOut(true);
       await signOut({ redirect: false });
+      posthog.reset(true); // Reset both user and device ID
       setSignInResult(undefined);
     } finally {
       setSigningOut(false);
