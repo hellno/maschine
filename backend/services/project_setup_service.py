@@ -414,7 +414,7 @@ class ProjectSetupService:
         self.db.update_job_status(self.context.job_id, status)
 
     def _generate_project_name(self) -> str:
-        """Generate project name using LLM"""
+        """Generate project name using LLM and prefix with username"""
         from openai import OpenAI
 
         deepseek = OpenAI(
@@ -422,14 +422,23 @@ class ProjectSetupService:
             base_url="https://api.deepseek.com/v1"
         )
 
+        # Get username from user context
+        username = self.context.user_context.get('username')
+        if not username:
+            # Fallback to fid if no username
+            username = f"user{self.context.user_context.get('fid')}"
+        
+        # Generate base project name
         raw_name = generate_project_name(self.context.data['prompt'], deepseek)
-        sanitized_name = sanitize_project_name(raw_name)
-
-        print(
-            f"Generated project name: {raw_name} -> {sanitized_name}"
-        )
-
-        return sanitized_name
+        sanitized_base = sanitize_project_name(raw_name)
+        
+        # Combine username and project name
+        sanitized_username = sanitize_project_name(username)
+        full_name = f"{sanitized_username}-{sanitized_base}"
+        
+        print(f"Generated project name: {username} + {raw_name} -> {full_name}")
+        
+        return full_name
 
     def _get_setup_prompt(self) -> str:
         """Generate the initial setup prompt"""
