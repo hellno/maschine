@@ -7,13 +7,7 @@ import { ProjectDetailView } from "./ProjectDetailView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { signIn, signOut, getCsrfToken } from "next-auth/react";
 import posthog from "posthog-js";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "~/components/ui/card";
+import { Card, CardContent } from "~/components/ui/card";
 import sdk, {
   FrameNotificationDetails,
   type FrameContext,
@@ -42,14 +36,12 @@ import { ArrowUp, AlertCircle, PlayCircle, Loader2 } from "lucide-react";
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
 } from "~/components/ui/sheet";
 import { Project } from "~/lib/types";
 import { hashEmail } from "~/lib/utils";
-import Link from "next/link";
 
 const promptTemplates = [
   {
@@ -80,9 +72,7 @@ type FlowState =
   | "pending"
   | "success";
 
-export default function Frameception(
-  { title }: { title?: string } = { title: "Frameception" }
-) {
+export default function Frameception() {
   useMobileTheme();
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [context, setContext] = useState<FrameContext>();
@@ -147,12 +137,26 @@ export default function Frameception(
       if (!context?.user?.fid) {
         throw new Error("User session not found");
       }
-      // Scroll to project area
-      setTimeout(() => {
-        document.getElementById("project-detail-view")?.scrollIntoView({
-          behavior: "smooth",
-        });
-      }, 100);
+
+      const response = await fetch("/api/new-frame-project", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: inputValue,
+          description: "A new Farcaster frame project",
+          verbose: false,
+          userContext: context?.user,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to create project");
+      }
+
+      const { projectId } = await response.json();
+      setSelectedProjectId(projectId);
+      setNewProjectId(projectId);
     } catch (error) {
       console.error("Error creating project:", error);
       setCreationError(
@@ -160,7 +164,7 @@ export default function Frameception(
       );
       setFlowState("enteringPrompt");
     }
-  }, [inputValue, context?.user, isFramePinned, sdk.actions]);
+  }, [inputValue, context?.user]);
 
   useEffect(() => {
     setNotificationDetails(context?.client.notificationDetails ?? null);

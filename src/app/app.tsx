@@ -6,8 +6,6 @@ const Frameception = dynamic(() => import("~/components/Frameception"), {
   ssr: false,
 });
 
-export default function App(
-  { title }: { title?: string } = { title: "Frameception" }
-) {
-  return <Frameception title={title} />;
+export default function App() {
+  return <Frameception />;
 }
