@@ -78,6 +78,9 @@ class GitService:
                 print(f"[GitService] Found existing repo at {self.repo_dir}, validating")
                 self._validate_and_repair()
             
+            if not self.repo:
+                raise Exception("Failed to initialize repository")
+                
             print(f"[GitService] Configuring git user")
             self.repo.git.config('user.name', ProjectConfig.GITHUB["COMMIT_NAME"])
             self.repo.git.config('user.email', ProjectConfig.GITHUB["COMMIT_EMAIL"])
@@ -143,6 +146,14 @@ class GitService:
         print(f"[GitService] Repo path: {self.repo_path}")
         print(f"[GitService] Commit message: {commit_message}")
         try:
+            # Ensure repo is initialized
+            if not self.repo:
+                print(f"[GitService] Repository not initialized, attempting to initialize...")
+                self.ensure_repo_ready()
+                
+            if not self.repo:
+                raise Exception("Failed to initialize repository")
+
             if not self._has_local_changes():
                 print(f"[GitService] No local changes to push")
                 return True
@@ -264,6 +275,8 @@ class GitService:
 
     def _has_local_changes(self) -> bool:
         """Check for uncommitted or unpushed changes"""
+        if not self.repo:
+            raise Exception("Repository not initialized")
         return self.repo.is_dirty() or bool(self.repo.untracked_files)
 
     def _backup_working_tree(self) -> None:
