@@ -468,18 +468,17 @@ export default function Frameception() {
                 </div>
               )}
 
-              {(flowState === "pending" || flowState === "success") &&
-                newProjectId && (
-                  <div
-                    id="project-detail-view"
-                    className="flex flex-col items-center gap-4 scroll-target"
-                  >
-                    <ProjectDetailView
-                      projectId={newProjectId}
-                      userContext={context?.user}
-                    />
-                  </div>
-                )}
+              {(flowState === "pending" || flowState === "success") && newProjectId && (
+                <div 
+                  id="project-detail-view" 
+                  className="flex flex-col items-center gap-4 w-full max-w-3xl mx-auto px-4 scroll-target"
+                >
+                  <ProjectDetailView
+                    projectId={newProjectId}
+                    userContext={context?.user}
+                  />
+                </div>
+              )}
             </div>
           </TabsContent>
 

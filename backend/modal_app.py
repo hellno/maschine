@@ -676,10 +676,86 @@ def setup_frame_project(data: dict, project_id: str, job_id: str) -> None:
     from backend.services.project_setup_service import ProjectSetupService, SetupState
     db = Database()
 
+    def cleanup_volumes():
+        """Ensure volumes are clean before operations"""
+        try:
+            print("[setup_frame_project] Starting volume cleanup...")
+            # Force garbage collection
+            import gc
+            gc.collect()
+            
+            # Change to safe directory
+            os.chdir('/tmp')
+            
+            # Force sync filesystem
+            os.sync()
+            time.sleep(1)  # Give OS time to close handles
+            
+            # Reload volumes
+            print("[setup_frame_project] Reloading volumes...")
+            github_repos.reload()
+            shared_node_modules.reload()
+            pnpm_store.reload()
+            print("[setup_frame_project] Volume cleanup complete")
+            
+        except Exception as e:
+            print(f"[setup_frame_project] Warning during volume cleanup: {e}")
+
     with sigint_handler(job_id, db):
         setup_service = ProjectSetupService(data, project_id, job_id)
+        
         while setup_service.state not in [SetupState.COMPLETE, SetupState.FAILED]:
-            setup_service.advance()
+            # Clean volumes before each state transition
+            cleanup_volumes()
+            
+            # Get current state before advancing
+            current_state = setup_service.state
+            print(f"[setup_frame_project] Current state: {current_state}")
+            
+            # If this is a code update state, wait for any existing updates to complete
+            repo_path = None
+            if current_state in [SetupState.UPDATE_CODE, SetupState.UPDATE_METADATA]:
+                repo_path = setup_service.context.repo_path
+                print(f"[setup_frame_project] Code update state detected for repo: {repo_path}")
+                
+                with GitService(repo_path, job_id, db) as git_service:
+                    # Wait if repo is in use
+                    max_wait = 300  # 5 minutes
+                    wait_time = 0
+                    while git_service.is_repo_in_use() and wait_time < max_wait:
+                        print(f"[setup_frame_project] Repo in use, waiting... ({wait_time}s/{max_wait}s)")
+                        time.sleep(10)
+                        wait_time += 10
+                    
+                    if wait_time >= max_wait:
+                        error_msg = "Timeout waiting for repo to be available"
+                        print(f"[setup_frame_project] {error_msg}")
+                        db.add_log(job_id, "backend", error_msg)
+                        db.update_job_status(job_id, "failed", error_msg)
+                        return
+                    
+                    # Mark repo as in use before proceeding
+                    print(f"[setup_frame_project] Marking repo as in use: {repo_path}")
+                    git_service.mark_repo_in_use()
+            
+            # Advance state
+            try:
+                print(f"[setup_frame_project] Advancing from state: {current_state}")
+                setup_service.advance()
+                print(f"[setup_frame_project] Advanced to state: {setup_service.state}")
+            except Exception as e:
+                print(f"[setup_frame_project] Error advancing state: {e}")
+                raise
+            finally:
+                # Clear repo in-use flag if we were in a code update state
+                if repo_path and current_state in [SetupState.UPDATE_CODE, SetupState.UPDATE_METADATA]:
+                    print(f"[setup_frame_project] Clearing repo in-use flag: {repo_path}")
+                    with GitService(repo_path, job_id, db) as git_service:
+                        git_service.clear_repo_in_use()
+            
+            # Additional delay between states to ensure cleanup
+            print("[setup_frame_project] Waiting between states...")
+            time.sleep(2)
 
 
 ###############################################################################

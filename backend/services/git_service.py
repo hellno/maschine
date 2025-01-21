@@ -1,6 +1,7 @@
 import os
 import git
 import shutil
+import time
 from typing import Optional, Tuple, List
 from pathlib import Path
 from datetime import datetime
@@ -24,6 +25,9 @@ class GitService:
 
     def is_repo_in_use(self) -> bool:
         """Check if repo has a lock file indicating it's being modified"""
+        if not os.path.exists(self.repo_dir):
+            return False  # If directory doesn't exist, it can't be in use
+            
         lock_file = os.path.join(self.repo_dir, '.update-in-progress')
         if not os.path.exists(lock_file):
             return False
@@ -44,9 +48,18 @@ class GitService:
 
     def mark_repo_in_use(self):
         """Create lock file to indicate repo is being modified"""
-        lock_file = os.path.join(self.repo_dir, '.update-in-progress')
-        with open(lock_file, 'w') as f:
-            f.write(str(datetime.now()))
+        try:
+            # Ensure parent directory exists
+            os.makedirs(self.repo_dir, exist_ok=True)
+            
+            lock_file = os.path.join(self.repo_dir, '.update-in-progress')
+            with open(lock_file, 'w') as f:
+                f.write(str(datetime.now()))
+            print(f"[GitService] Created lock file: {lock_file}")
+        except Exception as e:
+            print(f"[GitService] Warning: Failed to create lock file: {e}")
+            # Don't raise the exception - if we can't create the lock file,
+            # we should still try to proceed with the update
 
     def clear_repo_in_use(self):
         """Remove lock file after modifications complete"""
@@ -143,6 +156,29 @@ class GitService:
             import gc
             gc.collect()
             
+            # Change to safe directory
+            os.chdir('/tmp')
+            
+            # Force sync filesystem
+            os.sync()
+            time.sleep(1)  # Give OS time to close handles
+            
+            # Additional cleanup for git pack files if repo dir exists
+            if os.path.exists(self.repo_dir):
+                pack_dir = os.path.join(self.repo_dir, '.git', 'objects', 'pack')
+                if os.path.exists(pack_dir):
+                    print(f"[GitService] Found git pack directory: {pack_dir}")
+                    try:
+                        # List any pack files for debugging
+                        pack_files = [f for f in os.listdir(pack_dir) if f.endswith('.pack')]
+                        print(f"[GitService] Pack files present: {pack_files}")
+                        
+                        # Force close handles
+                        os.sync()
+                        time.sleep(1)
+                    except Exception as e:
+                        print(f"[GitService] Warning: Pack file inspection error: {e}")
+            
         except Exception as e:
             print(f"[GitService] Warning: Cleanup error: {str(e)}")
 
@@ -165,6 +201,15 @@ class GitService:
                     # Close any open files and handles
                     import gc
                     gc.collect()  # Force garbage collection to close file handles
+                    
+                    # Force close git pack files
+                    if self.repo:
+                        self.repo.close()
+                        self.repo = None
+                    
+                    # Force sync filesystem
+                    os.sync()
+                    time.sleep(1)  # Give OS time to close handles
                     
                     # Attempt to reload the volume
                     github_repos.reload()
