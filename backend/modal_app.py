@@ -318,15 +318,14 @@ def update_code(data: dict) -> str:
     with sigint_handler(job_id, db):
         try:
             repo_path = project["repo_url"].replace("https://github.com/", "")
-            git_service = GitService(repo_path, job_id, db)
+            with GitService(repo_path, job_id, db) as git_service:
+                # Ensure repo is ready and up-to-date
+                repo = git_service.ensure_repo_ready()
+                print('done ensure_repo_ready', repo)
+                if not git_service.safe_pull():
+                    raise Exception("Failed to sync with remote repository")
 
-            # Ensure repo is ready and up-to-date
-            repo = git_service.ensure_repo_ready()
-            print('done ensure_repo_ready', repo)
-            if not git_service.safe_pull():
-                raise Exception("Failed to sync with remote repository")
-
-            repo_dir = git_service.repo_dir  # Get repo_dir from GitService
+                repo_dir = git_service.repo_dir  # Get repo_dir from GitService
 
             # Verify working directory before creating sandbox
             print(f'Verifying repo directory: {repo_dir}')

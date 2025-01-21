@@ -29,9 +29,11 @@ class SandboxCommandExecutor:
             Tuple of (exit_code, output_lines)
         """
         try:
-            # Reload volumes before executing command
+            # Get volume reference
             from modal_app import github_repos
-            github_repos.reload()
+            
+            # Ensure clean state before volume operations
+            self._ensure_clean_volume()
             
             print(f"[SandboxCommandExecutor] Running command: {command}")
             
@@ -114,3 +116,25 @@ class SandboxCommandExecutor:
     def __radd__(self, other: str) -> str:
         """Support string concatenation from the left for Aider's output formatting"""
         return other + str(self)
+    def _ensure_clean_volume(self):
+        """Ensure volume is in a clean state for operations"""
+        import gc
+        import time
+        from modal_app import github_repos
+        
+        # Force garbage collection to release file handles
+        gc.collect()
+        
+        # Try reload with retries
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                github_repos.reload()
+                break
+            except Exception as e:
+                if "open files" in str(e) and attempt < max_retries - 1:
+                    print(f"[SandboxCommandExecutor] Retry {attempt + 1}: Waiting for files to close...")
+                    time.sleep(2)  # Wait before retry
+                    gc.collect()  # Force garbage collection
+                else:
+                    raise

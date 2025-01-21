@@ -22,10 +22,55 @@ class GitService:
         print(f"[GitService] Using repo_dir: {self.repo_dir}")
         print(f"[GitService] Backup enabled: {enable_backup}")
 
+    def __enter__(self):
+        """Context manager entry"""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit with cleanup"""
+        self._cleanup_resources()
+
+    def _cleanup_resources(self):
+        """Clean up resources and file handles"""
+        try:
+            if self.repo:
+                print(f"[GitService] Cleaning up repo resources")
+                self.repo.close()
+                self.repo = None
+            
+            # Force garbage collection
+            import gc
+            gc.collect()
+            
+        except Exception as e:
+            print(f"[GitService] Warning: Cleanup error: {str(e)}")
+
+    def _ensure_clean_state(self):
+        """Ensure clean state for volume operations"""
+        self._cleanup_resources()
+        
+        # Get volume reference and ensure clean state
+        from modal_app import github_repos
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                github_repos.reload()
+                break
+            except Exception as e:
+                if "open files" in str(e) and attempt < max_retries - 1:
+                    print(f"[GitService] Retry {attempt + 1}: Waiting for files to close...")
+                    import time
+                    time.sleep(2)  # Wait before retry
+                    self._cleanup_resources()
+                else:
+                    raise
+
     def ensure_repo_ready(self) -> git.Repo:
         """Ensures repository is in a valid, up-to-date state"""
         try:
             print(f"[GitService] Starting ensure_repo_ready for {self.repo_path}")
+            self._ensure_clean_state()
+            
             if not self._is_valid_repo():
                 print(f"[GitService] No valid repo found at {self.repo_dir}, will clone fresh")
                 self._clone_fresh()
