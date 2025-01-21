@@ -123,6 +123,20 @@ export default function Frameception() {
     }
   }, []);
 
+  const fetchProjects = useCallback(async () => {
+    if (context?.user?.fid) {
+      try {
+        const response = await fetch(`/api/projects?fid=${context.user.fid}`);
+        const data = await response.json();
+        if (data.projects) {
+          setProjects(data.projects);
+        }
+      } catch (error) {
+        console.error("Error fetching projects:", error);
+      }
+    }
+  }, [context?.user?.fid]);
+
   const handleCreateProject = useCallback(async () => {
     try {
       // Add validation
@@ -155,8 +169,16 @@ export default function Frameception() {
       }
 
       const { projectId } = await response.json();
-      setSelectedProjectId(projectId);
       setNewProjectId(projectId);
+      setSelectedProjectId(projectId);
+      setFlowState("success");
+      await fetchProjects();
+      requestAnimationFrame(() => {
+        const detailView = document.getElementById("project-detail-view");
+        if (detailView) {
+          detailView.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      });
     } catch (error) {
       console.error("Error creating project:", error);
       setCreationError(
@@ -164,25 +186,11 @@ export default function Frameception() {
       );
       setFlowState("enteringPrompt");
     }
-  }, [inputValue, context?.user]);
+  }, [inputValue, context?.user, fetchProjects]);
 
   useEffect(() => {
     setNotificationDetails(context?.client.notificationDetails ?? null);
   }, [context]);
-
-  const fetchProjects = useCallback(async () => {
-    if (context?.user?.fid) {
-      try {
-        const response = await fetch(`/api/projects?fid=${context.user.fid}`);
-        const data = await response.json();
-        if (data.projects) {
-          setProjects(data.projects);
-        }
-      } catch (error) {
-        console.error("Error fetching projects:", error);
-      }
-    }
-  }, [context?.user?.fid]);
 
   useEffect(() => {
     fetchProjects();
@@ -460,14 +468,18 @@ export default function Frameception() {
                 </div>
               )}
 
-              {(flowState === "pending" || flowState === "success") && (
-                <div className="flex flex-col items-center gap-4">
-                  <ProjectDetailView
-                    projectId={newProjectId}
-                    userContext={context?.user}
-                  />
-                </div>
-              )}
+              {(flowState === "pending" || flowState === "success") &&
+                newProjectId && (
+                  <div
+                    id="project-detail-view"
+                    className="flex flex-col items-center gap-4 scroll-target"
+                  >
+                    <ProjectDetailView
+                      projectId={newProjectId}
+                      userContext={context?.user}
+                    />
+                  </div>
+                )}
             </div>
           </TabsContent>
 

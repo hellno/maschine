@@ -17,7 +17,8 @@ def generate_project_name(prompt: str, deepseek: OpenAI) -> str:
                 "role": "user",
                 "content": f"Generate a short, memorable project name based on this description: {prompt}"
             }],
-            max_tokens=50
+            max_tokens=50,
+            temperature=2,
         )
         project_name = response.choices[0].message.content.strip().replace('"', '')
         return project_name[:50]  # Limit length

@@ -319,13 +319,32 @@ def update_code(data: dict) -> str:
         try:
             repo_path = project["repo_url"].replace("https://github.com/", "")
             with GitService(repo_path, job_id, db) as git_service:
-                # Ensure repo is ready and up-to-date
-                repo = git_service.ensure_repo_ready()
-                print('done ensure_repo_ready', repo)
-                if not git_service.safe_pull():
-                    raise Exception("Failed to sync with remote repository")
+                # Periodically clean up old repos (every 10th job)
+                if hash(job_id) % 10 == 0:  # Simple probabilistic check
+                    print("[update_code] Running periodic cleanup")
+                    git_service.cleanup_old_repos()
+                
+                # Check if repo is already being modified
+                if git_service.is_repo_in_use():
+                    msg = "Repository is currently being modified by another update (try again in a few minutes)"
+                    db.add_log(job_id, "backend", msg)
+                    db.update_job_status(job_id, "failed", msg)
+                    return msg
 
-                repo_dir = git_service.repo_dir  # Get repo_dir from GitService
+                # Mark repo as in use
+                git_service.mark_repo_in_use()
+                
+                try:
+                    # Ensure repo is ready and up-to-date
+                    repo = git_service.ensure_repo_ready()
+                    print('done ensure_repo_ready', repo)
+                    if not git_service.safe_pull():
+                        raise Exception("Failed to sync with remote repository")
+
+                    repo_dir = git_service.repo_dir  # Get repo_dir from GitService
+                finally:
+                    # Always clear the in-use flag
+                    git_service.clear_repo_in_use()
 
             # Verify working directory before creating sandbox
             print(f'Verifying repo directory: {repo_dir}')
@@ -688,6 +707,53 @@ def send_test_notification(data: dict) -> dict:
     result = send_notification(fid=fid, title=title, body=body)
     print("[send-test-notification]", result)
     return {"status": "success", "result": result}
+
+
+@app.function(
+    volumes=volumes,
+    schedule=modal.Period(minutes=10),  # Run every 10 minutes
+    secrets=[modal.Secret.from_name("supabase-secret")],
+)
+def cleanup_github_repos():
+    """Periodic cleanup of github repos to manage inode usage"""
+    from db import Database
+    db = Database()
+    
+    try:
+        print("[cleanup_github_repos] Starting periodic cleanup")
+        
+        # Create temporary GitService instance for cleanup
+        with GitService("temp", "cleanup_job", db) as git_service:
+            # Get stats for all repos
+            repo_stats = git_service._get_repo_stats()
+            
+            if not repo_stats:
+                print("[cleanup_github_repos] No repositories found")
+                return
+                
+            total_inodes = sum(stats[2] for stats in repo_stats)
+            print(f"[cleanup_github_repos] Total inodes in use: {total_inodes}")
+            
+            # Keep only the 5 most recently accessed repos
+            repos_to_remove = repo_stats[5:]
+            
+            for repo_path, last_access, inode_count in repos_to_remove:
+                try:
+                    print(f"[cleanup_github_repos] Removing {repo_path} (inodes: {inode_count}, last accessed: {datetime.fromtimestamp(last_access)})")
+                    shutil.rmtree(repo_path)
+                    db.add_log("cleanup_job", "cleanup", f"Removed old repository: {repo_path}")
+                except Exception as e:
+                    print(f"[cleanup_github_repos] Error removing {repo_path}: {e}")
+                    continue
+            
+            # Get final inode count
+            remaining_stats = git_service._get_repo_stats()
+            remaining_inodes = sum(stats[2] for stats in remaining_stats)
+            print(f"[cleanup_github_repos] Cleanup complete. Remaining inodes: {remaining_inodes}")
+            
+    except Exception as e:
+        print(f"[cleanup_github_repos] Error during cleanup: {e}")
+        db.add_log("cleanup_job", "cleanup", f"Error during cleanup: {str(e)}")
 
 
 @app.function(

@@ -1,7 +1,7 @@
 import os
 import git
 import shutil
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from pathlib import Path
 from datetime import datetime
 from backend.db import Database
@@ -22,6 +22,106 @@ class GitService:
         print(f"[GitService] Using repo_dir: {self.repo_dir}")
         print(f"[GitService] Backup enabled: {enable_backup}")
 
+    def is_repo_in_use(self) -> bool:
+        """Check if repo has a lock file indicating it's being modified"""
+        lock_file = os.path.join(self.repo_dir, '.update-in-progress')
+        if not os.path.exists(lock_file):
+            return False
+            
+        # Check if lock is stale (older than 30 minutes)
+        try:
+            with open(lock_file, 'r') as f:
+                timestamp = datetime.fromisoformat(f.read().strip())
+            if (datetime.now() - timestamp).total_seconds() > 1800:  # 30 minutes
+                print(f"[GitService] Removing stale lock file from {timestamp}")
+                os.remove(lock_file)  # Clean up stale lock
+                return False
+        except Exception as e:
+            print(f"[GitService] Invalid lock file, ignoring: {e}")
+            return False  # If we can't read timestamp, assume lock is invalid
+            
+        return True
+
+    def mark_repo_in_use(self):
+        """Create lock file to indicate repo is being modified"""
+        lock_file = os.path.join(self.repo_dir, '.update-in-progress')
+        with open(lock_file, 'w') as f:
+            f.write(str(datetime.now()))
+
+    def clear_repo_in_use(self):
+        """Remove lock file after modifications complete"""
+        lock_file = os.path.join(self.repo_dir, '.update-in-progress')
+        if os.path.exists(lock_file):
+            os.remove(lock_file)
+            
+    def _count_inodes(self, path: str) -> int:
+        """Count total number of inodes (files + directories) in a path"""
+        total = 0
+        for root, dirs, files in os.walk(path):
+            total += len(dirs) + len(files) + 1  # +1 for root dir itself
+        return total
+
+    def _get_repo_stats(self) -> List[Tuple[str, float, int]]:
+        """Get list of repos with their last access time and inode count"""
+        stats = []
+        if not os.path.exists(self.repo_dir):
+            return stats
+            
+        base_dir = os.path.dirname(self.repo_dir)  # Get the parent directory
+        for item in os.listdir(base_dir):
+            item_path = os.path.join(base_dir, item)
+            if os.path.isdir(item_path):
+                try:
+                    # Skip if it's not a git repo
+                    if not os.path.exists(os.path.join(item_path, '.git')):
+                        continue
+                        
+                    last_access = os.path.getatime(item_path)
+                    inode_count = self._count_inodes(item_path)
+                    stats.append((item_path, last_access, inode_count))
+                except Exception as e:
+                    print(f"[GitService] Warning: Error getting stats for {item_path}: {e}")
+                    continue
+        
+        # Sort by last access time (newest first)
+        return sorted(stats, key=lambda x: x[1], reverse=True)
+
+    def cleanup_old_repos(self):
+        """Clean up repos that haven't been accessed in a while"""
+        try:
+            if not os.path.exists(self.repo_dir):
+                return
+                
+            print(f"[GitService] Starting cleanup of old repos in {self.repo_dir}")
+            repo_stats = self._get_repo_stats()
+            
+            if not repo_stats:
+                print("[GitService] No repositories found")
+                return
+                
+            total_inodes = sum(stats[2] for stats in repo_stats)
+            print(f"[GitService] Total inodes in use: {total_inodes}")
+            
+            # Keep only the 5 most recently accessed repos
+            repos_to_remove = repo_stats[5:]
+            
+            for repo_path, last_access, inode_count in repos_to_remove:
+                try:
+                    print(f"[GitService] Removing {repo_path} (inodes: {inode_count}, last accessed: {datetime.fromtimestamp(last_access)})")
+                    shutil.rmtree(repo_path)
+                    self.db.add_log(self.job_id, "cleanup", f"Removed old repository: {repo_path}")
+                except Exception as e:
+                    print(f"[GitService] Warning: Error cleaning up {repo_path}: {e}")
+                    continue
+                    
+            # Get final inode count
+            remaining_stats = self._get_repo_stats()
+            remaining_inodes = sum(stats[2] for stats in remaining_stats)
+            print(f"[GitService] Cleanup complete. Remaining inodes: {remaining_inodes}")
+                
+        except Exception as e:
+            print(f"[GitService] Warning: Cleanup error: {e}")
+
     def __enter__(self):
         """Context manager entry"""
         return self
@@ -35,10 +135,11 @@ class GitService:
         try:
             if self.repo:
                 print(f"[GitService] Cleaning up repo resources")
+                # Close any open file handles in the repo
                 self.repo.close()
                 self.repo = None
             
-            # Force garbage collection
+            # Force garbage collection to ensure handles are released
             import gc
             gc.collect()
             
@@ -49,21 +150,43 @@ class GitService:
         """Ensure clean state for volume operations"""
         self._cleanup_resources()
         
-        # Get volume reference and ensure clean state
-        from modal_app import github_repos
-        max_retries = 3
-        for attempt in range(max_retries):
+        # Store original working directory
+        original_cwd = os.getcwd()
+        
+        try:
+            # Change to a safe directory outside the volume
+            os.chdir('/tmp')
+            
+            # Get volume reference and ensure clean state
+            from modal_app import github_repos
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    # Close any open files and handles
+                    import gc
+                    gc.collect()  # Force garbage collection to close file handles
+                    
+                    # Attempt to reload the volume
+                    github_repos.reload()
+                    break
+                except Exception as e:
+                    error_msg = str(e)
+                    print(f"[GitService] Reload attempt {attempt + 1} failed: {error_msg}")
+                    
+                    if attempt < max_retries - 1:
+                        print(f"[GitService] Waiting before retry...")
+                        import time
+                        time.sleep(2 * (attempt + 1))  # Exponential backoff
+                        self._cleanup_resources()
+                    else:
+                        print(f"[GitService] All reload attempts failed")
+                        raise
+        finally:
+            # Always restore the original working directory
             try:
-                github_repos.reload()
-                break
+                os.chdir(original_cwd)
             except Exception as e:
-                if "open files" in str(e) and attempt < max_retries - 1:
-                    print(f"[GitService] Retry {attempt + 1}: Waiting for files to close...")
-                    import time
-                    time.sleep(2)  # Wait before retry
-                    self._cleanup_resources()
-                else:
-                    raise
+                print(f"[GitService] Warning: Failed to restore working directory: {e}")
 
     def ensure_repo_ready(self) -> git.Repo:
         """Ensures repository is in a valid, up-to-date state"""
