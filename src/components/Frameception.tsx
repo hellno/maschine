@@ -914,10 +914,7 @@ function SignIn() {
       // Link previous anonymous session
       const anonymousId = posthog.get_distinct_id();
       if (anonymousId.startsWith('anon_')) {
-        posthog.alias({
-          distinctId: authId,
-          alias: anonymousId
-        });
+        posthog.alias(authId, anonymousId);
       }
 
       // Identify with consolidated properties

@@ -6,7 +6,10 @@ import { sendFrameNotification } from "~/lib/notifs";
 
 const requestSchema = z.object({
   fid: z.number(),
-  notificationDetails: notificationDetailsSchema,
+  notificationDetails: z.any().refine((val) => {
+    const result = notificationDetailsSchema.safeParse(val);
+    return result.success;
+  }, "Invalid notification details format"),
 });
 
 export async function POST(request: NextRequest) {
