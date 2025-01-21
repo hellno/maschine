@@ -200,14 +200,31 @@ class UserContext(TypedDict):
 
 
 def expand_user_prompt_with_farcaster_context(prompt: str, user_context: UserContext):
+    """Expand user prompt with their recent Farcaster casts"""
     try:
-        last_ten_casts = get_user_casts(user_context["fid"], 10)
+        # Safely get FID with type checking
+        fid = user_context.get("fid")
+        if not fid:
+            print("Warning: No FID found in user context")
+            return prompt
+
+        # Ensure FID is an integer
+        try:
+            fid = int(fid)
+        except (TypeError, ValueError):
+            print(f"Warning: Invalid FID format: {fid}")
+            return prompt
+
+        last_ten_casts = get_user_casts(fid, 10)
         formatted_casts = [format_cast(c) for c in last_ten_casts]
         cast_context = "\n".join([c for c in formatted_casts if c])
-        return f"{prompt}\nBelow are recent Farcaster posts from {user_context.get('username', '')} {user_context.get('displayName', '')}:\n{cast_context}"
+        
+        username = user_context.get('username', '')
+        display_name = user_context.get('displayName', '')
+        
+        return f"{prompt}\nBelow are recent Farcaster posts from {username} {display_name}:\n{cast_context}"
     except Exception as e:
-        print(
-            f"Warning: expand_user_prompt_with_farcaster_context error: {str(e)}")
+        print(f"Warning: expand_user_prompt_with_farcaster_context error: {str(e)}")
         return prompt
 
 
