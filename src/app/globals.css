@@ -79,3 +79,34 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+
+  /* Scroll animation for project details */
+  .scroll-target {
+    scroll-margin-top: 100px; /* Adjust based on your header height */
+  }
+
+  /* Smooth scroll behavior */
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  /* Keyframe animations */
+  @keyframes fadeSlideIn {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-slide {
+    animation: fadeSlideIn 300ms ease-out;
+  }
+}

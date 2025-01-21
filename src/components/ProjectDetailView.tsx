@@ -94,8 +94,8 @@ function ProjectInfoCard({
         <div className="flex flex-col sm:flex-row gap-3">
           {project.frontend_url && (
             <>
-              <Link href={project.frontend_url}>
-                <Button variant="outline" className="flex-1">
+              <Link href={project.frontend_url} className="flex-1 w-full">
+                <Button variant="outline" className="w-full">
                   <ExternalLink className="w-4 h-4 mr-2" />
                   Open Frame
                 </Button>

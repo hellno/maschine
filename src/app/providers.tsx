@@ -1,5 +1,7 @@
 "use client";
 
+import { ThemeProvider } from "~/components/theme-provider";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import type { Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
@@ -38,11 +40,25 @@ export function Providers({
   session: Session | null;
   children: React.ReactNode;
 }) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    setIsMobile(/Mobi|Android/i.test(navigator.userAgent));
+  }, []);
+
   return (
-    <CSPostHogProvider>
-      <SessionProvider session={session}>
-        <WagmiProvider>{children}</WagmiProvider>
-      </SessionProvider>
-    </CSPostHogProvider>
+    <ThemeProvider
+      attribute="class"
+      defaultTheme={isMobile ? "dark" : "system"}
+      forcedTheme={isMobile ? "dark" : undefined}
+      enableSystem={!isMobile}
+      disableTransitionOnChange
+    >
+      <CSPostHogProvider>
+        <SessionProvider session={session}>
+          <WagmiProvider>{children}</WagmiProvider>
+        </SessionProvider>
+      </CSPostHogProvider>
+    </ThemeProvider>
   );
 }

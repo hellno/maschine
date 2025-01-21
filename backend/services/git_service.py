@@ -155,14 +155,29 @@ class GitService:
             
             print(f"[GitService] Adding all changes")
             self.repo.git.add(A=True)
-            print(f"[GitService] Creating commit")
-            self.repo.index.commit(commit_message)
-            print(f"[GitService] Commit created")
+            
+            # Get list of changed files before commit
+            changed_files = self.repo.git.diff('--cached', '--name-only').splitlines()
+            print(f"[GitService] Files to be committed: {changed_files}")
+            
+            # Create commit and get commit object
+            print(f"[GitService] Creating commit with message: {commit_message}")
+            commit = self.repo.index.commit(commit_message)
+            print(f"[GitService] Commit created: {commit.hexsha}")
+            print(f"[GitService] Commit stats - files: {len(commit.stats.files)}, insertions: {commit.stats.total['insertions']}, deletions: {commit.stats.total['deletions']}")
             
             try:
                 print(f"[GitService] Pushing to remote")
                 print(f"[GitService] Remote URLs: {[remote.url for remote in self.repo.remotes]}")
+                print(f"[GitService] Current branch: {self.repo.active_branch.name}")
+                print(f"[GitService] Local HEAD: {self.repo.head.commit.hexsha}")
+                print(f"[GitService] Remote HEAD before push: {self.repo.remotes.origin.refs.main.commit.hexsha}")
+                
                 self.repo.git.push('origin', 'main')
+                
+                # Fetch to update remote refs
+                self.repo.remotes.origin.fetch()
+                print(f"[GitService] Remote HEAD after push: {self.repo.remotes.origin.refs.main.commit.hexsha}")
                 print(f"[GitService] Push completed successfully")
                 return True
             except git.GitCommandError as e:

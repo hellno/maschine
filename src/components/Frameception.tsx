@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useCallback, useState, useMemo } from "react";
+import { useMobileTheme } from "~/hooks/useMobileTheme";
 import { ProjectOverviewCard } from "./ProjectOverviewCard";
 import { ProjectDetailView } from "./ProjectDetailView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
@@ -37,9 +38,18 @@ import { BigPurpleButton } from "~/components/ui/BigPurpleButton";
 import { truncateAddress } from "~/lib/truncateAddress";
 import { base } from "wagmi/chains";
 import { Button } from "./ui/button";
-import { ArrowUp } from "lucide-react";
+import { ArrowUp, AlertCircle, PlayCircle, Loader2 } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "~/components/ui/sheet";
 import { Project } from "~/lib/types";
 import { hashEmail } from "~/lib/utils";
+import Link from "next/link";
 
 const promptTemplates = [
   {
@@ -73,6 +83,7 @@ type FlowState =
 export default function Frameception(
   { title }: { title?: string } = { title: "Frameception" }
 ) {
+  useMobileTheme();
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [context, setContext] = useState<FrameContext>();
   const [isContextOpen, setIsContextOpen] = useState(false);
@@ -124,7 +135,7 @@ export default function Frameception(
 
   const handleCreateProject = useCallback(async () => {
     try {
-      // Add length validation
+      // Add validation
       if (inputValue.trim().length < 25) {
         throw new Error("Please enter at least 25 characters");
       }
@@ -132,35 +143,16 @@ export default function Frameception(
       setFlowState("pending");
       setCreationError(null);
 
+      // Basic validation
       if (!context?.user?.fid) {
-        throw new Error("User FID is required");
+        throw new Error("User session not found");
       }
-
-      // Check if frame is pinned and ask to pin if not
-      if (!isFramePinned) {
-        addFrame();
-      }
-
-      const response = await fetch("/api/new-frame-project", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt: inputValue,
-          description: "A new Farcaster frame project",
-          verbose: false,
-          userContext: context?.user,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to create project");
-      }
-
-      const { projectId } = await response.json();
-      setSelectedProjectId(projectId);
-      setNewProjectId(projectId);
+      // Scroll to project area
+      setTimeout(() => {
+        document.getElementById("project-detail-view")?.scrollIntoView({
+          behavior: "smooth",
+        });
+      }, 100);
     } catch (error) {
       console.error("Error creating project:", error);
       setCreationError(
@@ -362,121 +354,108 @@ export default function Frameception(
   }, []);
 
   const renderMainContent = () => {
-    if (false && !isFramePinned) {
-      return (
-        <div className="my-20">
-          <h2 className="font-5xl font-bold mb-2">
-            Hey {context?.user.username}, bookmark this to start building your
-            frame
-          </h2>
-          <h3 className="font-2xl mb-4 text-gray-600">
-            We will notify you when your frame is ready!
-          </h3>
-          <BigPurpleButton
-            className="flex justify-center items-center gap-2"
-            onClick={async () => {
-              addFrame().then(() => setFlowState("enteringPrompt"));
-            }}
-          >
-            Get Started
-          </BigPurpleButton>
-        </div>
-      );
-    }
-
     return (
-      <Tabs
-        defaultValue="create_project"
-        className="w-full"
-        value={activeTab}
-        onValueChange={(value) => {
-          setActiveTab(value);
-          if (value === "view_projects") {
-            fetchProjects();
-          }
-        }}
-      >
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="create_project">New</TabsTrigger>
-          <TabsTrigger
-            value="view_projects"
-            onClick={() => {
-              setSelectedProjectId(null);
+      <div id="create-project-form" className="mt-12">
+        <Tabs
+          defaultValue="create_project"
+          className="w-full pt-8"
+          value={activeTab}
+          onValueChange={(value) => {
+            setActiveTab(value);
+            if (value === "view_projects") {
               fetchProjects();
-            }}
-          >
-            Your Frames
-          </TabsTrigger>
-        </TabsList>
+            }
+          }}
+        >
+          <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsTrigger value="create_project">New Project</TabsTrigger>
+            <TabsTrigger
+              value="view_projects"
+              onClick={() => {
+                setSelectedProjectId(null);
+                fetchProjects();
+              }}
+            >
+              My Frames
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="create_project">
-          <Card className="">
-            <CardHeader>
-              <CardTitle>
-                Hey @{context?.user.username}, what frame would you like to
-                build?
-              </CardTitle>
-              <CardDescription>
-                Enter a prompt to start your new frame project.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {flowState === "enteringPrompt" && (
-                <div className="flex flex-col gap-2">
-                  <div className="relative">
-                    <textarea
-                      rows={5}
-                      value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
-                      placeholder="build a linktree for me with the following links..."
-                      className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <div className="absolute bottom-2 right-2 text-sm text-gray-500">
-                      {inputValue.length}/25
+          <TabsContent value="create_project">
+            <div className="space-y-6">
+              <Card className="border-0 shadow-lg">
+                <CardContent className="pt-6">
+                  <div className="space-y-6">
+                    <div className="relative">
+                      <div className="flex justify-between items-center mb-2">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Frame Description
+                        </label>
+                        <span className="text-sm text-gray-500">
+                          {inputValue.length}/25
+                        </span>
+                      </div>
+                      <textarea
+                        rows={3}
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        placeholder="Create a quiz game about crypto trends with 5 multiple choice questions"
+                        className="w-full p-4 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+                      />
                     </div>
+
+                    <Button
+                      size="lg"
+                      className="w-full py-4 text-lg font-semibold"
+                      onClick={handleCreateProject}
+                      disabled={
+                        inputValue.trim().length < 25 || flowState === "pending"
+                      }
+                    >
+                      {flowState === "pending" ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Creating Project...
+                        </>
+                      ) : (
+                        "Start Building →"
+                      )}
+                    </Button>
                   </div>
-                  <BigPurpleButton
-                    className="min-w-full flex items-center justify-center gap-2"
-                    onClick={handleCreateProject}
-                    disabled={inputValue.trim().length < 25}
-                  >
-                    Let&apos;s build it
-                    <ArrowUp className="w-4 h-4" />
-                  </BigPurpleButton>
-                  <div className="mt-4">
-                    <p className="text-sm text-gray-500 mb-2">
-                      Or try one of these templates:
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {promptTemplates.map((template, index) => (
-                        <button
-                          key={index}
-                          onClick={() => setInputValue(template.template)}
-                          className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium
-                                 rounded-full border border-gray-200 bg-gray-50 text-gray-700
-                                 hover:bg-gray-100 hover:border-gray-300 transition-colors
-                                 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
-                        >
+                </CardContent>
+              </Card>
+
+              <div className="mt-8">
+                <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-4 uppercase tracking-wide">
+                  Popular Starting Points
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {promptTemplates.map((template) => (
+                    <button
+                      key={template.title}
+                      onClick={() => setInputValue(template.template)}
+                      className="group p-4 text-left rounded-xl border hover:border-blue-500 dark:border-gray-700 dark:hover:border-blue-600 transition-all bg-white dark:bg-gray-800 hover:shadow-sm"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-gray-900 dark:text-gray-100">
                           {template.title}
-                          <svg
-                            width="12"
-                            height="12"
-                            viewBox="0 0 16 16"
-                            fill="none"
-                            stroke="currentColor"
-                            className="ml-1"
-                          >
-                            <path
-                              d="M6.75 4H6v1.5h.75 2.69L5.47 9.47l-.53.53L6 11.06l.53-.53 3.97-3.97v2.69V10h1.5V9.25V5c0-.55-.45-1-1-1H6.75z"
-                              fill="currentColor"
-                            />
-                          </svg>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                        </span>
+                        <ArrowUp className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-colors transform rotate-45" />
+                      </div>
+                      <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                        {template.template}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {creationError && (
+                <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 rounded-xl text-red-600 dark:text-red-400 flex items-center">
+                  <AlertCircle className="w-5 h-5 mr-2" />
+                  {creationError}
                 </div>
               )}
+
               {(flowState === "pending" || flowState === "success") && (
                 <div className="flex flex-col items-center gap-4">
                   <ProjectDetailView
@@ -485,47 +464,48 @@ export default function Frameception(
                   />
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </div>
+          </TabsContent>
 
-        <TabsContent value="view_projects">
-          {selectedProjectId ? (
-            <div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setSelectedProjectId(null);
-                  fetchProjects();
-                }}
-                className="mb-4"
-              >
-                ← Back to Projects
-              </Button>
-              <ProjectDetailView
-                projectId={selectedProjectId}
-                userContext={context?.user}
-              />
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4">
-              {projects.map((project) => (
-                <ProjectOverviewCard
-                  key={project.id}
-                  project={project}
-                  onClick={() => setSelectedProjectId(project.id)}
+          <TabsContent value="view_projects">
+            {selectedProjectId ? (
+              <div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedProjectId(null);
+                    fetchProjects();
+                  }}
+                  className="mb-4"
+                >
+                  ← Back to Projects
+                </Button>
+                <ProjectDetailView
+                  projectId={selectedProjectId}
+                  userContext={context?.user}
                 />
-              ))}
-              {projects.length === 0 && (
-                <div className="text-center text-gray-500 py-8">
-                  No projects yet. Create your first project in the Create tab!
-                </div>
-              )}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {projects.map((project) => (
+                  <ProjectOverviewCard
+                    key={project.id}
+                    project={project}
+                    onClick={() => setSelectedProjectId(project.id)}
+                  />
+                ))}
+                {projects.length === 0 && (
+                  <div className="text-center text-gray-500 py-8">
+                    No projects yet. Create your first project in the Create
+                    tab!
+                  </div>
+                )}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+      </div>
     );
   };
 
@@ -538,8 +518,71 @@ export default function Frameception(
         paddingRight: context?.client.safeAreaInsets?.right ?? 0,
       }}
     >
-      <div className="mx-auto py-2 px-2 md:px-4">
-        <h1 className="text-2xl font-bold text-center mb-4">{title}</h1>
+      <div className="mx-auto py-2 px-2 md:px-4 max-w-3xl text-center">
+        <div className="mx-auto max-w-3xl lg:pt-8">
+          <div className="mt-8 flex justify-center">
+            <img
+              alt="Frameception Logo"
+              src="/icon.png"
+              className="h-20 w-20 rounded-xl"
+            />
+          </div>
+          <h1 className="mt-4 text-pretty text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl md:text-6xl dark:text-gray-100 mx-8 max-w-xl">
+            Create your own Farcaster frame <br className="hidden md:inline" />
+            <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              in a Farcaster frame
+            </span>
+          </h1>
+          <div className="mt-4 sm:mt-8 lg:mt-10">
+            <div className="flex justify-center space-x-4">
+              <span className="rounded-full bg-blue-600/10 px-3 py-1 text-sm/6 font-semibold text-blue-600 ring-1 ring-inset ring-blue-600/10 dark:bg-blue-400/20 dark:text-blue-300 dark:ring-blue-400/30">
+                What&apos;s new
+              </span>
+              <Sheet>
+                <SheetTrigger className="inline-flex items-center space-x-2 text-sm/6 font-medium text-gray-600 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 transition-colors">
+                  <PlayCircle className="w-4 h-4" />
+                  <span>Watch v0.1 Demo</span>
+                </SheetTrigger>
+                <SheetContent className="w-full max-w-4xl sm:max-w-6xl">
+                  <SheetHeader>
+                    <SheetTitle>Frameception Demo</SheetTitle>
+                  </SheetHeader>
+                  <div
+                    className="relative mt-4"
+                    style={{ paddingTop: "56.25%" }}
+                  >
+                    <iframe
+                      src="https://player.vimeo.com/video/1047553467?h=af29b86b8e&badge=0&autopause=0&player_id=0&app_id=58479"
+                      allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; presentation"
+                      className="absolute top-0 left-0 w-full h-full rounded-lg"
+                      title="frameception-demo"
+                    />
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </div>
+          </div>
+          {/* <p className="mt-6 text-pretty text-lg font-medium text-gray-600 sm:text-xl/8 dark:text-gray-400 mx-auto max-w-2xl">
+            From idea to live frame to share with the world. Create your own
+            Farcaster frame right here.
+          </p> */}
+          <div className="mt-10 flex justify-center">
+            <button
+              onClick={() => {
+                document.getElementById("create-project-form")?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "start",
+                });
+              }}
+              className="relative inline-flex h-20 overflow-hidden rounded-full p-[1px] focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-50 disabled:opacity-75 disabled:cursor-not-allowed transition-opacity"
+            >
+              <span className="absolute inset-[-1000%] animate-[spin_3s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2CBFF_0%,#393BB2_50%,#E2CBFF_100%)]" />
+              <span className="inline-flex h-full w-full items-center justify-center rounded-full bg-slate-950 px-8 py-2 text-xl font-medium text-white backdrop-blur-3xl">
+                Start Building
+              </span>
+            </button>
+          </div>
+        </div>
 
         {renderMainContent()}
 
@@ -896,10 +939,10 @@ function SignIn() {
   }, [getNonce]);
 
   useEffect(() => {
-    if (status === 'authenticated' && session?.user) {
+    if (status === "authenticated" && session?.user) {
       const { user } = session;
       let authId: string;
-      
+
       // Generate appropriate ID
       if (user.fid) {
         authId = `fc_${user.fid}`;
@@ -913,7 +956,7 @@ function SignIn() {
 
       // Link previous anonymous session
       const anonymousId = posthog.get_distinct_id();
-      if (anonymousId.startsWith('anon_')) {
+      if (anonymousId.startsWith("anon_")) {
         posthog.alias(authId, anonymousId);
       }
 
@@ -922,7 +965,7 @@ function SignIn() {
         auth_method: user.authMethod,
         fid: user.fid,
         email: user.email,
-        wallet_address: user.walletAddress
+        wallet_address: user.walletAddress,
       });
     }
   }, [status, session]);

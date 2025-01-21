@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-
 import { getSession } from "~/auth"
 import "~/app/globals.css";
 import { Providers } from "~/app/providers";
+import Script from "next/script";
 
 export const metadata: Metadata = {
   title: "frameception",
@@ -14,12 +14,28 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const session = await getSession()
+  const session = await getSession();
   
   return (
-    <html lang="en">
-      <body>
-        <Providers session={session}>{children}</Providers>
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <Script id="touch-init" strategy="beforeInteractive">
+          {`
+            (function() {
+              // Add touch detection class only
+              document.documentElement.classList.add(
+                'ontouchstart' in window || navigator.maxTouchPoints > 0
+                  ? 'touch'
+                  : 'no-touch'
+              );
+            })();
+          `}
+        </Script>
+      </head>
+      <body className="min-h-screen bg-background antialiased">
+        <Providers session={session}>
+          {children}
+        </Providers>
       </body>
     </html>
   );
