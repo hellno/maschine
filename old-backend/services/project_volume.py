@@ -6,8 +6,6 @@ from modal import CloudBucketMount
 
 class ProjectVolume:
     """Manages project files in S3 bucket using CloudBucketMount"""
-    BASE_MOUNT = "/s3-projects"
-    BUCKET_NAME = "frameception-projects-prod"  # Hardcoded bucket name
     
     def __init__(self, project_id: str):
         self.project_id = project_id

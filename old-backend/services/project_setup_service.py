@@ -10,7 +10,7 @@ from backend.utils.project_utils import (
     sanitize_project_name,
     generate_domain_association,
 )
-from backend.db import Database
+from backend.integrations.db import Database
 from backend.config.project_config import ProjectConfig
 from backend.services.vercel_service import VercelService
 from backend.services.project_volume import ProjectVolume
@@ -77,11 +77,9 @@ class ProjectSetup:
             shutil.rmtree(repo_path)
 
         self.repo = git.Repo.clone_from(
-            ProjectConfig.GITHUB["TEMPLATE_REPO"],
-            repo_path,
-            depth=1
+            ProjectConfig.GITHUB["TEMPLATE_REPO"], repo_path, depth=1
         )
-        
+
         # Validate URL format using shared parser
         org, repo = parse_github_url(ProjectConfig.GITHUB["TEMPLATE_REPO"])
         self._log(f"Cloned repository: {org}/{repo}")

@@ -6,7 +6,7 @@ from backend.utils.github_utils import parse_github_url
 from git import Repo
 from typing import Dict, List, Optional
 from tenacity import retry, stop_after_attempt, wait_exponential
-from backend.db import Database
+from backend.integrations.db import Database
 from backend.utils.helpers import generate_random_secret
 
 class VercelService:

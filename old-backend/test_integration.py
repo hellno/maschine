@@ -8,7 +8,7 @@ import modal
 from backend.modal_instance import app, base_image, volumes
 from backend.services.project_setup_service import ProjectSetup, ProjectVolume
 from backend.config.project_config import ProjectConfig
-from backend.db import Database
+from backend.integrations.db import Database
 from modal import method
 
 TEST_PROJECT_ID = "bf42bd63-2274-4114-8ed0-a03961319242"

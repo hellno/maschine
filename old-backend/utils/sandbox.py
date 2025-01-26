@@ -5,7 +5,7 @@ import time
 from typing import Optional, Tuple, List
 from modal.container_process import ContainerProcess
 from modal import Sandbox
-from backend.db import Database
+from backend.integrations.db import Database
 
 
 class SandboxCommandExecutor:

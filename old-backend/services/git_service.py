@@ -5,7 +5,7 @@ from typing import Optional, Tuple, List
 import time  # Moved to top level
 from pathlib import Path
 from datetime import datetime
-from backend.db import Database
+from backend.integrations.db import Database
 from backend.config.project_config import ProjectConfig
 from backend.services.project_volume import ProjectVolume
 
