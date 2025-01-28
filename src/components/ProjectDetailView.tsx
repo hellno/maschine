@@ -459,19 +459,16 @@ export function ProjectDetailView({
       const currentId = posthog.get_distinct_id();
 
       // Only alias if not already identified with FID
-      if (!currentId.startsWith('fc_')) {
+      if (!currentId.startsWith("fc_")) {
         // Create alias from session ID → FID
         posthog.alias(fidId, currentId);
-        
+
         // Identify future events with FID
         posthog.identify(fidId, {
           farcaster_username: userContext.username,
           farcaster_display_name: userContext.displayName,
-          farcaster_fid: userContext.fid
+          farcaster_fid: userContext.fid,
         });
-        
-        // Immediately flush events for frame environments
-        posthog.flush();
       }
     }
   }, [userContext?.fid]); // Only runs when FID changes
