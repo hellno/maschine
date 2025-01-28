@@ -1,4 +1,5 @@
 import os
+import modal
 from typing import Optional
 import git
 from aider.coders import Coder
@@ -40,16 +41,7 @@ class CodeService:
             repo = clone_repo_url_to_dir(repo_url, repo_dir)
             configure_git_user_for_repo(repo)
 
-            # ai! encapsulate into standalone class function of CodeService
-            try:
-                commits_behind, commits_ahead = repo.git.rev_list(
-                    "--left-right", "--count", "origin/main...main"
-                ).split()
-                if int(commits_ahead) > 0:
-                    print(f"[update_code] Pushing {commits_ahead} pending commits...")
-                    repo.git.push("origin", "main")
-            except git.GitCommandError as e:
-                print(f"[update_code] Git status check skipped: {str(e)}")
+            self._sync_git_changes(repo)
 
             # Set up file paths
             fnames = [os.path.join(repo_dir, f) for f in DEFAULT_PROJECT_FILES]
@@ -104,21 +96,49 @@ class CodeService:
 
             shutil.rmtree(repo_dir, ignore_errors=True)
 
+    def _sync_git_changes(self, repo: git.Repo):
+        """Sync any pending git changes with the remote repository."""
+        try:
+            commits_behind, commits_ahead = repo.git.rev_list(
+                "--left-right", "--count", "origin/main...main"
+            ).split()
+            if int(commits_ahead) > 0:
+                print(f"[update_code] Pushing {commits_ahead} pending commits...")
+                repo.git.push("origin", "main")
+        except git.GitCommandError as e:
+            print(f"[update_code] Git status check skipped: {str(e)}")
+
     def run_build_in_sandbox(self):
-        # ai! todo: implement this function
-        # we can run sandbox code via modal like this: https://modal.com/docs/reference/modal.Sandbox#snapshot_filesystem
-        # https://modal.com/docs/guide/sandbox
-        # we can re-use the same environment that we have for the whole app
-        # app = modal.App.lookup("my-app")
-        # modal.Sandbox.create("echo", "hi", app=app)
-        # more example code:
-        # import modal
-        # sb = modal.Sandbox.create(app=app)
-        # p = sb.exec("python", "-c", "print('hello')")
-        # print(p.stdout.read())
-        # p = sb.exec("bash", "-c", "for i in {1..10}; do date +%T; sleep 0.5; done")
-        # for line in p.stdout:
-        #     # Avoid double newlines by using end="".
-        #     print(line, end="")
-        # sb.terminate()
-        pass
+        """Run build commands in an isolated Modal sandbox."""
+        try:
+            # Create sandbox with the same environment as the main app
+            app = modal.App.lookup(config.APP_NAME)
+            sandbox = modal.Sandbox.create(
+                app=app,
+                timeout=config.TIMEOUTS["BUILD"],  # Use appropriate timeout from config
+            )
+
+            # Run npm/pnpm build commands
+            process = sandbox.exec("pnpm", "install")
+            for line in process.stdout:
+                self.db.add_log(self.job_id, "build", line.strip())
+            
+            process = sandbox.exec("pnpm", "build") 
+            for line in process.stdout:
+                self.db.add_log(self.job_id, "build", line.strip())
+
+            # Check build success
+            if process.returncode != 0:
+                raise Exception("Build failed")
+
+            return {"status": "success"}
+
+        except Exception as e:
+            error_msg = f"Build failed: {str(e)}"
+            self.db.add_log(self.job_id, "build", error_msg)
+            self.db.update_job_status(self.job_id, "failed", error_msg)
+            return {"status": "error", "error": error_msg}
+        
+        finally:
+            if 'sandbox' in locals():
+                sandbox.terminate()
