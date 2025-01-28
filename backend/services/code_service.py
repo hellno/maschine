@@ -1,6 +1,6 @@
 import os
 import modal
-from typing import Optional
+from typing import Optional, Tuple
 import git
 from aider.coders import Coder
 from aider.models import Model
@@ -69,6 +69,12 @@ class CodeService:
 
             aider_result = coder.run(self.prompt)
             print(f"[update_code] Aider result (truncated): {aider_result[:250]}")
+            has_errors, logs = self.run_build_in_sandbox(repo_dir)
+
+            if has_errors:
+                # ai! do another round of coder.run with aider
+                # this time with fix build error from the following logs
+                pass
 
             try:
                 repo = git.Repo(repo_dir)
@@ -108,37 +114,60 @@ class CodeService:
         except git.GitCommandError as e:
             print(f"[update_code] Git status check skipped: {str(e)}")
 
-    def run_build_in_sandbox(self):
+    def run_build_in_sandbox(self, repo_dir: str) -> Tuple[bool, str]:
         """Run build commands in an isolated Modal sandbox."""
         try:
             # Create sandbox with the same environment as the main app
+            logs = []
             app = modal.App.lookup(config.APP_NAME)
             sandbox = modal.Sandbox.create(
                 app=app,
-                timeout=config.TIMEOUTS["BUILD"],  # Use appropriate timeout from config
+                timeout=config.TIMEOUTS["BUILD"],
+                mounts=[modal.Mount.from_local_dir(repo_dir, remote_path="/repo")],
+                workdir="/repo",
             )
 
-            # Run npm/pnpm build commands
             process = sandbox.exec("pnpm", "install")
             for line in process.stdout:
-                self.db.add_log(self.job_id, "build", line.strip())
-            
-            process = sandbox.exec("pnpm", "build") 
+                logs.append(line.strip())
+                print(line.strip())
+
+            process = sandbox.exec("pnpm", "build")
             for line in process.stdout:
-                self.db.add_log(self.job_id, "build", line.strip())
+                logs.append(line.strip())
+                print(line.strip())
 
+            sandbox.wait()
+
+            # Error: Command xyz exited with 1
+            has_error_in_logs = any(
+                "error" in line.lower()
+                or "failed" in line.lower()
+                or "exited with 1" in line.lower()
+                for line in logs
+            )
+
+            logs_cleaned = [line for line in logs if not line.startswith("warning")]
+            logs_str = "\n".join(logs_cleaned)
+            # Error: Command "yarn build" exited with 1
             # Check build success
-            if process.returncode != 0:
-                raise Exception("Build failed")
+            # if process.returncode != 0:
+            #     raise Exception("Build failed")
+            returncode = process.returncode
+            print(
+                f"sandbox results: has_error_in_logs {has_error_in_logs} returncode {returncode} logs_str {logs_str} "
+            )
 
-            return {"status": "success"}
+            sandbox.terminate()
+
+            return has_error_in_logs, logs_str
 
         except Exception as e:
             error_msg = f"Build failed: {str(e)}"
             self.db.add_log(self.job_id, "build", error_msg)
             self.db.update_job_status(self.job_id, "failed", error_msg)
             return {"status": "error", "error": error_msg}
-        
+
         finally:
-            if 'sandbox' in locals():
+            if "sandbox" in locals():
                 sandbox.terminate()
