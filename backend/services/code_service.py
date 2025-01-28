@@ -16,17 +16,21 @@ class CodeService:
         
         self.db = Database()
 
-    def run():
-        # ai! todo:
-        # 1. fix the paths, we just need one temporary directory 
-        # 2. clone the github repo clone_repo_to_dir(repo_url, dir_path)
-        # 2. asdasdasd
+    def run(self):
+        # Create temporary directory
+        import tempfile
+        repo_dir = tempfile.mkdtemp()
         
+        # Get project details and clone repo
+        project = self.db.get_project(self.project_id)
+        repo_url = project["repo_url"]
+        clone_repo_to_dir(repo_url, repo_dir)
         
+        # Set up file paths
         fnames = [
-            os.path.join(sandbox_test_cmd.workdir, f) for f in DEFAULT_PROJECT_FILES
+            os.path.join(repo_dir, f) for f in DEFAULT_PROJECT_FILES
         ]
-        llm_docs_dir = f"{repo.working_tree_dir}/llm_docs"
+        llm_docs_dir = os.path.join(repo_dir, "llm_docs")
         read_only_fnames = []
         if os.path.exists(llm_docs_dir):
             read_only_fnames = [
@@ -48,14 +52,14 @@ class CodeService:
             read_only_fnames=read_only_fnames,
         )
 
-        print(f"[update_code] Running Aider with prompt: {prompt}")
+        print(f"[update_code] Running Aider with prompt: {self.prompt}")
         try:
-            aider_result = coder.run(prompt)
+            aider_result = coder.run(self.prompt)
             print(f"[update_code] Aider result (truncated): {aider_result[:250]}")
 
         except Exception as e:
             error_msg = f"Aider run failed: {str(e)}"
             print(f"[update_code] {error_msg}")
-            self.db.add_log(job_id, "backend", error_msg)
-            self.db.update_job_status(job_id, "failed", error_msg)
+            self.db.add_log(self.job_id, "backend", error_msg)
+            self.db.update_job_status(self.job_id, "failed", error_msg)
             return error_msg
