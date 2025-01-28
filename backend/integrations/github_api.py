@@ -16,6 +16,22 @@ def get_github_instance():
     return Github(os.environ["GITHUB_TOKEN"])
 
 
+def clone_repo_url_to_dir(repo_url: str, dir_path: str):
+    """Clone a GitHub repository to a directory"""
+    # ai! todo:
+    # repo_url might start with https:// or maybe not
+    # output should be: https://<token>@github.com/<username>/<repo>.git
+    # token is in: os.environ['GITHUB_TOKEN']
+    return git.Repo.clone_from(repo_url, dir_path)
+
+
+def configure_git_user_for_repo(repo: git.Repo):
+    """Configure git user for a repository"""
+
+    repo.config_writer().set_value("user", "name", GITHUB["COMMIT_NAME"]).release()
+    repo.config_writer().set_value("user", "email", GITHUB["COMMIT_EMAIL"]).release()
+
+
 class GithubApi:
     def __init__(
         self, job_id: str, project_name: str, username: str, description: str = None
@@ -93,12 +109,7 @@ class GithubApi:
                 new_repo = git.Repo.clone_from(new_repo_url, new_repo_path)
 
                 # Configure git user
-                new_repo.config_writer().set_value(
-                    "user", "name", GITHUB["COMMIT_NAME"]
-                ).release()
-                new_repo.config_writer().set_value(
-                    "user", "email", GITHUB["COMMIT_EMAIL"]
-                ).release()
+                configure_git_user_for_repo(new_repo)
 
                 # Copy template files to new repo
                 self.db.add_log(self.job_id, "github", "Copying template files...")
