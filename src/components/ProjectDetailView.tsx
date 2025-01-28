@@ -472,8 +472,8 @@ export function ProjectDetailView({
       farcaster_display_name: userContext.displayName,
       farcaster_fid: userContext.fid,
     });
+  }, [userContext]); // Only runs when FID changes
 
-  }, [userContext?.fid]); // Only runs when FID changes
   const [logs, setLogs] = useState<Log[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [updatePrompt, setUpdatePrompt] = useState("");
