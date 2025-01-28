@@ -454,23 +454,25 @@ export function ProjectDetailView({
   const [project, setProject] = useState<Project | null>(null);
 
   useEffect(() => {
-    if (userContext?.fid && posthog) {
-      const fidId = `fc_${userContext.fid}`;
-      const currentId = posthog.get_distinct_id();
+    // Only run if we have both PostHog and a user FID
+    if (!userContext?.fid || !posthog?.isFeatureEnabled) return;
 
-      // Only alias if not already identified with FID
-      if (!currentId.startsWith("fc_")) {
-        // Create alias from session ID → FID
-        posthog.alias(fidId, currentId);
+    const fidId = `fc_${userContext.fid}`;
+    const currentId = posthog.get_distinct_id();
 
-        // Identify future events with FID
-        posthog.identify(fidId, {
-          farcaster_username: userContext.username,
-          farcaster_display_name: userContext.displayName,
-          farcaster_fid: userContext.fid,
-        });
-      }
-    }
+    // Skip if already identified with this FID
+    if (currentId === fidId) return;
+
+    // Create alias from session ID → FID
+    posthog.alias(fidId, currentId);
+
+    // Identify future events with FID
+    posthog.identify(fidId, {
+      farcaster_username: userContext.username,
+      farcaster_display_name: userContext.displayName,
+      farcaster_fid: userContext.fid,
+    });
+
   }, [userContext?.fid]); // Only runs when FID changes
   const [logs, setLogs] = useState<Log[]>([]);
   const [error, setError] = useState<string | null>(null);
