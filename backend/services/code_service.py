@@ -72,9 +72,26 @@ class CodeService:
             has_errors, logs = self.run_build_in_sandbox(repo_dir)
 
             if has_errors:
-                # ai! do another round of coder.run with aider
-                # this time with fix build error from the following logs
-                pass
+                error_fix_prompt = f"""
+                The previous changes caused build errors. Please fix them.
+                Here are the build logs showing the errors:
+                
+                {logs}
+                
+                Please analyze these errors and make the necessary corrections to fix the build.
+                """
+                print(f"[update_code] Running Aider again to fix build errors")
+                self.db.add_log(self.job_id, "backend", "Attempting to fix build errors...")
+                
+                # Run another round of fixes
+                aider_result = coder.run(error_fix_prompt)
+                print(f"[update_code] Fix attempt result (truncated): {aider_result[:250]}")
+                
+                # Verify the fixes worked
+                has_errors, logs = self.run_build_in_sandbox(repo_dir)
+                if has_errors:
+                    print("[update_code] Build errors persist after fix attempt")
+                    self.db.add_log(self.job_id, "backend", "Build errors could not be automatically fixed")
 
             try:
                 repo = git.Repo(repo_dir)
