@@ -29,7 +29,19 @@ class CodeService:
             project = self.db.get_project(self.project_id)
             repo_url = project["repo_url"]
             clone_repo_to_dir(repo_url, repo_dir)
-            configure_git_user_for_repo(git.Repo(repo_dir))
+            repo = git.Repo(repo_dir)
+            configure_git_user_for_repo(repo)
+
+            # Check if we're ahead of origin and push if needed
+            try:
+                commits_behind, commits_ahead = repo.git.rev_list(
+                    "--left-right", "--count", "origin/main...main"
+                ).split()
+                if int(commits_ahead) > 0:
+                    print(f"[update_code] Pushing {commits_ahead} pending commits...")
+                    repo.git.push("origin", "main")
+            except git.GitCommandError as e:
+                print(f"[update_code] Git status check skipped: {str(e)}")
 
             # Set up file paths
             fnames = [os.path.join(repo_dir, f) for f in DEFAULT_PROJECT_FILES]
