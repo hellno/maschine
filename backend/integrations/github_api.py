@@ -18,11 +18,21 @@ def get_github_instance():
 
 def clone_repo_url_to_dir(repo_url: str, dir_path: str):
     """Clone a GitHub repository to a directory"""
-    # ai! todo:
-    # repo_url might start with https:// or maybe not
-    # output should be: https://<token>@github.com/<username>/<repo>.git
-    # token is in: os.environ['GITHUB_TOKEN']
-    return git.Repo.clone_from(repo_url, dir_path)
+    # Ensure URL starts with https://github.com/
+    if not repo_url.startswith('https://github.com/'):
+        repo_url = f"https://github.com/{repo_url}"
+    
+    # Insert GitHub token for authentication
+    auth_url = repo_url.replace(
+        'https://github.com/',
+        f'https://{os.environ["GITHUB_TOKEN"]}@github.com/'
+    )
+    
+    # Ensure .git extension
+    if not auth_url.endswith('.git'):
+        auth_url += '.git'
+        
+    return git.Repo.clone_from(auth_url, dir_path)
 
 
 def configure_git_user_for_repo(repo: git.Repo):
