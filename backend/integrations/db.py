@@ -62,7 +62,7 @@ class Database:
     def update_job_status(self, job_id: str, status: str, error: Optional[str] = None):
         """Update job status"""
         print(
-            f"Updating job {job_id}: status={status}, error={
+            f"updating job {job_id}: status={status}, error={
                 error if error else 'None'
             }"
         )
@@ -120,7 +120,7 @@ class Database:
 
     def update_project_vercel_info(self, project_id: str, vercel_info: dict):
         """Update project with Vercel deployment information"""
-        print(f"Updating project {project_id} with Vercel info: {vercel_info}")
+        print(f"updating project {project_id} with Vercel info: {vercel_info}")
         self.client.table("projects").update(
             {
                 "vercel_project_id": vercel_info.get("id"),
@@ -129,7 +129,7 @@ class Database:
 
     def update_project_github_repo_id(self, project_id: str, github_repo_id: str):
         """Update project with GitHub repo ID"""
-        print(f"Updating project {project_id} with GitHub repo ID: {github_repo_id}")
+        print(f"updating project {project_id} with GitHub repo ID: {github_repo_id}")
         self.client.table("projects").update(
             {
                 "github_repo_id": github_repo_id,
@@ -139,5 +139,5 @@ class Database:
     # generic project update method
     def update_project(self, project_id: str, data: dict):
         """Update project with given data"""
-        print(f"Updating project {project_id} with data: {data}")
+        print(f"updating project {project_id} with data: {data}")
         self.client.table("projects").update(data).eq("id", project_id).execute()

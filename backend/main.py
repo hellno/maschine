@@ -1,25 +1,26 @@
+from backend.types import UserContext
 import modal
 
-from backend.modal import app, volumes
+from backend.modal import app, volumes, all_secrets, db_secrets
 from backend import config
 from backend.integrations.db import Database
 
 
-@app.function(secrets=[modal.Secret.from_name("supabase-secret")])
+@app.function(secrets=db_secrets)
 @modal.web_endpoint(label="create-project-webhook", method="POST", docs=True)
 def create_project_webhook(data: dict) -> dict:
     """
     Webhook that creates a project record and triggers background job.
     """
     print(f"received webhook data: {data}")
-    required_fields = ["prompt", "userContext"]
+    required_fields = ["prompt", "user_context"]
     for field in required_fields:
         if field not in data:
             return {"error": f"Missing required field: {field}"}, 400
 
     db = Database()
     project_id = db.create_project(
-        fid_owner=data["userContext"]["fid"],
+        fid_owner=data["user_context"]["fid"],
         repo_url="",
         frontend_url="",
     )
@@ -34,8 +35,8 @@ def create_project_webhook(data: dict) -> dict:
     create_project.spawn(create_project_data)
     return {
         "status": "pending",
-        "projectId": project_id,
-        "jobId": job_id,
+        "project_id": project_id,
+        "job_id": job_id,
         "message": "Project setup started",
     }
 
@@ -43,17 +44,8 @@ def create_project_webhook(data: dict) -> dict:
 @app.function(
     volumes=volumes,
     timeout=config.TIMEOUTS["PROJECT_SETUP"],
-    secrets=[
-        modal.Secret.from_name("github-secret"),
-        modal.Secret.from_name("vercel-secret"),
-        modal.Secret.from_name("llm-api-keys"),
-        modal.Secret.from_name("supabase-secret"),
-        modal.Secret.from_name("upstash-secret"),
-        modal.Secret.from_name("farcaster-secret"),
-        modal.Secret.from_name("neynar-secret"),
-        modal.Secret.from_name("redis-secret"),
-        modal.Secret.from_name("aws-secret"),
-    ],
+    secrets=all_secrets,
+    name=config.MODAL_CREATE_PROJECT_FUNCTION_NAME,
 )
 def create_project(data: dict) -> dict:
     from backend.services.project_service import ProjectService
@@ -65,28 +57,30 @@ def create_project(data: dict) -> dict:
     ProjectService(project_id, job_id, user_payload).run()
 
 
-@app.function()
+@app.function(secrets=db_secrets)
 @modal.web_endpoint(label="update-code-webhook", method="POST", docs=True)
 def update_code_webhook(data: dict) -> dict:
     """
     Webhook that updates the code for a project.
     """
     print(f"received webhook data: {data}")
-    required_fields = ["prompt", "projectId", "userContext"]
+    required_fields = ["prompt", "project_id", "user_context"]
     for field in required_fields:
         if field not in data:
             return {"error": f"Missing required field: {field}"}, 400
 
     db = Database()
-    job_id = db.create_job(project_id=data["projectId"], job_type="update_code", data=data)
-    
+    job_id = db.create_job(
+        project_id=data["project_id"], job_type="update_code", data=data
+    )
+
     # Create an async function call without waiting for results
     update_code.spawn(data)
 
     return {
         "status": "pending",
-        "projectId": data["projectId"],
-        "jobId": job_id,
+        "project_id": data["project_id"],
+        "job_id": job_id,
         "message": "Code update started",
     }
 
@@ -94,24 +88,15 @@ def update_code_webhook(data: dict) -> dict:
 @app.function(
     volumes=volumes,
     timeout=config.TIMEOUTS["PROJECT_SETUP"],
-    secrets=[
-        modal.Secret.from_name("github-secret"),
-        modal.Secret.from_name("vercel-secret"),
-        modal.Secret.from_name("llm-api-keys"),
-        modal.Secret.from_name("supabase-secret"),
-        modal.Secret.from_name("upstash-secret"),
-        modal.Secret.from_name("farcaster-secret"),
-        modal.Secret.from_name("neynar-secret"),
-        modal.Secret.from_name("redis-secret"),
-        modal.Secret.from_name("aws-secret"),
-    ],
+    secrets=all_secrets,
+    name=config.MODAL_UPDATE_CODE_FUNCTION_NAME,
 )
 def update_code(data: dict) -> dict:
     from backend.services.code_service import CodeService
 
-    project_id = data["projectId"]
+    project_id = data["project_id"]
     prompt = data["prompt"]
-    user_context = data["userContext"]
+    user_context: UserContext = data["user_context"]
 
     db = Database()
 

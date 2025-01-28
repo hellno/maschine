@@ -49,17 +49,18 @@ def generate_project_name(prompt: str) -> str:
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a helpful assistant that generates short, memorable project names for a Farcaster Frame project. Only respond with the project name, 2-3 words max, no 'or' or &*/ chars.",
+                    "content": "You are a helpful assistant that generates short, memorable project names for a Farcaster Frame project. Only respond with one project name. 2-3 words max for this one name. no 'or' or &*/ chars.",
                 },
                 {
                     "role": "user",
-                    "content": f"Generate a short, memorable project name based on this description: {prompt}",
+                    "content": f"Generate one short, memorable project name based on this description: {prompt}",
                 },
             ],
             max_tokens=50,
             temperature=2,
         )
-        project_name = response.choices[0].message.content.strip().replace('"', "")
+        llm_content = response.choices[0].message.content.strip()
+        project_name = llm_content.split("\n")[0].replace('"', "").strip()
         return project_name[:50]  # Limit length
     except Exception as e:
         print(f"Warning: Could not generate project name: {str(e)}")

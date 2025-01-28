@@ -1,3 +1,8 @@
+import json
+from backend import config
+from backend.types import UserContext
+import modal
+
 from backend.integrations.github_api import GithubApi
 from backend.integrations.vercel_api import VercelApi
 from backend.integrations.db import Database
@@ -11,9 +16,12 @@ class ProjectService:
         self.project_id = project_id
         self.job_id = job_id
         self.data = data
-        self.user_context = data["userContext"]
+        self.user_context: UserContext = data["user_context"]
 
         self.db = Database()
+        self.update_code_function = modal.Function.lookup(
+            config.APP_NAME, config.MODAL_UPDATE_CODE_FUNCTION_NAME
+        )
 
     def run(self):
         self._log("Starting project setup")
@@ -65,7 +73,7 @@ class ProjectService:
         customization_steps = [
             self._update_metadata,
             self._setup_domain_association,
-            self._customize_from_user_prompt,
+            self._customize_from_user_input,
         ]
 
         for step in customization_steps:
@@ -74,8 +82,8 @@ class ProjectService:
     def _update_metadata(self):
         """Update metadata in code to reflect project setup"""
         self._log("Updating project metadata")
-        print("should call update_code function via modal lookup here")
-        self._call_update_prompt_function("prompt")
+        metadata_prompt = get_metadata_prompt(self.project_name)
+        self._call_update_code_function(metadata_prompt)
 
     def _setup_domain_association(self):
         """setup domain association for farcaster frame v2 to reflect user connection to new vercel domain"""
@@ -83,31 +91,48 @@ class ProjectService:
         print("should call update_code function via modal lookup here")
         domain = f"{self.project_name}.vercel.app"
         domain_association = generate_domain_association(domain)
-        self._call_update_prompt_function("prompt")
+        update_domain_association_prompt = f"""
+        Update src/app/.well-known/farcaster.json/route.ts so that the 'accountAssociation' field returns the following domain association:
+        {json.dumps(domain_association["json"], indent=2)}
+        Only update the accountAssociation field.
+        """
+        self._call_update_code_function(update_domain_association_prompt)
 
-    def _customize_from_user_prompt(self):
+    def _customize_from_user_input(self):
         """Apply user-specific customizations to frame configuration"""
         prompt = self.data["prompt"]
         self._log(f"Applying initial customization: {prompt[:50]}...")
-        self._call_update_prompt_function(prompt)
+        customize_from_user_input_prompt = get_template_customization_prompt(
+            self.project_name, prompt
+        )
+        self._call_update_code_function(customize_from_user_input_prompt)
 
-    def _call_update_prompt_function(self, prompt: str):
-        print("should call update_code function via modal lookup here")
+    def _call_update_code_function(self, prompt: str):
+        print("calling update_code_function with prompt:", prompt)
+        print("function:", self.update_code_function)
+        data = dict(
+            project_id=self.project_id,
+            prompt=prompt,
+            user_context=self.user_context,
+        )
+        print('data:', data)
+        result = self.update_code_function.remote(data)
+        print("update_code_function result:", result)
 
     def _log(self, message: str, level: str = "info"):
         print(f"[{level.upper()}] ProjectService {message}")
-        # self.db.add_log(self.job_id, "setup", message)
+        self.db.add_log(self.job_id, "setup", message)
 
     def _validate_data(self):
         if not self.data.get("prompt"):
             raise Exception("Missing user prompt in data")
 
-        if not self.data.get("userContext"):
+        if not self.data.get("user_context"):
             raise Exception("Missing user context in data")
 
         user_context_keys = ["username", "fid"]
         for key in user_context_keys:
-            if not self.data["userContext"].get(key):
+            if not self.data["user_context"].get(key):
                 raise Exception(f"Missing {key} in user context")
 
 
@@ -120,3 +145,18 @@ Focus on:
 1. Updating Frame component in src/components/Frame.tsx
 2. Adding constants to src/lib/constants.ts
 3. Simple implementation following Farcaster best practices"""
+
+
+def get_metadata_prompt(project_name: str) -> str:
+    """Generate metadata update prompt."""
+    return f"""
+Update the following files to customize the project metadata:
+1. In src/lib/constants.ts:
+   set PROJECT_ID to "{project_name}"
+   set PROJECT_TITLE to "{project_name}"
+   set PROJECT_DESCRIPTION to a brief description of the project
+2. In src/app/opengraph-image.tsx:
+   - Reflect the project name "{project_name}"
+   - Include a matching color or layout
+   - Keep a simple one-page brand layout
+"""

@@ -1,5 +1,4 @@
 import modal
-from modal import CloudBucketMount
 from backend import config
 
 CONTAINER_ENV_VARS = {
@@ -44,7 +43,7 @@ app = modal.App(name=config.APP_NAME, image=base_image)
 #     secret=modal.Secret.from_name("aws-secret"),
 #     read_only=False,
 #     key_prefix="projects/",
-    
+
 # )
 
 volumes = {
@@ -59,3 +58,19 @@ volumes = {
         config.VOLUMES["PNPM_STORE"], create_if_missing=True
     ),
 }
+
+all_secrets = [
+    modal.Secret.from_name("github-secret"),
+    modal.Secret.from_name("vercel-secret"),
+    modal.Secret.from_name("llm-api-keys"),
+    modal.Secret.from_name("supabase-secret"),
+    modal.Secret.from_name("upstash-secret"),
+    modal.Secret.from_name("farcaster-secret"),
+    modal.Secret.from_name("neynar-secret"),
+    modal.Secret.from_name("redis-secret"),
+    modal.Secret.from_name("aws-secret"),
+]
+
+db_secrets = [
+    modal.Secret.from_name("supabase-secret"),
+]

@@ -19,19 +19,21 @@ def get_github_instance():
 def clone_repo_url_to_dir(repo_url: str, dir_path: str):
     """Clone a GitHub repository to a directory"""
     # Ensure URL starts with https://github.com/
-    if not repo_url.startswith('https://github.com/'):
-        repo_url = f"https://github.com/{repo_url}"
-    
+    if repo_url.startswith("github.com/"):
+        repo_url = f"https://{repo_url}"
+
+    if not repo_url.startswith("https://github.com/"):
+        raise ValueError("Invalid GitHub repository URL")
+
     # Insert GitHub token for authentication
     auth_url = repo_url.replace(
-        'https://github.com/',
-        f'https://{os.environ["GITHUB_TOKEN"]}@github.com/'
+        "https://github.com/", f"https://{os.environ['GITHUB_TOKEN']}@github.com/"
     )
-    
+
     # Ensure .git extension
-    if not auth_url.endswith('.git'):
-        auth_url += '.git'
-        
+    if not auth_url.endswith(".git"):
+        auth_url += ".git"
+
     return git.Repo.clone_from(auth_url, dir_path)
 
 
@@ -112,12 +114,11 @@ class GithubApi:
                 self.db.add_log(self.job_id, "github", "Cloning template...")
                 git.Repo.clone_from(template_git_url, template_path)
 
-                # Clone new empty repo
-                new_repo_url = f"https://{os.environ['GITHUB_TOKEN']}@github.com/{self.repo.full_name}.git"
                 new_repo_path = os.path.join(temp_dir, "new-repo")
                 self.db.add_log(self.job_id, "github", "Setting up new repo...")
-                new_repo = git.Repo.clone_from(new_repo_url, new_repo_path)
-
+                new_repo = clone_repo_url_to_dir(
+                    f"https://github.com/{self.repo.full_name}.git", new_repo_path
+                )
                 # Configure git user
                 configure_git_user_for_repo(new_repo)
 

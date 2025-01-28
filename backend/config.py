@@ -7,10 +7,13 @@ GITHUB = {
 }
 
 APP_NAME = "frameception"
+MODAL_UPDATE_CODE_FUNCTION_NAME = "update_code"
+MODAL_CREATE_PROJECT_FUNCTION_NAME = "create_project"
 
 TIMEOUTS = {
     "CODE_UPDATE": 1200,  # 20 mins
     "PROJECT_SETUP": 3600,  # 1 hour
+    "BUILD": 600,  # 10 mins
 }
 
 VOLUMES = {
@@ -23,6 +26,16 @@ PATHS = {
     "GITHUB_REPOS": "/github-repos",
     "SHARED_NODE_MODULES": "/shared/node_modules",
     "PNPM_STORE": "/pnpm-store",
+}
+
+AIDER_CONFIG = {
+    "MODEL": {
+        "model": "sonnet",
+        # "model": "r1", # deepseek has API issues right now :(
+        # "editor_model": "deepseek/deepseek-chat",
+        # "weak_model": "deepseek/deepseek-chat",
+    },
+    "CODER": {"verbose": True, "cache_prompts": True},
 }
 
 BASE_MOUNT = "/s3-projects"

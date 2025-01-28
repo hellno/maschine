@@ -6,6 +6,7 @@ from aider.coders import Coder
 from aider.models import Model
 from aider.io import InputOutput
 from backend import config
+from backend.modal import base_image
 from backend.integrations.db import Database
 from backend.integrations.github_api import (
     clone_repo_url_to_dir,
@@ -72,26 +73,26 @@ class CodeService:
             has_errors, logs = self.run_build_in_sandbox(repo_dir)
 
             if has_errors:
-                error_fix_prompt = f"""
-                The previous changes caused build errors. Please fix them.
-                Here are the build logs showing the errors:
-                
-                {logs}
-                
-                Please analyze these errors and make the necessary corrections to fix the build.
-                """
-                print(f"[update_code] Running Aider again to fix build errors")
-                self.db.add_log(self.job_id, "backend", "Attempting to fix build errors...")
-                
+                error_fix_prompt = get_error_fix_prompt_from_logs(logs)
+                print("[update_code] Running Aider again to fix build errors")
+
                 # Run another round of fixes
                 aider_result = coder.run(error_fix_prompt)
-                print(f"[update_code] Fix attempt result (truncated): {aider_result[:250]}")
-                
+                print(
+                    f"[update_code] Fix attempt result (truncated): {aider_result[:250]}"
+                )
+
                 # Verify the fixes worked
-                has_errors, logs = self.run_build_in_sandbox(repo_dir)
+                has_errors, logs = self.run_build_in_sandbox(
+                    repo_dir, terminate_on_success=True
+                )
                 if has_errors:
                     print("[update_code] Build errors persist after fix attempt")
-                    self.db.add_log(self.job_id, "backend", "Build errors could not be automatically fixed")
+                    self.db.add_log(
+                        self.job_id,
+                        "backend",
+                        "Build errors could not be automatically fixed",
+                    )
 
             try:
                 repo = git.Repo(repo_dir)
@@ -131,32 +132,39 @@ class CodeService:
         except git.GitCommandError as e:
             print(f"[update_code] Git status check skipped: {str(e)}")
 
-    def run_build_in_sandbox(self, repo_dir: str) -> Tuple[bool, str]:
+    def run_build_in_sandbox(
+        self, repo_dir: str, terminate_on_success: bool = False
+    ) -> Tuple[bool, str]:
         """Run build commands in an isolated Modal sandbox."""
         try:
-            # Create sandbox with the same environment as the main app
             logs = []
             app = modal.App.lookup(config.APP_NAME)
             sandbox = modal.Sandbox.create(
                 app=app,
-                timeout=config.TIMEOUTS["BUILD"],
-                mounts=[modal.Mount.from_local_dir(repo_dir, remote_path="/repo")],
+                image=base_image.add_local_dir(repo_dir, remote_path="/repo"),
+                cpu=2,
+                memory=4096,
                 workdir="/repo",
+                timeout=config.TIMEOUTS["BUILD"],
             )
+            sandbox.set_tags({"project_id": self.project_id, "job_id": self.job_id})
 
+            print("[update_code] Running install command")
             process = sandbox.exec("pnpm", "install")
             for line in process.stdout:
-                logs.append(line.strip())
-                print(line.strip())
+                print("[install]", line.strip())
+            process.wait()
 
+            print("[update_code] Running build command")
             process = sandbox.exec("pnpm", "build")
             for line in process.stdout:
                 logs.append(line.strip())
-                print(line.strip())
+                print("[build]", line.strip())
+            for line in process.stderr:
+                logs.append(line.strip())
+                print("[build ERR]", line.strip())
+            process.wait()
 
-            sandbox.wait()
-
-            # Error: Command xyz exited with 1
             has_error_in_logs = any(
                 "error" in line.lower()
                 or "failed" in line.lower()
@@ -164,18 +172,15 @@ class CodeService:
                 for line in logs
             )
 
-            logs_cleaned = [line for line in logs if not line.startswith("warning")]
+            logs_cleaned = clean_log_lines(logs)
             logs_str = "\n".join(logs_cleaned)
-            # Error: Command "yarn build" exited with 1
-            # Check build success
-            # if process.returncode != 0:
-            #     raise Exception("Build failed")
             returncode = process.returncode
             print(
                 f"sandbox results: has_error_in_logs {has_error_in_logs} returncode {returncode} logs_str {logs_str} "
             )
-
-            sandbox.terminate()
+            if terminate_on_success:
+                print("[update_code] Terminating sandbox after successful build")
+                sandbox.terminate()
 
             return has_error_in_logs, logs_str
 
@@ -188,3 +193,28 @@ class CodeService:
         finally:
             if "sandbox" in locals():
                 sandbox.terminate()
+
+
+def get_error_fix_prompt_from_logs(logs: str) -> str:
+    """Extract a prompt from build logs to fix errors."""
+    return f"""
+    The previous changes caused build errors. Please fix them.
+    Here are the build logs showing the errors:
+    
+    {logs}
+    
+    Please analyze these errors and make the necessary corrections to fix the build.
+    """
+
+
+def clean_log_lines(logs: list[str]) -> list[str]:
+    """Clean up log lines for display."""
+    urls_to_skip = ["nextjs.org/telemetry", "vercel.com/docs/analytics"]
+
+    return [
+        line
+        for line in logs
+        if line
+        and not line.startswith("warning")
+        and not any(url in line for url in urls_to_skip)
+    ]

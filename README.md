@@ -6,10 +6,15 @@
 
 pnpm dev
 
-# Prepare test repo
+# Deploy backend
 
-modal run backend/test_integration.py::setup_integration_test
+```bash
+modal deploy backend/main.py
+```
 
-# Run integration test
 
-modal run backend/test_integration.py::run_integration_test
+# todo:
+1. fix llm returns name in example:
+'NeonFramePhoenix  \nTronPulseVibe  \nCyberVibesHub'
+
+2. add sandbox so we can run pnpm build after new commits
