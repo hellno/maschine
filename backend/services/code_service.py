@@ -62,10 +62,14 @@ class CodeService:
             print(f"[update_code] Aider result (truncated): {aider_result[:250]}")
 
             # Git operations
-            repo = git.Repo(repo_dir)
-            repo.git.add(A=True)
-            repo.git.commit("-m", f"Auto update: {self.prompt[:50]}...")
-            repo.git.push("origin", "main")
+            try:
+                repo = git.Repo(repo_dir)
+                repo.git.add(A=True)
+                repo.git.commit("-m", f"Auto update: {self.prompt[:50]}...")
+                repo.git.push("origin", "main")
+            except git.GitCommandError as e:
+                print(f"[update_code] Git operation skipped: {str(e)}")
+                # Continue execution - don't treat this as a fatal error
 
             self.db.update_job_status(self.job_id, "completed")
             return {"status": "success", "result": aider_result}
