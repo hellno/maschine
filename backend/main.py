@@ -77,11 +77,16 @@ def update_code_webhook(data: dict) -> dict:
         if field not in data:
             return {"error": f"Missing required field: {field}"}, 400
 
+    db = Database()
+    job_id = db.create_job(project_id=data["projectId"], job_type="update_code", data=data)
+    
     # Create an async function call without waiting for results
     update_code.spawn(data)
 
     return {
         "status": "pending",
+        "projectId": data["projectId"],
+        "jobId": job_id,
         "message": "Code update started",
     }
 
