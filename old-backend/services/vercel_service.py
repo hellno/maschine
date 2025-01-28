@@ -1,16 +1,18 @@
 import os
 import time
 import requests
+import git
+from backend.utils.github_utils import parse_github_url
+from git import Repo
 from typing import Dict, List, Optional
 from tenacity import retry, stop_after_attempt, wait_exponential
-from backend.db import Database
+from backend.integrations.db import Database
 from backend.utils.helpers import generate_random_secret
-
 
 class VercelService:
     """Handles all Vercel-related operations with retries and error handling."""
 
-    def __init__(self, config: dict, db: Database, job_id: str):
+    def __init__(self, config: dict, db: Database, repo: Repo, job_id: str):
         self.config = config
         self.db = db
         self.job_id = job_id
@@ -20,24 +22,26 @@ class VercelService:
         }
         self.base_url = "https://api.vercel.com/v9"
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=10))
-    def create_project(self, repo_name: str, repo: object) -> dict:
+    def create_project(self, project_name: str, repo: git.Repo) -> dict:
         """Create a Vercel project with environment setup and deployment verification."""
         try:
+            # Parse GitHub URL using shared utility
+            remote_url = repo.remotes.origin.url
+            org_name, repo_name = parse_github_url(remote_url)
+            repo_full_name = f"{org_name}/{repo_name}"
+
             # Check if project already exists
-            existing = self._get_project(repo_name)
+            existing = self._get_project(project_name)
             if existing:
-                self.db.add_log(self.job_id, "vercel", f"Project {repo_name} already exists")
                 return existing
 
-            # Create new project
             project_data = {
-                "name": repo_name,
+                "name": project_name,
                 "framework": self.config["FRAMEWORK"],
                 "gitRepository": {
                     "type": "github",
-                    "repo": repo.full_name,
-                    "productionBranch": "main"
+                    "repo": repo_full_name,
+                    "productionBranch": "main",
                 },
                 "installCommand": self.config["INSTALL_CMD"],
                 "buildCommand": self.config["BUILD_CMD"],
@@ -46,11 +50,11 @@ class VercelService:
 
             response = requests.post(
                 f"{self.base_url}/projects",
-                params={"teamId": self.config['TEAM_ID']},
+                params={"teamId": self.config["TEAM_ID"]},
                 headers=self.headers,
                 json=project_data,
             )
-            
+
             if not response.ok:
                 raise Exception(f"Failed to create project: {response.text}")
 
@@ -59,11 +63,11 @@ class VercelService:
 
             # Set up environment variables
             self._setup_env_vars(repo_name)
-            
+
             # Trigger initial deployment
             deployment = self._trigger_deployment(repo_name)
             if deployment:
-                self._wait_for_deployment(deployment['id'])
+                self._wait_for_deployment(deployment["id"])
 
             return vercel_project
 
@@ -76,14 +80,13 @@ class VercelService:
         try:
             response = requests.get(
                 f"{self.base_url}/projects/{name}",
-                params={"teamId": self.config['TEAM_ID']},
-                headers=self.headers
+                params={"teamId": self.config["TEAM_ID"]},
+                headers=self.headers,
             )
             return response.json() if response.ok else None
         except Exception:
             return None
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=10))
     def _setup_env_vars(self, project_name: str) -> None:
         """Set up required environment variables with retry logic."""
         env_vars = [
@@ -121,28 +124,24 @@ class VercelService:
         try:
             response = requests.post(
                 f"{self.base_url}/projects/{project_name}/env",
-                params={"teamId": self.config['TEAM_ID']},
+                params={"teamId": self.config["TEAM_ID"]},
                 headers=self.headers,
                 json=env_var,
             )
-            
+
             if not response.ok:
                 self.db.add_log(
                     self.job_id,
                     "vercel",
-                    f"Failed to set {env_var['key']}: {response.text}"
+                    f"Failed to set {env_var['key']}: {response.text}",
                 )
             else:
                 self.db.add_log(
-                    self.job_id,
-                    "vercel",
-                    f"Set environment variable: {env_var['key']}"
+                    self.job_id, "vercel", f"Set environment variable: {env_var['key']}"
                 )
         except Exception as e:
             self.db.add_log(
-                self.job_id,
-                "vercel",
-                f"Error setting {env_var['key']}: {str(e)}"
+                self.job_id, "vercel", f"Error setting {env_var['key']}: {str(e)}"
             )
 
     def _trigger_deployment(self, project_name: str) -> Optional[dict]:
@@ -150,32 +149,25 @@ class VercelService:
         try:
             response = requests.post(
                 f"{self.base_url}/deployments",
-                params={"teamId": self.config['TEAM_ID']},
+                params={"teamId": self.config["TEAM_ID"]},
                 headers=self.headers,
                 json={
                     "name": project_name,
                     "target": "production",
-                    "gitSource": {
-                        "type": "github",
-                        "ref": "main"
-                    }
-                }
+                    "gitSource": {"type": "github", "ref": "main"},
+                },
             )
-            
+
             if response.ok:
                 deployment = response.json()
                 self.db.add_log(
-                    self.job_id,
-                    "vercel",
-                    f"Triggered deployment: {deployment['id']}"
+                    self.job_id, "vercel", f"Triggered deployment: {deployment['id']}"
                 )
                 return deployment
             return None
         except Exception as e:
             self.db.add_log(
-                self.job_id,
-                "vercel",
-                f"Error triggering deployment: {str(e)}"
+                self.job_id, "vercel", f"Error triggering deployment: {str(e)}"
             )
             return None
 
@@ -186,38 +178,32 @@ class VercelService:
             try:
                 response = requests.get(
                     f"{self.base_url}/deployments/{deployment_id}",
-                    params={"teamId": self.config['TEAM_ID']},
-                    headers=self.headers
+                    params={"teamId": self.config["TEAM_ID"]},
+                    headers=self.headers,
                 )
-                
+
                 if response.ok:
-                    status = response.json().get('state')
-                    if status == 'READY':
+                    status = response.json().get("state")
+                    if status == "READY":
                         self.db.add_log(
-                            self.job_id,
-                            "vercel",
-                            "Deployment completed successfully"
+                            self.job_id, "vercel", "Deployment completed successfully"
                         )
                         return True
-                    elif status in ['ERROR', 'CANCELED']:
+                    elif status in ["ERROR", "CANCELED"]:
                         self.db.add_log(
                             self.job_id,
                             "vercel",
-                            f"Deployment failed with status: {status}"
+                            f"Deployment failed with status: {status}",
                         )
                         return False
-                
+
                 time.sleep(10)
             except Exception as e:
                 self.db.add_log(
-                    self.job_id,
-                    "vercel",
-                    f"Error checking deployment status: {str(e)}"
+                    self.job_id, "vercel", f"Error checking deployment status: {str(e)}"
                 )
-                
+
         self.db.add_log(
-            self.job_id,
-            "vercel",
-            f"Deployment timed out after {timeout} seconds"
+            self.job_id, "vercel", f"Deployment timed out after {timeout} seconds"
         )
         return False

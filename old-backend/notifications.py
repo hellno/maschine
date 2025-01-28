@@ -77,6 +77,11 @@ class NotificationService:
             if not redis_url or not redis_token:
                 raise ValueError("Missing Redis credentials")
 
+            if not redis_url or not redis_token:
+                raise RuntimeError(
+                    "Redis configuration missing. Set KV_REST_API_URL and KV_REST_API_TOKEN."
+                )
+                
             self._redis_client = redis.Redis(
                 host=redis_url,
                 password=redis_token,

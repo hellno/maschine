@@ -1,22 +1,24 @@
 import os
 import git
 import shutil
-import time
 from typing import Optional, Tuple, List
+import time  # Moved to top level
 from pathlib import Path
 from datetime import datetime
-from backend.db import Database
+from backend.integrations.db import Database
 from backend.config.project_config import ProjectConfig
+from backend.services.project_volume import ProjectVolume
 
 class GitService:
     """Manages Git operations with robust state handling and recovery"""
     
-    def __init__(self, repo_path: str, job_id: str, db: Database, enable_backup: bool = False):
-        print(f"[GitService] Initializing for repo: {repo_path}, job: {job_id}")
-        self.repo_path = repo_path
+    def __init__(self, project_id: str, job_id: str, db: Database, enable_backup: bool = False):
+        print(f"[GitService] Initializing for project: {project_id}, job: {job_id}")
+        self.project_id = project_id
         self.job_id = job_id
         self.db = db
-        self.repo_dir = os.path.join(ProjectConfig.PATHS["GITHUB_REPOS"], repo_path)
+        self.volume = ProjectVolume(project_id)
+        self.repo_dir = self.volume.paths["repo"]
         self.repo: Optional[git.Repo] = None
         self.enable_backup = enable_backup
         self.backup_dir = os.path.join(self.repo_dir + "_backup", datetime.now().isoformat()) if enable_backup else None
@@ -47,16 +49,27 @@ class GitService:
         return True
 
     def mark_repo_in_use(self):
-        """Create lock file to indicate repo is being modified"""
+        """Create lock file atomically"""
+        import tempfile
+        import shutil
+        
+        # Ensure parent directory exists
+        os.makedirs(self.repo_dir, exist_ok=True)
+        
+        lock_file = os.path.join(self.repo_dir, '.update-in-progress')
+        temp_file = None
         try:
-            # Ensure parent directory exists
-            os.makedirs(self.repo_dir, exist_ok=True)
-            
-            lock_file = os.path.join(self.repo_dir, '.update-in-progress')
-            with open(lock_file, 'w') as f:
+            # Create temp file with timestamp
+            fd, temp_file = tempfile.mkstemp(dir=os.path.dirname(self.repo_dir))
+            with os.fdopen(fd, 'w') as f:
                 f.write(str(datetime.now()))
+            
+            # Atomic move
+            shutil.move(temp_file, lock_file)
             print(f"[GitService] Created lock file: {lock_file}")
         except Exception as e:
+            if temp_file and os.path.exists(temp_file):
+                os.unlink(temp_file)
             print(f"[GitService] Warning: Failed to create lock file: {e}")
             # Don't raise the exception - if we can't create the lock file,
             # we should still try to proceed with the update
@@ -77,12 +90,12 @@ class GitService:
     def _get_repo_stats(self) -> List[Tuple[str, float, int]]:
         """Get list of repos with their last access time and inode count"""
         stats = []
-        if not os.path.exists(self.repo_dir):
+        volume_root = ProjectConfig.PATHS["GITHUB_REPOS"]
+        if not os.path.exists(volume_root):
             return stats
             
-        base_dir = os.path.dirname(self.repo_dir)  # Get the parent directory
-        for item in os.listdir(base_dir):
-            item_path = os.path.join(base_dir, item)
+        for item in os.listdir(volume_root):
+            item_path = os.path.join(volume_root, item)
             if os.path.isdir(item_path):
                 try:
                     # Skip if it's not a git repo
@@ -146,41 +159,51 @@ class GitService:
     def _cleanup_resources(self):
         """Clean up resources and file handles"""
         try:
+            # Change to safe directory first
+            print(f"[GitService] Starting cleanup from: {os.getcwd()}")
+            os.chdir('/tmp')
+            print(f"[GitService] Changed to safe directory: {os.getcwd()}")
+            
             if self.repo:
                 print(f"[GitService] Cleaning up repo resources")
-                # Close any open file handles in the repo
-                self.repo.close()
+                try:
+                    # Close all git objects and references
+                    for submodule in self.repo.submodules:
+                        submodule.remove()
+                    
+                    # Close all remote references
+                    for remote in self.repo.remotes:
+                        remote.remove(self.repo, remote.name)
+                    
+                    # Force close the repo
+                    self.repo.close()
+                    
+                    # Clear git object cache if it exists
+                    pack_dir = os.path.join(self.repo_dir, '.git', 'objects', 'pack')
+                    if os.path.exists(pack_dir):
+                        print(f"[GitService] Cleaning pack directory: {pack_dir}")
+                        git.util.rmtree(pack_dir)
+                        os.makedirs(pack_dir, exist_ok=True)
+                except Exception as e:
+                    print(f"[GitService] Warning: Error closing repo: {e}")
+                
+                # Clear the repo reference
                 self.repo = None
-            
-            # Force garbage collection to ensure handles are released
+                
+            # Force garbage collection
             import gc
             gc.collect()
             
-            # Change to safe directory
-            os.chdir('/tmp')
-            
-            # Force sync filesystem
+            # Force sync filesystem and commit volume
             os.sync()
-            time.sleep(1)  # Give OS time to close handles
+            from modal_app import github_repos
+            github_repos.commit()
+            time.sleep(0.5)
             
-            # Additional cleanup for git pack files if repo dir exists
-            if os.path.exists(self.repo_dir):
-                pack_dir = os.path.join(self.repo_dir, '.git', 'objects', 'pack')
-                if os.path.exists(pack_dir):
-                    print(f"[GitService] Found git pack directory: {pack_dir}")
-                    try:
-                        # List any pack files for debugging
-                        pack_files = [f for f in os.listdir(pack_dir) if f.endswith('.pack')]
-                        print(f"[GitService] Pack files present: {pack_files}")
-                        
-                        # Force close handles
-                        os.sync()
-                        time.sleep(1)
-                    except Exception as e:
-                        print(f"[GitService] Warning: Pack file inspection error: {e}")
+            print(f"[GitService] Cleanup completed")
             
         except Exception as e:
-            print(f"[GitService] Warning: Cleanup error: {str(e)}")
+            print(f"[GitService] Cleanup warning: {e}")
 
     def _ensure_clean_state(self):
         """Ensure clean state for volume operations"""
@@ -192,6 +215,7 @@ class GitService:
         try:
             # Change to a safe directory outside the volume
             os.chdir('/tmp')
+            print(f"[GitService] Changed to safe directory: {os.getcwd()}")
             
             # Get volume reference and ensure clean state
             from modal_app import github_repos
@@ -204,15 +228,23 @@ class GitService:
                     
                     # Force close git pack files
                     if self.repo:
+                        # Close all git objects and references
+                        for submodule in self.repo.submodules:
+                            submodule.remove()
+                        for remote in self.repo.remotes:
+                            remote.remove(self.repo, remote.name)
                         self.repo.close()
                         self.repo = None
                     
-                    # Force sync filesystem
+                    # Force sync filesystem and commit volume
                     os.sync()
+                    github_repos.commit()
                     time.sleep(1)  # Give OS time to close handles
                     
                     # Attempt to reload the volume
+                    print(f"[GitService] Attempting volume reload...")
                     github_repos.reload()
+                    print(f"[GitService] Volume reload successful")
                     break
                 except Exception as e:
                     error_msg = str(e)
@@ -220,8 +252,7 @@ class GitService:
                     
                     if attempt < max_retries - 1:
                         print(f"[GitService] Waiting before retry...")
-                        import time
-                        time.sleep(2 * (attempt + 1))  # Exponential backoff
+                        time.sleep(2 * (attempt + 1))  # Use time from top import
                         self._cleanup_resources()
                     else:
                         print(f"[GitService] All reload attempts failed")
@@ -230,6 +261,7 @@ class GitService:
             # Always restore the original working directory
             try:
                 os.chdir(original_cwd)
+                print(f"[GitService] Restored working directory: {os.getcwd()}")
             except Exception as e:
                 print(f"[GitService] Warning: Failed to restore working directory: {e}")
 
@@ -239,12 +271,13 @@ class GitService:
             print(f"[GitService] Starting ensure_repo_ready for {self.repo_path}")
             self._ensure_clean_state()
             
-            if not self._is_valid_repo():
-                print(f"[GitService] No valid repo found at {self.repo_dir}, will clone fresh")
-                self._clone_fresh()
-            else:
-                print(f"[GitService] Found existing repo at {self.repo_dir}, validating")
-                self._validate_and_repair()
+            # Always do fresh clone
+            print(f"[GitService] Starting fresh clone")
+            if os.path.exists(self.repo_dir):
+                print(f"[GitService] Removing existing directory: {self.repo_dir}")
+                shutil.rmtree(self.repo_dir)
+            
+            self._clone_fresh()
             
             if not self.repo:
                 raise Exception("Failed to initialize repository")

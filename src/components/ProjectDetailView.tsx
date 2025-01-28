@@ -1,4 +1,13 @@
 import { useEffect, useState, useCallback } from "react";
+import posthog from "posthog-js";
+
+declare module "next-auth" {
+  interface Session {
+    posthog?: {
+      identified: boolean;
+    };
+  }
+}
 import { ConversationMessage } from "./ConversationMessage";
 import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
 import { ProjectStatusIndicator } from "./ProjectStatusIndicator";
@@ -443,6 +452,28 @@ export function ProjectDetailView({
   userContext,
 }: ProjectDetailViewProps) {
   const [project, setProject] = useState<Project | null>(null);
+
+  useEffect(() => {
+    // Only run if we have both PostHog and a user FID
+    if (!userContext?.fid || !posthog?.isFeatureEnabled) return;
+
+    const fidId = `fc_${userContext.fid}`;
+    const currentId = posthog.get_distinct_id();
+
+    // Skip if already identified with this FID
+    if (currentId === fidId) return;
+
+    // Create alias from session ID → FID
+    posthog.alias(fidId, currentId);
+
+    // Identify future events with FID
+    posthog.identify(fidId, {
+      farcaster_username: userContext.username,
+      farcaster_display_name: userContext.displayName,
+      farcaster_fid: userContext.fid,
+    });
+  }, [userContext]); // Only runs when FID changes
+
   const [logs, setLogs] = useState<Log[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [updatePrompt, setUpdatePrompt] = useState("");
@@ -623,7 +654,11 @@ export function ProjectDetailView({
   }
 
   if (error) {
-    return <div className="text-red-500 p-4 text-center">Error: {error}</div>;
+    return (
+      <div className="text-red-500 p-4 text-center break-words max-w-md">
+        Error: {error}
+      </div>
+    );
   }
 
   if (!project) {

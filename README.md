@@ -1,48 +1,20 @@
-# 🖼️² frameception
+# frameception
 
-# todo mon 13.01.2024
-- [ ] runthrough of the process including new .well-known/vercel.json
-- [ ] add a button to copy the url to clipboard
+![frameception iamge](docs/image.png)
 
-# done sun 12.01.2024
-- get frame v2 manifest and url for deploymetn
+# Run frontend
 
+pnpm dev
 
-# done thu 09.01.2024
-- create new repo for frames-v2-template
-- update with all shadcdn
-- make frontend beautiful with tailwindcss
-- call backend function from nextjs serverless
+# Deploy backend
 
-# done wed 08.01.2024
-- fix NEXTAUTH_SECRET in env variables for vercel deployment
-- build backend
-
-# done monday 06.01.2024
-
-- add text input box
-- add a button
-- trigger serverside function
-
-- write script that (???)
-    - creates new github repo (???)
-    - deploys to vercel automatically (???)
-    - return URL to user
-
-- create main repo with default frame implementation
-    - shadcdn, etc
+```bash
+modal deploy backend/main.py
+```
 
 
+# todo:
+1. fix llm returns name in example:
+'NeonFramePhoenix  \nTronPulseVibe  \nCyberVibesHub'
 
-## Dev
-### Install frontend
-yarn install
-
-### Run frontend locally
-yarn dev
-
-### Deploy backend
-modal deploy modal/modal_app.py
-
-### Run cloudflare tunnel
-cloudflared tunnel --url http://localhost:3000
+2. add sandbox so we can run pnpm build after new commits
