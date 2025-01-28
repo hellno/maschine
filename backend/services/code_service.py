@@ -4,7 +4,10 @@ from aider.coders import Coder
 from aider.models import Model
 from aider.io import InputOutput
 from backend.integrations.db import Database
-from backend.integrations.github_api import clone_repo_to_dir
+from backend.integrations.github_api import (
+    clone_repo_to_dir,
+    configure_git_user_for_repo,
+)
 import tempfile
 
 DEFAULT_PROJECT_FILES = ["src/components/Frame.tsx", "src/lib/constants.ts"]
@@ -26,6 +29,7 @@ class CodeService:
             project = self.db.get_project(self.project_id)
             repo_url = project["repo_url"]
             clone_repo_to_dir(repo_url, repo_dir)
+            configure_git_user_for_repo(git.Repo(repo_dir))
 
             # Set up file paths
             fnames = [os.path.join(repo_dir, f) for f in DEFAULT_PROJECT_FILES]
@@ -40,8 +44,9 @@ class CodeService:
 
             io = InputOutput(yes=True, root=repo_dir)
             model = Model(
-                model="r1",
-                editor_model="deepseek/deepseek-chat",
+                # model="r1",
+                model="sonnet",
+                # editor_model="deepseek/deepseek-chat",
             )
             coder = Coder.create(
                 io=io,
@@ -52,15 +57,15 @@ class CodeService:
 
             print(f"[update_code] Running Aider with prompt: {self.prompt}")
             self.db.update_job_status(self.job_id, "running")
-            
+
             aider_result = coder.run(self.prompt)
             print(f"[update_code] Aider result (truncated): {aider_result[:250]}")
 
             # Git operations
             repo = git.Repo(repo_dir)
             repo.git.add(A=True)
-            repo.git.commit('-m', f'Auto update: {self.prompt[:50]}...')
-            repo.git.push('origin', 'main')
+            repo.git.commit("-m", f"Auto update: {self.prompt[:50]}...")
+            repo.git.push("origin", "main")
 
             self.db.update_job_status(self.job_id, "completed")
             return {"status": "success", "result": aider_result}
@@ -75,4 +80,5 @@ class CodeService:
         finally:
             # Cleanup temporary directory
             import shutil
+
             shutil.rmtree(repo_dir, ignore_errors=True)
