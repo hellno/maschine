@@ -88,10 +88,7 @@ class CodeService:
                         "Build errors could not be automatically fixed",
                     )
 
-            repo = git.Repo(self.repo_dir)
-            if repo.is_dirty():
-                self._sync_git_changes(repo)
-
+            self._sync_git_changes()
             self.db.update_job_status(self.job_id, "completed")
             return {"status": "success", "result": aider_result}
 
@@ -134,15 +131,20 @@ class CodeService:
         self.is_setup = True
         print("[update_code] CodeService setup complete")
 
-    def _sync_git_changes(self, repo: git.Repo):
+    def _sync_git_changes(self):
         """Sync any pending git changes with the remote repository."""
         try:
-            commits_behind, commits_ahead = repo.git.rev_list(
-                "--left-right", "--count", "origin/main...main"
-            ).split()
-            if int(commits_ahead) > 0:
-                print(f"[update_code] Pushing {commits_ahead} pending commits...")
-                repo.git.push("origin", "main")
+            print("[update_code] Syncing git changes in repo dir", self.repo_dir)
+            repo = git.Repo(self.repo_dir)
+            # commits_behind, commits_ahead = repo.git.rev_list(
+            #     "--left-right", "--count", "origin/main...main"
+            # ).split()
+            # print(
+            #     f"[update_code] Commits behind: {commits_behind}, ahead: {commits_ahead}"
+            # )
+            # if int(commits_ahead) > 0:
+            #     print(f"[update_code] Pushing {commits_ahead} pending commits...")
+            repo.git.push("origin", "main")
         except git.GitCommandError as e:
             print(f"[update_code] sync git changes failed: {str(e)}")
 
@@ -159,9 +161,19 @@ class CodeService:
         """Run build commands in an isolated Modal sandbox."""
         try:
             logs = []
-            # ai! give me the files in the sandbox repo dir
 
-            print("[update_code] Running build command")
+            # Show git status and latest commit
+            print("[build] Current git status:")
+            git_status = self.sandbox.exec("git", "status")
+            for line in git_status.stdout:
+                print("[git]", line.strip())
+
+            print("[build] Latest commit:")
+            git_log = self.sandbox.exec("git", "log", "-1", "--oneline")
+            for line in git_log.stdout:
+                print("[git]", line.strip())
+
+            print("[build] Running build command")
             process = self.sandbox.exec("pnpm", "build")
             for line in process.stdout:
                 logs.append(line.strip())
@@ -188,6 +200,7 @@ class CodeService:
                 print("[update_code] Terminating sandbox after build")
                 self.terminate_sandbox()
                 import shutil
+
                 shutil.rmtree(self.repo_dir, ignore_errors=True)
 
             return has_error_in_logs, logs_str
