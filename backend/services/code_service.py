@@ -18,8 +18,6 @@ from backend.types import UserContext
 
 DEFAULT_PROJECT_FILES = ["src/components/Frame.tsx", "src/lib/constants.ts"]
 
-#ai! sandbox should be a instance variable
-# and add a method to terminate the sandbox
 class CodeService:
     def __init__(
         self,
@@ -35,6 +33,7 @@ class CodeService:
         self.user_context = user_context
         self.manual_sandbox_termination = manual_sandbox_termination
         self.db = Database()
+        self.sandbox = None  # Initialize sandbox as None
 
     def run(self):
         repo_dir = tempfile.mkdtemp()
@@ -134,6 +133,15 @@ class CodeService:
         except git.GitCommandError as e:
             print(f"[update_code] Git status check skipped: {str(e)}")
 
+    def terminate_sandbox(self):
+        """Safely terminate the sandbox if it exists."""
+        if self.sandbox:
+            try:
+                self.sandbox.terminate()
+                self.sandbox = None
+            except Exception as e:
+                print(f"Error terminating sandbox: {str(e)}")
+
     def run_build_in_sandbox(
         self, repo_dir: str, terminate_on_success: bool = False
     ) -> Tuple[bool, str]:
@@ -141,7 +149,7 @@ class CodeService:
         try:
             logs = []
             app = modal.App.lookup(config.APP_NAME)
-            sandbox = modal.Sandbox.create(
+            self.sandbox = modal.Sandbox.create(
                 app=app,
                 image=base_image.add_local_dir(repo_dir, remote_path="/repo"),
                 cpu=2,
@@ -149,16 +157,16 @@ class CodeService:
                 workdir="/repo",
                 timeout=config.TIMEOUTS["BUILD"],
             )
-            sandbox.set_tags({"project_id": self.project_id, "job_id": self.job_id})
+            self.sandbox.set_tags({"project_id": self.project_id, "job_id": self.job_id})
 
             print("[update_code] Running install command")
-            process = sandbox.exec("pnpm", "install")
+            process = self.sandbox.exec("pnpm", "install")
             for line in process.stdout:
                 print("[install]", line.strip())
             process.wait()
 
             print("[update_code] Running build command")
-            process = sandbox.exec("pnpm", "build")
+            process = self.sandbox.exec("pnpm", "build")
             for line in process.stdout:
                 logs.append(line.strip())
                 print("[build]", line.strip())
@@ -182,7 +190,7 @@ class CodeService:
             )
             if terminate_on_success and not self.manual_sandbox_termination:
                 print("[update_code] Terminating sandbox after successful build")
-                sandbox.terminate()
+                self.terminate_sandbox()
 
             return has_error_in_logs, logs_str
 
@@ -193,8 +201,8 @@ class CodeService:
             return {"status": "error", "error": error_msg}
 
         finally:
-            if "sandbox" in locals():
-                sandbox.terminate()
+            if not self.manual_sandbox_termination:
+                self.terminate_sandbox()
 
 
 def get_error_fix_prompt_from_logs(logs: str) -> str:
