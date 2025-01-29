@@ -187,7 +187,8 @@ class CodeService:
             if terminate_after_build and not self.manual_sandbox_termination:
                 print("[update_code] Terminating sandbox after build")
                 self.terminate_sandbox()
-                self.repo_dir.cleanup()
+                import shutil
+                shutil.rmtree(self.repo_dir, ignore_errors=True)
 
             return has_error_in_logs, logs_str
 
