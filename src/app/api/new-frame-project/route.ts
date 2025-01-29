@@ -3,7 +3,7 @@ import { NextResponse, NextRequest } from "next/server";
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const CREATE_NEW_PROJECT_ENDPOINT = 'https://herocast--create-frame-project-webhook.modal.run';
+const CREATE_NEW_PROJECT_ENDPOINT = 'https://herocast--create-project-webhook.modal.run';
 
 export const config = {
   maxDuration: 60,
@@ -13,12 +13,12 @@ export async function POST(req: NextRequest) {
   try {
     // Get request body
     const body = await req.json();
-    const { prompt, description, userContext } = body;
+    const { prompt, userContext } = body;
 
     // Validate required fields
-    if (!prompt || !description || !userContext) {
+    if (!prompt || !userContext) {
       return NextResponse.json(
-        { error: "Project name, description and userContext are required" },
+        { error: "Project name and user_context are required" },
         { status: 400 }
       );
     }
@@ -31,17 +31,14 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         prompt,
-        description,
-        userContext
+        user_context: userContext
       })
     });
 
     // Get response data
     const data = await response.json();
 
-    // Forward the status code from the backend
     return NextResponse.json(data, { status: response.status });
-
   } catch (error) {
     console.error('Error proxying request to backend:', error);
     return NextResponse.json(
