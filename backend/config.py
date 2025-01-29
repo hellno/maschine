@@ -35,7 +35,7 @@ AIDER_CONFIG = {
         # "editor_model": "deepseek/deepseek-chat",
         # "weak_model": "deepseek/deepseek-chat",
     },
-    "CODER": {"verbose": True, "cache_prompts": True},
+    "CODER": {"verbose": False, "cache_prompts": True},
 }
 
 BASE_MOUNT = "/s3-projects"

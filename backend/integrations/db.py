@@ -81,7 +81,6 @@ class Database:
             merged_data = {**existing_data, "error": error}
             new_job["data"] = merged_data
 
-        print("new job:", new_job)
         self.client.table("jobs").update(new_job).eq("id", job_id).execute()
 
     def add_log(self, job_id: str, source: str, text: str):
