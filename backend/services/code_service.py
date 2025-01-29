@@ -36,6 +36,7 @@ class CodeService:
         self.repo_dir = None
         self.db = None
         self.is_setup = False
+        self.base_image_with_deps = None
 
         self._setup()
 
