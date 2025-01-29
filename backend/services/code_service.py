@@ -18,45 +18,40 @@ from backend.types import UserContext
 
 DEFAULT_PROJECT_FILES = ["src/components/Frame.tsx", "src/lib/constants.ts"]
 
+
 class CodeService:
     def __init__(
         self,
         project_id: str,
         job_id: str,
-        prompt: str,
         user_context: Optional[UserContext],
         manual_sandbox_termination: bool = False,
     ):
         self.project_id = project_id
         self.job_id = job_id
-        self.prompt = prompt
         self.user_context = user_context
         self.manual_sandbox_termination = manual_sandbox_termination
-        self.db = Database()
-        self.sandbox = None  # Initialize sandbox as None
 
-    def run(self):
-        repo_dir = tempfile.mkdtemp()
+        self.sandbox = None
+        self.repo_dir = None
+        self.db = None
+        self.is_setup = False
+
+        self._setup()
+
+    def run(self, prompt: str):
         try:
-            project = self.db.get_project(self.project_id)
-            repo_url = project["repo_url"]
-            repo = clone_repo_url_to_dir(repo_url, repo_dir)
-            configure_git_user_for_repo(repo)
-
-            self._sync_git_changes(repo)
-
-            # Set up file paths
-            fnames = [os.path.join(repo_dir, f) for f in DEFAULT_PROJECT_FILES]
-            llm_docs_dir = os.path.join(repo_dir, "llm_docs")
+            fnames = [os.path.join(self.repo_dir, f) for f in DEFAULT_PROJECT_FILES]
+            llm_docs_dir = os.path.join(self.repo_dir, "llm_docs")
             read_only_fnames = []
-            # if os.path.exists(llm_docs_dir):
-            #     read_only_fnames = [
-            #         os.path.join(llm_docs_dir, f)
-            #         for f in os.listdir(llm_docs_dir)
-            #         if os.path.isfile(os.path.join(llm_docs_dir, f))
-            #     ]
+            if os.path.exists(llm_docs_dir):
+                read_only_fnames = [
+                    os.path.join(llm_docs_dir, f)
+                    for f in os.listdir(llm_docs_dir)
+                    if os.path.isfile(os.path.join(llm_docs_dir, f))
+                ]
 
-            io = InputOutput(yes=True, root=repo_dir)
+            io = InputOutput(yes=True, root=self.repo_dir)
             model = Model(**config.AIDER_CONFIG["MODEL"])
             coder = Coder.create(
                 io=io,
@@ -66,27 +61,23 @@ class CodeService:
                 **config.AIDER_CONFIG["CODER"],
             )
 
-            print(f"[update_code] Running Aider with prompt: {self.prompt}")
+            print(f"[update_code] Running Aider with prompt: {prompt}")
             self.db.update_job_status(self.job_id, "running")
 
-            aider_result = coder.run(self.prompt)
+            aider_result = coder.run(prompt)
             print(f"[update_code] Aider result (truncated): {aider_result[:250]}")
-            has_errors, logs = self.run_build_in_sandbox(repo_dir)
+            has_errors, logs = self._run_build_in_sandbox()
 
             if has_errors:
                 error_fix_prompt = get_error_fix_prompt_from_logs(logs)
                 print("[update_code] Running Aider again to fix build errors")
 
-                # Run another round of fixes
                 aider_result = coder.run(error_fix_prompt)
                 print(
                     f"[update_code] Fix attempt result (truncated): {aider_result[:250]}"
                 )
 
-                # Verify the fixes worked
-                has_errors, logs = self.run_build_in_sandbox(
-                    repo_dir, terminate_on_success=True
-                )
+                has_errors, logs = self._run_build_in_sandbox(terminate_on_success=True)
                 if has_errors:
                     print("[update_code] Build errors persist after fix attempt")
                     self.db.add_log(
@@ -96,10 +87,10 @@ class CodeService:
                     )
 
             try:
-                repo = git.Repo(repo_dir)
+                repo = git.Repo(self.repo_dir)
                 if repo.is_dirty():
                     repo.git.add(A=True)
-                    repo.git.commit("-m", f"auto update: {self.prompt[:50]}...")
+                    repo.git.commit("-m", f"auto update: {prompt[:50]}...")
                 repo.git.push("origin", "main")
             except git.GitCommandError as e:
                 print(f"[update_code] Git operation skipped: {str(e)}")
@@ -113,13 +104,37 @@ class CodeService:
             print(f"[update_code] {error_msg}")
             self.db.add_log(self.job_id, "backend", error_msg)
             self.db.update_job_status(self.job_id, "failed", error_msg)
-            return {"status": "error", "error": error_msg}
+            raise
+            # return {"status": "error", "error": error_msg}
 
-        finally:
-            # Cleanup temporary directory
-            import shutil
+    def terminate_sandbox(self):
+        """Safely terminate the sandbox if it exists."""
+        if self.sandbox:
+            try:
+                print("[update_code] Terminating sandbox")
+                self.sandbox.terminate()
+                self.sandbox = None
+                print("[update_code] Sandbox terminated")
+            except Exception as e:
+                print(f"Error terminating sandbox: {str(e)}")
 
-            shutil.rmtree(repo_dir, ignore_errors=True)
+    def _setup(self):
+        if self.is_setup:
+            return
+
+        print("[update_code] Setting up CodeService")
+        self.db = Database()
+        self.repo_dir = tempfile.mkdtemp()
+        self._create_sandbox(self.repo_dir)
+
+        project = self.db.get_project(self.project_id)
+        repo_url = project["repo_url"]
+        repo = clone_repo_url_to_dir(repo_url, self.repo_dir)
+        configure_git_user_for_repo(repo)
+
+        self._sync_git_changes(repo)
+        self.is_setup = True
+        print("[update_code] CodeService setup complete")
 
     def _sync_git_changes(self, repo: git.Repo):
         """Sync any pending git changes with the remote repository."""
@@ -133,37 +148,19 @@ class CodeService:
         except git.GitCommandError as e:
             print(f"[update_code] Git status check skipped: {str(e)}")
 
-    def terminate_sandbox(self):
-        """Safely terminate the sandbox if it exists."""
-        if self.sandbox:
-            try:
-                self.sandbox.terminate()
-                self.sandbox = None
-            except Exception as e:
-                print(f"Error terminating sandbox: {str(e)}")
+    def _run_install_in_sandbox(self):
+        print("[update_code] Running install command")
+        process = self.sandbox.exec("pnpm", "install")
+        for line in process.stdout:
+            print("[install]", line.strip())
+        process.wait()
 
-    def run_build_in_sandbox(
-        self, repo_dir: str, terminate_on_success: bool = False
+    def _run_build_in_sandbox(
+        self, terminate_on_success: bool = False
     ) -> Tuple[bool, str]:
         """Run build commands in an isolated Modal sandbox."""
         try:
             logs = []
-            app = modal.App.lookup(config.APP_NAME)
-            self.sandbox = modal.Sandbox.create(
-                app=app,
-                image=base_image.add_local_dir(repo_dir, remote_path="/repo"),
-                cpu=2,
-                memory=4096,
-                workdir="/repo",
-                timeout=config.TIMEOUTS["BUILD"],
-            )
-            self.sandbox.set_tags({"project_id": self.project_id, "job_id": self.job_id})
-
-            print("[update_code] Running install command")
-            process = self.sandbox.exec("pnpm", "install")
-            for line in process.stdout:
-                print("[install]", line.strip())
-            process.wait()
 
             print("[update_code] Running build command")
             process = self.sandbox.exec("pnpm", "build")
@@ -191,6 +188,7 @@ class CodeService:
             if terminate_on_success and not self.manual_sandbox_termination:
                 print("[update_code] Terminating sandbox after successful build")
                 self.terminate_sandbox()
+                self.repo_dir.cleanup()
 
             return has_error_in_logs, logs_str
 
@@ -203,6 +201,19 @@ class CodeService:
         finally:
             if not self.manual_sandbox_termination:
                 self.terminate_sandbox()
+
+    def _create_sandbox(self, repo_dir: str):
+        app = modal.App.lookup(config.APP_NAME)
+        self.sandbox = modal.Sandbox.create(
+            app=app,
+            image=base_image.add_local_dir(repo_dir, remote_path="/repo"),
+            cpu=2,
+            memory=4096,
+            workdir="/repo",
+            timeout=config.TIMEOUTS["BUILD"],
+        )
+        self.sandbox.set_tags({"project_id": self.project_id, "job_id": self.job_id})
+        self._run_install_in_sandbox()
 
 
 def get_error_fix_prompt_from_logs(logs: str) -> str:

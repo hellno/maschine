@@ -102,6 +102,7 @@ def update_code(data: dict) -> dict:
 
     job_id = db.create_job(project_id=project_id, job_type="update_code", data=data)
 
-    CodeService(project_id, job_id, prompt, user_context).run()
+    code_service = CodeService(project_id, job_id, user_context)
+    code_service.run(prompt)
 
     return "Code update completed"

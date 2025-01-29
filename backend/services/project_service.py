@@ -1,5 +1,6 @@
 import json
 from backend import config
+from backend.services.code_service import CodeService
 from backend.types import UserContext
 import modal
 
@@ -70,6 +71,8 @@ class ProjectService:
 
     def _customize_template(self):
         """Apply template customizations directly in volume"""
+        print("customizing template")
+        self.code_service = CodeService(self.project_id, self.job_id, self.user_context)
         customization_steps = [
             self._update_metadata,
             self._setup_domain_association,
@@ -78,6 +81,7 @@ class ProjectService:
 
         for step in customization_steps:
             step()
+        print("done customizing template")
 
     def _update_metadata(self):
         """Update metadata in code to reflect project setup"""
@@ -109,14 +113,7 @@ class ProjectService:
 
     def _call_update_code_function(self, prompt: str):
         print("calling update_code_function with prompt:", prompt)
-        print("function:", self.update_code_function)
-        data = dict(
-            project_id=self.project_id,
-            prompt=prompt,
-            user_context=self.user_context,
-        )
-        print('data:', data)
-        result = self.update_code_function.remote(data)
+        result = self.code_service.run(prompt=prompt)
         print("update_code_function result:", result)
 
     def _log(self, message: str, level: str = "info"):
