@@ -77,7 +77,9 @@ class CodeService:
                     f"[update_code] Fix attempt result (truncated): {aider_result[:250]}"
                 )
 
-                has_errors, logs = self._run_build_in_sandbox(terminate_on_success=True)
+                has_errors, logs = self._run_build_in_sandbox(
+                    terminate_after_build=True
+                )
                 if has_errors:
                     print("[update_code] Build errors persist after fix attempt")
                     self.db.add_log(
@@ -86,15 +88,9 @@ class CodeService:
                         "Build errors could not be automatically fixed",
                     )
 
-            try:
-                repo = git.Repo(self.repo_dir)
-                if repo.is_dirty():
-                    repo.git.add(A=True)
-                    repo.git.commit("-m", f"auto update: {prompt[:50]}...")
-                repo.git.push("origin", "main")
-            except git.GitCommandError as e:
-                print(f"[update_code] Git operation skipped: {str(e)}")
-                # Continue execution - don't treat this as a fatal error
+            repo = git.Repo(self.repo_dir)
+            if repo.is_dirty():
+                self._sync_git_changes(repo)
 
             self.db.update_job_status(self.job_id, "completed")
             return {"status": "success", "result": aider_result}
@@ -104,6 +100,7 @@ class CodeService:
             print(f"[update_code] {error_msg}")
             self.db.add_log(self.job_id, "backend", error_msg)
             self.db.update_job_status(self.job_id, "failed", error_msg)
+            self.terminate_sandbox()
             raise
             # return {"status": "error", "error": error_msg}
 
@@ -111,12 +108,12 @@ class CodeService:
         """Safely terminate the sandbox if it exists."""
         if self.sandbox:
             try:
-                print("[update_code] Terminating sandbox")
+                print(f"[update_code] Terminating sandbox - job id {self.job_id}")
                 self.sandbox.terminate()
                 self.sandbox = None
                 print("[update_code] Sandbox terminated")
             except Exception as e:
-                print(f"Error terminating sandbox: {str(e)}")
+                print(f"Error terminating sandbox job id {self.job_id}: {str(e)}")
 
     def _setup(self):
         if self.is_setup:
@@ -125,14 +122,15 @@ class CodeService:
         print("[update_code] Setting up CodeService")
         self.db = Database()
         self.repo_dir = tempfile.mkdtemp()
-        self._create_sandbox(self.repo_dir)
 
         project = self.db.get_project(self.project_id)
         repo_url = project["repo_url"]
         repo = clone_repo_url_to_dir(repo_url, self.repo_dir)
         configure_git_user_for_repo(repo)
 
-        self._sync_git_changes(repo)
+        self._create_sandbox(self.repo_dir)
+        self._run_install_in_sandbox()
+
         self.is_setup = True
         print("[update_code] CodeService setup complete")
 
@@ -146,7 +144,7 @@ class CodeService:
                 print(f"[update_code] Pushing {commits_ahead} pending commits...")
                 repo.git.push("origin", "main")
         except git.GitCommandError as e:
-            print(f"[update_code] Git status check skipped: {str(e)}")
+            print(f"[update_code] sync git changes failed: {str(e)}")
 
     def _run_install_in_sandbox(self):
         print("[update_code] Running install command")
@@ -156,11 +154,12 @@ class CodeService:
         process.wait()
 
     def _run_build_in_sandbox(
-        self, terminate_on_success: bool = False
+        self, terminate_after_build: bool = False
     ) -> Tuple[bool, str]:
         """Run build commands in an isolated Modal sandbox."""
         try:
             logs = []
+            # ai! give me the files in the sandbox repo dir
 
             print("[update_code] Running build command")
             process = self.sandbox.exec("pnpm", "build")
@@ -185,8 +184,8 @@ class CodeService:
             print(
                 f"sandbox results: has_error_in_logs {has_error_in_logs} returncode {returncode} logs_str {logs_str} "
             )
-            if terminate_on_success and not self.manual_sandbox_termination:
-                print("[update_code] Terminating sandbox after successful build")
+            if terminate_after_build and not self.manual_sandbox_termination:
+                print("[update_code] Terminating sandbox after build")
                 self.terminate_sandbox()
                 self.repo_dir.cleanup()
 
@@ -197,10 +196,6 @@ class CodeService:
             self.db.add_log(self.job_id, "build", error_msg)
             self.db.update_job_status(self.job_id, "failed", error_msg)
             return {"status": "error", "error": error_msg}
-
-        finally:
-            if not self.manual_sandbox_termination:
-                self.terminate_sandbox()
 
     def _create_sandbox(self, repo_dir: str):
         app = modal.App.lookup(config.APP_NAME)
@@ -213,7 +208,6 @@ class CodeService:
             timeout=config.TIMEOUTS["BUILD"],
         )
         self.sandbox.set_tags({"project_id": self.project_id, "job_id": self.job_id})
-        self._run_install_in_sandbox()
 
 
 def get_error_fix_prompt_from_logs(logs: str) -> str:
