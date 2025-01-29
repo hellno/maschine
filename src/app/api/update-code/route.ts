@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-const UPDATE_CODE_ENDPOINT = 'https://herocast--update-code.modal.run';
+const UPDATE_CODE_ENDPOINT = 'https://herocast--update-code-webhook.modal.run';
 
 export const config = {
   maxDuration: 30,
