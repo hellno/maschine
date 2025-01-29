@@ -18,7 +18,8 @@ from backend.types import UserContext
 
 DEFAULT_PROJECT_FILES = ["src/components/Frame.tsx", "src/lib/constants.ts"]
 
-
+#ai! sandbox should be a instance variable
+# and add a method to terminate the sandbox
 class CodeService:
     def __init__(
         self,
@@ -26,12 +27,13 @@ class CodeService:
         job_id: str,
         prompt: str,
         user_context: Optional[UserContext],
+        manual_sandbox_termination: bool = False,
     ):
         self.project_id = project_id
         self.job_id = job_id
         self.prompt = prompt
         self.user_context = user_context
-
+        self.manual_sandbox_termination = manual_sandbox_termination
         self.db = Database()
 
     def run(self):
@@ -178,7 +180,7 @@ class CodeService:
             print(
                 f"sandbox results: has_error_in_logs {has_error_in_logs} returncode {returncode} logs_str {logs_str} "
             )
-            if terminate_on_success:
+            if terminate_on_success and not self.manual_sandbox_termination:
                 print("[update_code] Terminating sandbox after successful build")
                 sandbox.terminate()
 
