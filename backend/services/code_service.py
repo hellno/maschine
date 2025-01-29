@@ -94,7 +94,8 @@ class CodeService:
             return {"status": "success", "result": aider_result}
 
         except Exception as e:
-            error_msg = f"Aider run failed: {str(e)}"
+            print('exception in run', e)
+            error_msg = f"aider run failed: {str(e)}"
             print(f"[update_code] {error_msg}")
             self.db.add_log(self.job_id, "backend", error_msg)
             self.db.update_job_status(self.job_id, "failed", error_msg)
@@ -125,9 +126,6 @@ class CodeService:
         repo_url = project["repo_url"]
         repo = clone_repo_url_to_dir(repo_url, self.repo_dir)
         configure_git_user_for_repo(repo)
-
-        self._create_sandbox(self.repo_dir)
-        self._run_install_in_sandbox()
 
         self.is_setup = True
         print("[update_code] CodeService setup complete")
@@ -161,9 +159,9 @@ class CodeService:
     ) -> Tuple[bool, str]:
         """Run build commands in an isolated Modal sandbox."""
         try:
+            self._create_sandbox(repo_dir=self.repo_dir)
+            
             logs = []
-
-            # Show git status and latest commit
             print("[build] Current git status:")
             git_status = self.sandbox.exec("git", "status")
             for line in git_status.stdout:
@@ -173,6 +171,11 @@ class CodeService:
             git_log = self.sandbox.exec("git", "log", "-1", "--oneline")
             for line in git_log.stdout:
                 print("[git]", line.strip())
+
+            process = self.sandbox.exec("pnpm", "install")
+            for line in process.stdout:
+                print("[base install]", line.strip())
+            process.wait()
 
             print("[build] Running build command")
             process = self.sandbox.exec("pnpm", "build")
@@ -200,10 +203,6 @@ class CodeService:
             if terminate_after_build and not self.manual_sandbox_termination:
                 print("[update_code] Terminating sandbox after build")
                 self.terminate_sandbox()
-                import shutil
-
-                shutil.rmtree(self.repo_dir, ignore_errors=True)
-
             return has_error_in_logs, logs_str
 
         except Exception as e:
@@ -224,7 +223,7 @@ class CodeService:
             workdir="/repo",
             timeout=config.TIMEOUTS["BUILD"],
         )
-
+        image = None
         try:
             print("[update_code] Installing dependencies in base sandbox")
             process = base_sandbox.exec("pnpm", "install")
@@ -236,26 +235,31 @@ class CodeService:
                 raise Exception("Base dependency installation failed")
 
             print("[update_code] Creating filesystem snapshot")
-            return base_sandbox.snapshot_filesystem()
+            image = base_sandbox.snapshot_filesystem()
         finally:
             base_sandbox.terminate()
+            return image
 
     def _create_sandbox(self, repo_dir: str):
         """Create a sandbox using the cached base image if available."""
         app = modal.App.lookup(config.APP_NAME)
-        
+
         if not self.base_image_with_deps:
             self.base_image_with_deps = self._create_base_image_with_deps(repo_dir)
 
         self.sandbox = modal.Sandbox.create(
             app=app,
-            image=self.base_image_with_deps.add_local_dir(repo_dir, remote_path="/repo"),
+            image=self.base_image_with_deps.add_local_dir(
+                repo_dir, remote_path="/repo"
+            ),
             cpu=2,
             memory=4096,
             workdir="/repo",
             timeout=config.TIMEOUTS["BUILD"],
         )
         self.sandbox.set_tags({"project_id": self.project_id, "job_id": self.job_id})
+        self._run_install_in_sandbox()
+        print("[update_code] Sandbox created")
 
 
 def get_error_fix_prompt_from_logs(logs: str) -> str:
