@@ -212,11 +212,44 @@ class CodeService:
             self.db.update_job_status(self.job_id, "failed", error_msg)
             return {"status": "error", "error": error_msg}
 
-    def _create_sandbox(self, repo_dir: str):
+    def _create_base_image_with_deps(self, repo_dir: str) -> modal.Image:
+        """Create a base image with dependencies installed."""
+        print("[update_code] Creating base sandbox for dependency installation")
         app = modal.App.lookup(config.APP_NAME)
-        self.sandbox = modal.Sandbox.create(
+        base_sandbox = modal.Sandbox.create(
             app=app,
             image=base_image.add_local_dir(repo_dir, remote_path="/repo"),
+            cpu=2,
+            memory=4096,
+            workdir="/repo",
+            timeout=config.TIMEOUTS["BUILD"],
+        )
+
+        try:
+            print("[update_code] Installing dependencies in base sandbox")
+            process = base_sandbox.exec("pnpm", "install")
+            for line in process.stdout:
+                print("[base install]", line.strip())
+            process.wait()
+
+            if process.returncode != 0:
+                raise Exception("Base dependency installation failed")
+
+            print("[update_code] Creating filesystem snapshot")
+            return base_sandbox.snapshot_filesystem()
+        finally:
+            base_sandbox.terminate()
+
+    def _create_sandbox(self, repo_dir: str):
+        """Create a sandbox using the cached base image if available."""
+        app = modal.App.lookup(config.APP_NAME)
+        
+        if not self.base_image_with_deps:
+            self.base_image_with_deps = self._create_base_image_with_deps(repo_dir)
+
+        self.sandbox = modal.Sandbox.create(
+            app=app,
+            image=self.base_image_with_deps.add_local_dir(repo_dir, remote_path="/repo"),
             cpu=2,
             memory=4096,
             workdir="/repo",
