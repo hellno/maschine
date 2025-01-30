@@ -139,18 +139,15 @@ export default function Frameception() {
 
   const handleCreateProject = useCallback(async () => {
     try {
-      // Add validation
       if (inputValue.trim().length < 25) {
         throw new Error("Please enter at least 25 characters");
+      }
+      if (!context?.user?.fid) {
+        throw new Error("User session not found");
       }
 
       setFlowState("pending");
       setCreationError(null);
-
-      // Basic validation
-      if (!context?.user?.fid) {
-        throw new Error("User session not found");
-      }
 
       const response = await fetch("/api/new-frame-project", {
         method: "POST",
@@ -159,8 +156,6 @@ export default function Frameception() {
         },
         body: JSON.stringify({
           prompt: inputValue,
-          description: "A new Farcaster frame project",
-          verbose: false,
           userContext: context?.user,
         }),
       });
@@ -168,7 +163,9 @@ export default function Frameception() {
         throw new Error("Failed to create project");
       }
 
-      const { projectId } = await response.json();
+      const responseData = await response.json();
+      console.log("create frame project responseData", responseData);
+      const projectId = responseData.project_id;
       setNewProjectId(projectId);
       setSelectedProjectId(projectId);
       setFlowState("success");
@@ -468,17 +465,18 @@ export default function Frameception() {
                 </div>
               )}
 
-              {(flowState === "pending" || flowState === "success") && newProjectId && (
-                <div 
-                  id="project-detail-view" 
-                  className="flex flex-col items-center gap-4 w-full max-w-3xl mx-auto px-4 scroll-target"
-                >
-                  <ProjectDetailView
-                    projectId={newProjectId}
-                    userContext={context?.user}
-                  />
-                </div>
-              )}
+              {(flowState === "pending" || flowState === "success") &&
+                newProjectId && (
+                  <div
+                    id="project-detail-view"
+                    className="flex flex-col items-center gap-4 w-full max-w-3xl mx-auto px-4 scroll-target"
+                  >
+                    <ProjectDetailView
+                      projectId={newProjectId}
+                      userContext={context?.user}
+                    />
+                  </div>
+                )}
             </div>
           </TabsContent>
 
