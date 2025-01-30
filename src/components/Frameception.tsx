@@ -2,11 +2,10 @@
 
 import { useEffect, useCallback, useState, useMemo } from "react";
 import { useMobileTheme } from "~/hooks/useMobileTheme";
+import { AccessCheck } from "./AccessCheck";
 import { ProjectOverviewCard } from "./ProjectOverviewCard";
 import { ProjectDetailView } from "./ProjectDetailView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { signIn, signOut, getCsrfToken } from "next-auth/react";
-import posthog from "posthog-js";
 import { Card, CardContent } from "~/components/ui/card";
 import sdk, {
   FrameNotificationDetails,
@@ -23,9 +22,6 @@ import {
   useChainId,
 } from "wagmi";
 import { BaseError, UserRejectedRequestError } from "viem";
-import { useSession } from "next-auth/react";
-import { SignIn as SignInCore } from "@farcaster/frame-core";
-import { SignInResult } from "@farcaster/frame-core/dist/actions/signIn";
 
 import { config } from "~/components/providers/WagmiProvider";
 import { BigPurpleButton } from "~/components/ui/BigPurpleButton";
@@ -41,7 +37,7 @@ import {
   SheetTrigger,
 } from "~/components/ui/sheet";
 import { Project } from "~/lib/types";
-import { hashEmail } from "~/lib/utils";
+import FancyLargeButton from "./FancyLargeButton";
 
 const promptTemplates = [
   {
@@ -68,6 +64,7 @@ const promptTemplates = [
 
 type FlowState =
   | "waitForFrameToBePinned"
+  | "checkingAccess"
   | "enteringPrompt"
   | "pending"
   | "success";
@@ -78,6 +75,7 @@ export default function Frameception() {
   const [context, setContext] = useState<FrameContext>();
   const [isContextOpen, setIsContextOpen] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
+
   const [activeTab, setActiveTab] = useState("create_project");
 
   const [isFramePinned, setIsFramePinned] = useState(false);
@@ -87,7 +85,7 @@ export default function Frameception() {
   const [lastEvent, setLastEvent] = useState("");
   const [flowState, setFlowState] = useState<FlowState>(
     // "waitForFrameToBePinned"
-    "enteringPrompt"
+    "checkingAccess"
   );
 
   const [addFrameResult, setAddFrameResult] = useState("");
@@ -363,8 +361,16 @@ export default function Frameception() {
   }, []);
 
   const renderMainContent = () => {
+    if (flowState === "checkingAccess") {
+      return (
+        <AccessCheck
+          userContext={context?.user}
+          onAccessGranted={() => setFlowState("enteringPrompt")}
+        />
+      );
+    }
     return (
-      <div id="create-project-form" className="mt-12">
+      <>
         <Tabs
           defaultValue="create_project"
           className="w-full pt-8"
@@ -376,7 +382,7 @@ export default function Frameception() {
             }
           }}
         >
-          <TabsList className="grid w-full grid-cols-2 mb-6">
+          {/* <TabsList className="grid w-full grid-cols-2 mb-6">
             <TabsTrigger value="create_project">New Project</TabsTrigger>
             <TabsTrigger
               value="view_projects"
@@ -387,7 +393,7 @@ export default function Frameception() {
             >
               My Frames
             </TabsTrigger>
-          </TabsList>
+          </TabsList> */}
 
           <TabsContent value="create_project">
             <div className="space-y-6">
@@ -397,19 +403,22 @@ export default function Frameception() {
                     <div className="relative">
                       <div className="flex justify-between items-center mb-2">
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Frame Description
+                          Describe your frame
                         </label>
                         <span className="text-sm text-gray-500">
                           {inputValue.length}/25
                         </span>
                       </div>
                       <textarea
-                        rows={3}
+                        rows={5}
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         placeholder="Create a quiz game about crypto trends with 5 multiple choice questions"
                         className="w-full p-4 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
                       />
+                      <p className="text-sm text-gray-500 mt-2 text-left">
+                        Describe your frame in at least 25 characters. The more detail you provide, the better the frame will be. You can keep chatting with the AI later to improve your frame. 
+                      </p>
                     </div>
 
                     <Button
@@ -518,7 +527,7 @@ export default function Frameception() {
             )}
           </TabsContent>
         </Tabs>
-      </div>
+      </>
     );
   };
 
@@ -575,26 +584,10 @@ export default function Frameception() {
               </Sheet>
             </div>
           </div>
-          {/* <p className="mt-6 text-pretty text-lg font-medium text-gray-600 sm:text-xl/8 dark:text-gray-400 mx-auto max-w-2xl">
+          {/* <p className="mt-6 mx-8 text-pretty text-lg font-medium text-gray-600 sm:text-xl/8 dark:text-gray-400 max-w-2xl">
             From idea to live frame to share with the world. Create your own
             Farcaster frame right here.
           </p> */}
-          <div className="mt-10 flex justify-center">
-            <button
-              onClick={() => {
-                document.getElementById("create-project-form")?.scrollIntoView({
-                  behavior: "smooth",
-                  block: "start",
-                });
-              }}
-              className="relative inline-flex h-20 overflow-hidden rounded-full p-[1px] focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-50 disabled:opacity-75 disabled:cursor-not-allowed transition-opacity"
-            >
-              <span className="absolute inset-[-1000%] animate-[spin_3s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2CBFF_0%,#393BB2_50%,#E2CBFF_100%)]" />
-              <span className="inline-flex h-full w-full items-center justify-center rounded-full bg-slate-950 px-8 py-2 text-xl font-medium text-white backdrop-blur-3xl">
-                Start Building
-              </span>
-            </button>
-          </div>
         </div>
 
         {renderMainContent()}
@@ -633,15 +626,6 @@ export default function Frameception() {
 
             <div>
               <h2 className="font-2xl font-bold">Actions</h2>
-
-              <div className="mb-4">
-                <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg my-2">
-                  <pre className="font-mono text-xs whitespace-pre-wrap break-words max-w-[260px] overflow-x-">
-                    sdk.actions.signIn
-                  </pre>
-                </div>
-                <SignIn />
-              </div>
 
               <div className="mb-4">
                 <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg my-2">
@@ -904,127 +888,6 @@ function SendEth() {
               : isConfirmed
               ? "Confirmed!"
               : "Pending"}
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-/**
- * SignIn Component
- */
-function SignIn() {
-  const [signingIn, setSigningIn] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
-  const [signInResult, setSignInResult] = useState<SignInResult>();
-  const [signInFailure, setSignInFailure] = useState<string>();
-  const { data: session, status } = useSession();
-
-  const getNonce = useCallback(async () => {
-    const nonce = await getCsrfToken();
-    if (!nonce) throw new Error("Unable to generate nonce");
-    return nonce;
-  }, []);
-
-  const handleSignIn = useCallback(async () => {
-    try {
-      setSigningIn(true);
-      setSignInFailure(undefined);
-      const nonce = await getNonce();
-      const result = await sdk.actions.signIn({ nonce });
-      setSignInResult(result);
-
-      await signIn("credentials", {
-        message: result.message,
-        signature: result.signature,
-        redirect: false,
-      });
-    } catch (e) {
-      if (e instanceof SignInCore.RejectedByUser) {
-        setSignInFailure("Rejected by user");
-        return;
-      }
-      setSignInFailure("Unknown error");
-    } finally {
-      setSigningIn(false);
-    }
-  }, [getNonce]);
-
-  useEffect(() => {
-    if (status === "authenticated" && session?.user) {
-      const { user } = session;
-      let authId: string;
-
-      // Generate appropriate ID
-      if (user.fid) {
-        authId = `fc_${user.fid}`;
-      } else if (user.email) {
-        authId = `email_${hashEmail(user.email)}`;
-      } else if (user.walletAddress) {
-        authId = `wallet_${user.walletAddress.toLowerCase()}`;
-      } else {
-        authId = `anon_${crypto.randomUUID()}`;
-      }
-
-      // Link previous anonymous session
-      const anonymousId = posthog.get_distinct_id();
-      if (anonymousId.startsWith("anon_")) {
-        posthog.alias(authId, anonymousId);
-      }
-
-      // Identify with consolidated properties
-      posthog.identify(authId, {
-        auth_method: user.authMethod,
-        fid: user.fid,
-        email: user.email,
-        wallet_address: user.walletAddress,
-      });
-    }
-  }, [status, session]);
-
-  const handleSignOut = useCallback(async () => {
-    try {
-      setSigningOut(true);
-      await signOut({ redirect: false });
-      posthog.reset(true); // Reset both user and device ID
-      setSignInResult(undefined);
-    } finally {
-      setSigningOut(false);
-    }
-  }, []);
-
-  return (
-    <>
-      {status !== "authenticated" && (
-        <BigPurpleButton onClick={handleSignIn} disabled={signingIn}>
-          Sign In with Farcaster
-        </BigPurpleButton>
-      )}
-      {status === "authenticated" && (
-        <BigPurpleButton onClick={handleSignOut} disabled={signingOut}>
-          Sign out
-        </BigPurpleButton>
-      )}
-      {session && (
-        <div className="my-2 p-2 text-xs overflow-x-scroll bg-gray-100 rounded-lg font-mono">
-          <div className="font-semibold text-gray-500 mb-1">Session</div>
-          <div className="whitespace-pre">
-            {JSON.stringify(session, null, 2)}
-          </div>
-        </div>
-      )}
-      {signInFailure && !signingIn && (
-        <div className="my-2 p-2 text-xs overflow-x-scroll bg-gray-100 rounded-lg font-mono">
-          <div className="font-semibold text-gray-500 mb-1">SIWF Result</div>
-          <div className="whitespace-pre">{signInFailure}</div>
-        </div>
-      )}
-      {signInResult && !signingIn && (
-        <div className="my-2 p-2 text-xs overflow-x-scroll bg-gray-100 rounded-lg font-mono">
-          <div className="font-semibold text-gray-500 mb-1">SIWF Result</div>
-          <div className="whitespace-pre">
-            {JSON.stringify(signInResult, null, 2)}
           </div>
         </div>
       )}
