@@ -42,26 +42,9 @@ class CodeService:
 
     def run(self, prompt: str):
         try:
-            fnames = [os.path.join(self.repo_dir, f) for f in DEFAULT_PROJECT_FILES]
-            llm_docs_dir = os.path.join(self.repo_dir, "llm_docs")
-            read_only_fnames = []
-            if os.path.exists(llm_docs_dir):
-                read_only_fnames = [
-                    os.path.join(llm_docs_dir, f)
-                    for f in os.listdir(llm_docs_dir)
-                    if os.path.isfile(os.path.join(llm_docs_dir, f))
-                ]
-
-            io = InputOutput(yes=True, root=self.repo_dir)
-            model = Model(**config.AIDER_CONFIG["MODEL"])
-            coder = Coder.create(
-                io=io,
-                fnames=fnames,
-                main_model=model,
-                read_only_fnames=read_only_fnames,
-                **config.AIDER_CONFIG["CODER"],
-            )
-
+            # Extract Aider-specific code into a dedicated function
+            coder = self._create_aider_coder()
+            
             print(f"[update_code] Running Aider with prompt: {prompt}")
             self.db.update_job_status(self.job_id, "running")
 
@@ -260,6 +243,28 @@ class CodeService:
         self.sandbox.set_tags({"project_id": self.project_id, "job_id": self.job_id})
         self._run_install_in_sandbox()
         print("[update_code] Sandbox created")
+
+    def _create_aider_coder(self) -> Coder:
+        """Create and configure the Aider coder instance."""
+        fnames = [os.path.join(self.repo_dir, f) for f in DEFAULT_PROJECT_FILES]
+        llm_docs_dir = os.path.join(self.repo_dir, "llm_docs")
+        read_only_fnames = []
+        if os.path.exists(llm_docs_dir):
+            read_only_fnames = [
+                os.path.join(llm_docs_dir, f)
+                for f in os.listdir(llm_docs_dir)
+                if os.path.isfile(os.path.join(llm_docs_dir, f))
+            ]
+
+        io = InputOutput(yes=True, root=self.repo_dir)
+        model = Model(**config.AIDER_CONFIG["MODEL"])
+        return Coder.create(
+            io=io,
+            fnames=fnames,
+            main_model=model,
+            read_only_fnames=read_only_fnames,
+            **config.AIDER_CONFIG["CODER"],
+        )
 
 
 def get_error_fix_prompt_from_logs(logs: str) -> str:
