@@ -42,14 +42,14 @@ class CodeService:
 
     def run(self, prompt: str):
         try:
-            # Extract Aider-specific code into a dedicated function
             coder = self._create_aider_coder()
-            
+
             print(f"[update_code] Running Aider with prompt: {prompt}")
             self.db.update_job_status(self.job_id, "running")
 
             aider_result = coder.run(prompt)
             print(f"[update_code] Aider result (truncated): {aider_result[:250]}")
+            _handle_pnpm_commands(aider_result, self.sandbox)
             has_errors, logs = self._run_build_in_sandbox()
 
             if has_errors:
@@ -77,7 +77,7 @@ class CodeService:
             return {"status": "success", "result": aider_result}
 
         except Exception as e:
-            print('exception in run', e)
+            print("exception in run", e)
             error_msg = f"aider run failed: {str(e)}"
             print(f"[update_code] {error_msg}")
             self.db.add_log(self.job_id, "backend", error_msg)
@@ -97,7 +97,7 @@ class CodeService:
             except Exception as e:
                 print(f"Error terminating sandbox job id {self.job_id}: {str(e)}")
 
-    def _create_aider_context_file(self, repo_dir: str, filename: str, content: str) -> None:
+    def _add_file_to_repo_dir(self, repo_dir: str, filename: str, content: str) -> None:
         """Create a context file for Aider in the repo directory."""
         context_file = os.path.join(repo_dir, filename)
         os.makedirs(os.path.dirname(context_file), exist_ok=True)
@@ -111,14 +111,6 @@ class CodeService:
         print("[update_code] Setting up CodeService")
         self.db = Database()
         self.repo_dir = tempfile.mkdtemp()
-
-        # Create Aider context file
-        context_filename = ".aider.model.settings.yml"
-        self._create_aider_context_file(
-            repo_dir=self.repo_dir,
-            filename=context_filename,
-            content="",  # You can manually add your desired YAML content here
-        )
 
         project = self.db.get_project(self.project_id)
         repo_url = project["repo_url"]
@@ -158,7 +150,7 @@ class CodeService:
         """Run build commands in an isolated Modal sandbox."""
         try:
             self._create_sandbox(repo_dir=self.repo_dir)
-            
+
             logs = []
             print("[build] Current git status:")
             git_status = self.sandbox.exec("git", "status")
@@ -212,6 +204,13 @@ class CodeService:
     def _create_base_image_with_deps(self, repo_dir: str) -> modal.Image:
         """Create a base image with dependencies installed."""
         print("[update_code] Creating base sandbox for dependency installation")
+
+        self._add_file_to_repo_dir(
+            repo_dir=self.repo_dir,
+            filename=config.AIDER_CONFIG["MODEL_SETTINGS"]["FILENAME"],
+            content=config.AIDER_CONFIG["MODEL_SETTINGS"]["CONTENT"],
+        )
+
         app = modal.App.lookup(config.APP_NAME)
         base_sandbox = modal.Sandbox.create(
             app=app,
@@ -305,3 +304,54 @@ def clean_log_lines(logs: list[str]) -> list[str]:
         and not line.startswith("warning")
         and not any(url in line for url in urls_to_skip)
     ]
+
+
+def _handle_pnpm_commands(
+    aider_result: str,
+    sandbox: modal.Sandbox,
+) -> None:
+    """Parse and execute pnpm/npm install commands from Aider output"""
+    import re
+
+    # Updated pattern to match both 'pnpm add' and 'npm install' commands
+    pattern = r"```bash[\s\n]*(?:pnpm add|npm install(?: --save)?)\s+([^\n`]*)```"
+    matches = re.finditer(pattern, aider_result, re.DOTALL)
+
+    print(
+        f"[update_code] Found {len(list(matches))} package install commands in aider output"
+    )
+    for match in matches:
+        packages = match.group(1).strip()
+        if not packages:
+            continue
+
+        try:
+            print(f"[update_code] Installing packages: {packages}")
+            print(f"Installing packages: {packages}")
+            print(f"output of *packages.split() {packages.split()}")
+            # Always use pnpm add regardless of whether npm install was specified
+            install_proc = sandbox.exec("pnpm", "add", *packages.split())
+
+            # Capture and log output
+            for line in install_proc.stdout:
+                line_str = line.strip()
+                print(f"[PNPM STDOUT] {line_str}")
+
+            for line in install_proc.stderr:
+                line_str = line.strip()
+                print(f"[PNPM STDERR] {line_str}")
+
+            exit_code = install_proc.wait()
+            if exit_code != 0:
+                print(
+                    f"[update_code] Warning: pnpm add command failed with exit code {
+                        exit_code
+                    } but continuing..."
+                )
+                continue  # Continue with next package set instead of failing
+
+        except Exception as e:
+            error_msg = f"Warning: Error installing packages {packages}: {e}"
+            print(f"[update_code] {error_msg}")
+            # Continue instead of failing
+            continue
