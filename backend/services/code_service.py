@@ -97,6 +97,13 @@ class CodeService:
             except Exception as e:
                 print(f"Error terminating sandbox job id {self.job_id}: {str(e)}")
 
+    def _create_aider_context_file(self, repo_dir: str, filename: str, content: str) -> None:
+        """Create a context file for Aider in the repo directory."""
+        context_file = os.path.join(repo_dir, filename)
+        os.makedirs(os.path.dirname(context_file), exist_ok=True)
+        with open(context_file, "w") as f:
+            f.write(content)
+
     def _setup(self):
         if self.is_setup:
             return
@@ -104,6 +111,14 @@ class CodeService:
         print("[update_code] Setting up CodeService")
         self.db = Database()
         self.repo_dir = tempfile.mkdtemp()
+
+        # Create Aider context file
+        context_filename = ".aider.model.settings.yml"
+        self._create_aider_context_file(
+            repo_dir=self.repo_dir,
+            filename=context_filename,
+            content="",  # You can manually add your desired YAML content here
+        )
 
         project = self.db.get_project(self.project_id)
         repo_url = project["repo_url"]
