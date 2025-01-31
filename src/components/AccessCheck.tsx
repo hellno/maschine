@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent } from "~/components/ui/card";
 import { useAccount } from "wagmi";
-import { Check, CheckIcon, Loader2 } from "lucide-react";
+import { CheckIcon, Loader2 } from "lucide-react";
 import { BigPurpleButton } from "~/components/ui/BigPurpleButton";
 import FancyLargeButton from "./FancyLargeButton";
+import { FrameContext } from "@farcaster/frame-sdk";
+import Link from "next/link";
 
 type AccessCheckProps = {
-  userContext: any;
+  userContext?: FrameContext["user"];
   onAccessGranted: () => void;
 };
 
@@ -23,9 +25,11 @@ export const AccessCheck = ({
   userContext,
   onAccessGranted,
 }: AccessCheckProps) => {
+  const { address } = useAccount();
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [isCheckingAccess, setIsCheckingAccess] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   const checkAccess = useCallback(async () => {
     try {
@@ -40,6 +44,7 @@ export const AccessCheck = ({
         ];
         setRequirements(mockRequirements);
         setIsCheckingAccess(false);
+
         return;
       }
 
@@ -48,7 +53,7 @@ export const AccessCheck = ({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ fids: [userContext.fid] }),
+        body: JSON.stringify({ fids: [userContext.fid], address }),
       });
 
       if (!response.ok) {
@@ -58,6 +63,7 @@ export const AccessCheck = ({
       const data = await response.json();
       setRequirements(data.requirements || []);
       setHasAccess(data.hasAccess);
+      setActionMessage(data.actionMessage);
       setIsCheckingAccess(false);
     } catch (error) {
       console.error("Access check failed:", error);
@@ -71,12 +77,13 @@ export const AccessCheck = ({
       ];
       setRequirements(mockRequirements);
       setIsCheckingAccess(false);
+      setActionMessage("register_farcaster_account");
     }
-  }, [userContext]);
+  }, [address, userContext]);
 
   useEffect(() => {
     checkAccess();
-  }, [userContext, checkAccess]);
+  }, [checkAccess]);
 
   if (isCheckingAccess) {
     return (
@@ -87,6 +94,29 @@ export const AccessCheck = ({
     );
   }
 
+  const renderButton = () => {
+    if (hasAccess) {
+      return (
+        <FancyLargeButton text="Start Building" onClick={onAccessGranted} />
+      );
+    }
+    if (!actionMessage || actionMessage === "register_farcaster_account") {
+      return (
+        <Link href="https://warpcast.com">
+          <BigPurpleButton>Create Farcaster account</BigPurpleButton>
+        </Link>
+      );
+    }
+
+    // if (actionMessage === "mint_nft") {
+    //   return (
+    //     <Link href="/mint-nft">
+    //       <BigPurpleButton>Mint NFT</BigPurpleButton>
+    //     </Link>
+    //   );
+    // }
+  };
+
   return (
     <div className="flex flex-col items-center justify-center gap-4 p-8">
       <Card className="w-full max-w-md">
@@ -94,20 +124,7 @@ export const AccessCheck = ({
           <h3 className="text-xl font-semibold m-4">
             {hasAccess ? "You have access!" : "You don't have access, yet"}
           </h3>
-          <div className="mt-4 flex justify-center">
-            {hasAccess ? (
-              <FancyLargeButton
-                text="Start Building"
-                onClick={onAccessGranted}
-              />
-            ) : (
-              <BigPurpleButton
-                onClick={() => (window.location.href = "/api/auth/signin")}
-              >
-                Get In
-              </BigPurpleButton>
-            )}
-          </div>
+          <div className="mt-4 flex justify-center">{renderButton()}</div>
           <div className="mt-8 space-y-4">
             {requirements.map((req) => (
               <div key={req.idx} className="flex flex-col space-y-1">

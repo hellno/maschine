@@ -37,7 +37,6 @@ import {
   SheetTrigger,
 } from "~/components/ui/sheet";
 import { Project } from "~/lib/types";
-import FancyLargeButton from "./FancyLargeButton";
 
 const promptTemplates = [
   {
@@ -382,7 +381,7 @@ export default function Frameception() {
             }
           }}
         >
-          {/* <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsList className="grid w-full grid-cols-2 mb-6">
             <TabsTrigger value="create_project">New Project</TabsTrigger>
             <TabsTrigger
               value="view_projects"
@@ -393,7 +392,7 @@ export default function Frameception() {
             >
               My Frames
             </TabsTrigger>
-          </TabsList> */}
+          </TabsList>
 
           <TabsContent value="create_project">
             <div className="space-y-6">
@@ -417,7 +416,10 @@ export default function Frameception() {
                         className="w-full p-4 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
                       />
                       <p className="text-sm text-gray-500 mt-2 text-left">
-                        Describe your frame in at least 25 characters. The more detail you provide, the better the frame will be. You can keep chatting with the AI later to improve your frame. 
+                        Describe your frame in at least 25 characters. The more
+                        detail you provide, the better the frame will be. You
+                        can keep chatting with the AI later to improve your
+                        frame.
                       </p>
                     </div>
 
@@ -549,11 +551,13 @@ export default function Frameception() {
               className="h-20 w-20 rounded-xl"
             />
           </div>
-          <h1 className="mt-4 text-pretty text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl md:text-6xl dark:text-gray-100 mx-8 max-w-xl">
+          <h1 className="mx-auto mt-4 text-pretty text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl md:text-6xl dark:text-gray-100 max-w-xl">
             Create your own Farcaster frame <br className="hidden md:inline" />
-            <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              in a Farcaster frame
-            </span>
+            {context?.user && (
+              <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                in a Farcaster frame
+              </span>
+            )}
           </h1>
           <div className="mt-4 sm:mt-8 lg:mt-10">
             <div className="flex justify-center space-x-4">
