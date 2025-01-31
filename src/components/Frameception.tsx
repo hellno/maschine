@@ -62,8 +62,8 @@ const promptTemplates = [
 ];
 
 type FlowState =
-  | "waitForFrameToBePinned"
   | "checkingAccess"
+  | "waitForFrameToBePinned"
   | "enteringPrompt"
   | "pending"
   | "success";
@@ -83,6 +83,7 @@ export default function Frameception() {
 
   const [lastEvent, setLastEvent] = useState("");
   const [flowState, setFlowState] = useState<FlowState>("checkingAccess");
+  console.log('flowState', flowState, 'selectedProjectId', selectedProjectId);
   const [addFrameResult, setAddFrameResult] = useState("");
   const [sendNotificationResult, setSendNotificationResult] = useState("");
   const [inputValue, setInputValue] = useState("");
