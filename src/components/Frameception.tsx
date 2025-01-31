@@ -82,11 +82,7 @@ export default function Frameception() {
     useState<FrameNotificationDetails | null>(null);
 
   const [lastEvent, setLastEvent] = useState("");
-  const [flowState, setFlowState] = useState<FlowState>(
-    // "waitForFrameToBePinned"
-    "checkingAccess"
-  );
-
+  const [flowState, setFlowState] = useState<FlowState>("checkingAccess");
   const [addFrameResult, setAddFrameResult] = useState("");
   const [sendNotificationResult, setSendNotificationResult] = useState("");
   const [inputValue, setInputValue] = useState("");
@@ -364,7 +360,7 @@ export default function Frameception() {
       return (
         <AccessCheck
           userContext={context?.user}
-          onAccessGranted={() => setFlowState("enteringPrompt")}
+          onAccessGranted={() => setFlowState("waitForFrameToBePinned")}
         />
       );
     }

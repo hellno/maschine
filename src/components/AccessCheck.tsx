@@ -97,7 +97,7 @@ export const AccessCheck = ({
   const renderButton = () => {
     if (hasAccess) {
       return (
-        <FancyLargeButton text="Start Building" onClick={onAccessGranted} />
+        <FancyLargeButton text="Start Building" onClick={() => onAccessGranted()} />
       );
     }
     if (!actionMessage || actionMessage === "register_farcaster_account") {
