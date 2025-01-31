@@ -616,7 +616,6 @@ export function ProjectDetailView({
       .map((log) => log?.payload?.text)
       .join("\n");
 
-    // Create autofix prompt with error context
     const autofixPrompt = `Please fix the following build errors:\n\n${errorLogs}`;
     console.log("Autofix prompt:", autofixPrompt);
     try {

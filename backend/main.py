@@ -73,6 +73,7 @@ def update_code_webhook(data: dict) -> dict:
     job_id = db.create_job(
         project_id=data["project_id"], job_type="update_code", data=data
     )
+    data["job_id"] = job_id
 
     # Create an async function call without waiting for results
     update_code.spawn(data)
@@ -95,12 +96,9 @@ def update_code(data: dict) -> dict:
     from backend.services.code_service import CodeService
 
     project_id = data["project_id"]
+    job_id = data["job_id"]
     prompt = data["prompt"]
     user_context: UserContext = data["user_context"]
-
-    db = Database()
-
-    job_id = db.create_job(project_id=project_id, job_type="update_code", data=data)
 
     code_service = CodeService(project_id, job_id, user_context)
     code_service.run(prompt)
