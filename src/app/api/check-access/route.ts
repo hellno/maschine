@@ -60,7 +60,7 @@ export async function POST(request: Request) {
       idx: 1,
       isValid: userScore?.percentile > OPENRANK_PERCENTILE_THRESHOLD || false,
       name: 'Top 10% Engagement',
-      message: `Your percentile: ${userScore?.percentile || 0}%`,
+      message: `Your percentile: ${userScore?.percentile || 0}% based on OpenRank score`,
     });
 
     // Requirement 3: NFT Holder (Placeholder)
