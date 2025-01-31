@@ -83,7 +83,6 @@ export default function Frameception() {
 
   const [lastEvent, setLastEvent] = useState("");
   const [flowState, setFlowState] = useState<FlowState>("checkingAccess");
-  console.log('flowState', flowState, 'selectedProjectId', selectedProjectId);
   const [addFrameResult, setAddFrameResult] = useState("");
   const [sendNotificationResult, setSendNotificationResult] = useState("");
   const [inputValue, setInputValue] = useState("");
@@ -93,6 +92,14 @@ export default function Frameception() {
     null
   );
   const [newProjectId, setNewProjectId] = useState<string | null>(null);
+  console.log(
+    "flowState",
+    flowState,
+    "selectedProjectId",
+    selectedProjectId,
+    "newProjectId",
+    newProjectId
+  );
 
   const addFrame = useCallback(async () => {
     try {
