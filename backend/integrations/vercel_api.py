@@ -6,14 +6,12 @@ import requests
 import git
 from git import Repo
 from typing import Dict, List, Optional, Tuple
-from backend import config
 from backend.integrations.db import Database
-from backend.integrations.github_api import get_github_instance
 
 VERCEL_CONFIG = {
     "FRAMEWORK": "nextjs",
-    "INSTALL_CMD": "yarn install",
-    "BUILD_CMD": "yarn build",
+    "INSTALL_CMD": "pnpm install",
+    "BUILD_CMD": "pnpm build",
     "OUTPUT_DIR": ".next",
 }
 
