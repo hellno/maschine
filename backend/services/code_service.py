@@ -16,7 +16,11 @@ import tempfile
 
 from backend.types import UserContext
 
-DEFAULT_PROJECT_FILES = ["src/components/Frame.tsx", "src/lib/constants.ts"]
+DEFAULT_PROJECT_FILES = [
+    "src/components/Frame.tsx",
+    "src/lib/constants.ts",
+    "src/app/opengraph-image.tsx",
+]
 
 
 class CodeService:
