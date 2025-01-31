@@ -98,7 +98,11 @@ export default function Frameception() {
     "selectedProjectId",
     selectedProjectId,
     "newProjectId",
-    newProjectId
+    newProjectId,
+    "isFramePinned",
+    isFramePinned,
+    "context",
+    context
   );
 
   const addFrame = useCallback(async () => {
@@ -368,7 +372,10 @@ export default function Frameception() {
       return (
         <AccessCheck
           userContext={context?.user}
-          onAccessGranted={() => setFlowState("waitForFrameToBePinned")}
+          onAccessGranted={() => {
+            console.log("onAccessGranted");
+            setFlowState("waitForFrameToBePinned");
+          }}
         />
       );
     }
