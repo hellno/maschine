@@ -28,7 +28,10 @@ export async function POST(request: Request) {
     });
 
     if (!hasFid) {
-      return NextResponse.json({ requirements });
+      return NextResponse.json({ 
+        requirements,
+        actionMessage: "register_farcaster_account"
+      });
     }
 
     // Requirement 2: Top 10% Engagement
@@ -64,7 +67,13 @@ export async function POST(request: Request) {
 
     // first one and either of the other two has to be Valid
     const hasAccess = requirements[0].isValid && (requirements[1].isValid || requirements[2].isValid);
-    return NextResponse.json({ requirements, hasAccess });
+    return NextResponse.json({ 
+      requirements, 
+      hasAccess,
+      ...(!hasAccess && {
+        actionMessage: requirements[0].isValid ? "mint_nft" : "register_farcaster_account"
+      })
+    });
   } catch (error) {
     console.error('Access check failed:', error);
     return NextResponse.json({
@@ -76,7 +85,8 @@ export async function POST(request: Request) {
           message: 'Error validating account status'
         }
       ],
-      hasAccess: false
+      hasAccess: false,
+      actionMessage: "register_farcaster_account"
     });
   }
 }
