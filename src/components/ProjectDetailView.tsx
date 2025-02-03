@@ -109,22 +109,26 @@ function ProjectInfoCard({
                   Open Frame
                 </Button>
               </Link>
-              <Button
-                variant="outline"
-                onClick={handleShare}
-                className="flex-1"
-              >
-                <Share className="w-4 h-4 mr-2" />
-                Share on Warpcast
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleCopyUrl}
-                className="flex-1"
-              >
-                <Copy className="w-4 h-4 mr-2" />
-                Copy URL
-              </Button>
+              {status.state === "deployed" && (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={handleShare}
+                    className="flex-1"
+                  >
+                    <Share className="w-4 h-4 mr-2" />
+                    Share on Warpcast
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleCopyUrl}
+                    className="flex-1"
+                  >
+                    <Copy className="w-4 h-4 mr-2" />
+                    Copy URL
+                  </Button>
+                </>
+              )}
             </>
           )}
           {project.repo_url && (
@@ -205,7 +209,7 @@ function ConversationCard({
                       ? "Processing..."
                       : job.data.error
                       ? job.data.error
-                      : job.data.result || "✅"
+                      : job.data.result || ""
                   }
                   timestamp={new Date(job.created_at).toLocaleString()}
                   type="bot"

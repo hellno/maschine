@@ -21,11 +21,14 @@ export function ConversationMessage({
     const shouldCollapse = lines.length > 3;
     const displayText =
       shouldCollapse && !isExpanded ? lines.slice(0, 3).join("\n") : text;
+
     return {
       displayText,
       hasMore: shouldCollapse && !isExpanded,
     };
   }, [text, isExpanded]);
+
+  if (!text) return;
 
   return (
     <div
