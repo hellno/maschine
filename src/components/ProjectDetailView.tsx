@@ -132,14 +132,12 @@ function ProjectInfoCard({
             </>
           )}
           {project.repo_url && (
-            <Button
-              variant="outline"
-              onClick={() => sdk.actions.openUrl(project.repo_url!)}
-              className="flex-1"
-            >
-              <GitBranch className="w-4 h-4 mr-2" />
-              View Repository
-            </Button>
+            <Link href={project.repo_url} className="flex-1 w-full">
+              <Button variant="outline" className="w-full">
+                <GitBranch className="w-4 h-4 mr-2" />
+                Show GitHub
+              </Button>
+            </Link>
           )}
         </div>
         {status.error && (
