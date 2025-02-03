@@ -12,7 +12,7 @@ import { ConversationMessage } from "./ConversationMessage";
 import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
 import { ProjectStatusIndicator } from "./ProjectStatusIndicator";
 import {
-  getProjectStatus,
+  getMergedProjectStatus,
   ProjectStatus,
   VercelBuildStatus,
 } from "~/lib/types/project-status";
@@ -482,7 +482,7 @@ export function ProjectDetailView({
   const [vercelBuildStatus, setVercelBuildStatus] =
     useState<VercelBuildStatus | null>(null);
 
-  const projectStatus = getProjectStatus(project, vercelBuildStatus);
+  const projectStatus = getMergedProjectStatus(project, vercelBuildStatus);
 
   const fetchProject = useCallback(async () => {
     if (!projectId) return;

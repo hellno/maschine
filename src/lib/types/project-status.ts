@@ -2,7 +2,7 @@ import { Project } from "../types";
 
 // aggregation of project status across different services: our backend and vercel
 export type ProjectStatus = {
-  state: 'setting_up' | 'failed' | 'building' | 'ready' | 'error' | 'unknown';
+  state: 'created' | 'deploying' | 'deployed' | 'failed' | 'error' | 'unknown';
   message: string;
   error?: string;
 };
@@ -15,75 +15,56 @@ export enum VercelBuildStatus {
   QUEUED = 'QUEUED',
 }
 
-export function getProjectStatus(project: Project | null, vercelStatus: VercelBuildStatus | null): ProjectStatus {
+export function getMergedProjectStatus(project: Project | null, vercelStatus: VercelBuildStatus | null): ProjectStatus {
   if (!project) {
-    return {
-      state: 'error',
-      message: 'Project not found',
-    };
+    return { state: 'error', message: 'Project not found' };
   }
 
-  const setupJob = project.jobs?.find(job => job.type === 'setup_project');
-
-  if (!setupJob) {
-    return {
-      state: 'error',
-      message: 'Info not found',
-    };
+  // First handle raw DB states
+  switch (project.status) {
+    case 'created':
+      return { state: 'created', message: 'Project created - awaiting deployment' };
+    case 'deploying':
+      return { state: 'deploying', message: 'Deploying to Vercel' };
+    case 'failed':
+      return {
+        state: 'failed',
+        message: 'Deployment failed',
+        error: 'Unknown error occurred'
+      };
+    case 'error':
+      return {
+        state: 'error',
+        message: 'Project error',
+        error: 'Unknown error'
+      };
+    case 'unknown':
+      return { state: 'unknown', message: 'Unknown project state' };
   }
 
-  // Check setup job status
-  if (setupJob.status === 'pending') {
-    return {
-      state: 'setting_up',
-      message: 'Setting up frame...',
-    };
-  }
-
-  if (setupJob.status === 'failed') {
-    return {
-      state: 'failed',
-      message: 'Setup failed',
-      error: setupJob.data?.error || 'Unknown error occurred',
-    };
-  }
-
-  // If setup is complete, check Vercel build status
-  if (setupJob.status === 'completed') {
+  // Then handle deploying state with Vercel status
+  if (project.status === 'deployed') {
     switch (vercelStatus) {
       case null:
-        return {
-          state: 'unknown',
-          message: '',
-        };
+        return { state: 'deploying', message: 'Starting deployment...' };
       case 'QUEUED':
+        return { state: 'deploying', message: 'Deployment queued' };
       case 'BUILDING':
+        return { state: 'deploying', message: 'Building...' };
       case 'INITIALIZING':
-        return {
-          state: 'building',
-          message: 'Building',
-        };
+        return { state: 'deploying', message: 'Initializing...' };
       case 'ERROR':
         return {
           state: 'error',
           message: 'Build error',
-          error: 'Vercel build failed. Please check the logs for details.',
+          error: 'Vercel build failed. Check logs for details.'
         };
       case 'READY':
-        return {
-          state: 'ready',
-          message: 'Ready',
-        };
+        return { state: 'deployed', message: 'Successfully deployed' };
       default:
-        return {
-          state: 'error',
-          message: 'Unknown state',
-        };
+        return { state: 'unknown', message: 'Unknown deployment state' };
     }
   }
 
-  return {
-    state: 'error',
-    message: 'Unknown project state',
-  };
+  return { state: 'unknown', message: 'Unknown project state' };
 }

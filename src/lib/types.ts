@@ -15,6 +15,7 @@ export interface TemplateCustomizationResponse {
 export interface Project {
   id: string;
   name: string;
+  status: string;
   created_at: string;
   repo_url: string;
   frontend_url: string;
