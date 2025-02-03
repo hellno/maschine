@@ -30,10 +30,10 @@ PATHS = {
 
 AIDER_CONFIG = {
     "MODEL": {
-        "model": "sonnet",
+        # "model": "sonnet",
         # "model": "r1", # deepseek has API issues right now :(
-        # "editor_model": "deepseek/deepseek-chat",
-        # "weak_model": "deepseek/deepseek-chat",
+        "model": "openai/deepseek-ai/DeepSeek-R1",  # together.ai via openrouter in env vars
+        "editor_model": "sonnet",
     },
     "CODER": {"verbose": False, "cache_prompts": True},
     "MODEL_SETTINGS": {
@@ -51,8 +51,9 @@ AIDER_CONFIG = {
   use_system_prompt: true
   use_temperature: true
   streaming: true
-  remove_reasoning: think"""
-    }
+  remove_reasoning: think
+""",
+    },
 }
 
 BASE_MOUNT = "/s3-projects"

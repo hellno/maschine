@@ -220,7 +220,7 @@ class CodeService:
             app=app,
             image=base_image.add_local_dir(repo_dir, remote_path="/repo"),
             cpu=2,
-            memory=4096,
+            memory=1024,
             workdir="/repo",
             timeout=config.TIMEOUTS["BUILD"],
         )
@@ -254,7 +254,7 @@ class CodeService:
                 repo_dir, remote_path="/repo"
             ),
             cpu=2,
-            memory=4096,
+            memory=1024,
             workdir="/repo",
             timeout=config.TIMEOUTS["BUILD"],
         )
