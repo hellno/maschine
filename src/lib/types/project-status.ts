@@ -24,8 +24,6 @@ export function getMergedProjectStatus(project: Project | null, vercelStatus: Ve
   switch (project.status) {
     case 'created':
       return { state: 'created', message: 'Deploy to share with others' };
-    case 'deploying':
-      return { state: 'deploying', message: 'Deploying to Vercel' };
     case 'failed':
       return {
         state: 'failed',
@@ -43,7 +41,7 @@ export function getMergedProjectStatus(project: Project | null, vercelStatus: Ve
   }
 
   // Then handle deploying state with Vercel status
-  if (project.status === 'deployed') {
+  if (project.status === 'deployed' || project.status === 'deploying') {
     switch (vercelStatus) {
       case null:
         return { state: 'unknown', message: 'Loading...' };
