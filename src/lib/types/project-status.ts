@@ -23,7 +23,7 @@ export function getMergedProjectStatus(project: Project | null, vercelStatus: Ve
   // First handle raw DB states
   switch (project.status) {
     case 'created':
-      return { state: 'created', message: 'Project created - awaiting deployment' };
+      return { state: 'created', message: 'Deploy to share with others' };
     case 'deploying':
       return { state: 'deploying', message: 'Deploying to Vercel' };
     case 'failed':

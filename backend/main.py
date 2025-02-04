@@ -1,5 +1,6 @@
 import time
 
+from backend.integrations.openrank import get_openrank_score_for_fid
 from backend.types import UserContext
 import modal
 
@@ -64,6 +65,12 @@ def handle_farcaster_webhook(data: dict) -> dict:
     return {"status": "ignored"}
 
 
+def get_prompt_from_conversation(conversation: str) -> str:
+    return f"""Build a project based on this social media conversation:
+    {conversation}
+    """
+
+
 @app.function(secrets=all_secrets)
 def create_project_from_cast(data: dict):
     """Handle cast.created webhooks from Neynar"""
@@ -73,54 +80,91 @@ def create_project_from_cast(data: dict):
     from backend.integrations.neynar import NeynarPost
     from backend.integrations.neynar import get_conversation_from_cast
 
+    cast = data["data"]
     try:
-        conversation = get_conversation_from_cast(data["data"]["hash"])
+        conversation = get_conversation_from_cast(cast["hash"])
         print("conversation: ", conversation)
     except Exception as e:
         print("Failed to fetch conversation", e)
         return {"error": "Failed to fetch conversation", "message": f"{str(e)}"}, 500
 
-    return {"status": "success"}, 200
+    user_fid = cast["author"]["fid"]
+    openrank_score = get_openrank_score_for_fid(user_fid)
+    print("openrank_score: ", openrank_score)
+    if openrank_score["percentile"] < 0.9:
+        print(
+            f"user with fid {user_fid} has openrank score below 0.9, not creating project"
+        )
+        NeynarPost().reply_to_cast(
+            text=f"you must be in the top 10% of users (based on openrank score) to create a project, while we're testing in alpha. {config.FRONTEND_URL}",
+            parent_hash=cast["hash"],
+            parent_fid=user_fid,
+            embeds=[{"url": config.FRONTEND_URL}],
+        )
 
-    # otherwise reply with currently alpha phase, no access yet
-    prompt = cast_data["text"].strip()
-    user_fid = cast_data["author"]["fid"]
-    parent_cast_hash = cast_data["hash"]
+        return {
+            "status": "ignored",
+            "message": "User does not meet minimum requirements to create a project",
+        }
 
-    # Create project record
+    prompt = get_prompt_from_conversation(conversation)
+    user_context = cast["author"]
+    payload = dict(
+        prompt=prompt,
+        user_context=user_context,
+    )
     db = Database()
     project_id = db.create_project(
         fid_owner=user_fid,
-        repo_url="",  # Will be populated later
-        frontend_url="",  # Will be populated later
+        repo_url="",
+        frontend_url="",
+        data={"cast": cast, **payload},
     )
-
-    # Create setup job
     job_id = db.create_job(
         project_id=project_id,
         job_type="setup_project",
-        data={"prompt": prompt, "user_context": {"fid": user_fid}},
+        data=payload,
     )
 
-    # Trigger async project setup
     create_project.spawn(
         {
             "project_id": project_id,
             "job_id": job_id,
-            "data": {"prompt": prompt, "user_context": {"fid": user_fid}},
+            "data": payload,
         }
     )
 
+    print(
+        "spawned create_project function. sleeping for 30 seconds before replying to cast"
+    )
     # Wait for initial processing before responding
     time.sleep(30)
+    try:
+        project = db.get_project(project_id)
+        text = f"🚀 Your project is being created! Track status here: {config.FRONTEND_URL}"
+        embeds = [
+            {
+                "url": config.FRONTEND_URL,
+            }
+        ]
 
-    frame_url = "https://farcasterframeception.vercel.app"
-    NeynarPost().reply_to_cast(
-        text=f"🚀 Your project is being created! Track status here: {frame_url}",
-        parent_hash=parent_cast_hash,
-        parent_fid=user_fid,
-        embeds=[{"url": frame_url}],
-    )
+        if project.repo_url:
+            text += f"\n🔗 open source repo: {project.repo_url}"
+            embeds.append(
+                {
+                    "url": project.repo_url,
+                }
+            )
+
+        NeynarPost().reply_to_cast(
+            text=text,
+            parent_hash=cast["hash"],
+            parent_fid=user_fid,
+            embeds=embeds,
+        )
+    except Exception as e:
+        print("Failed to reply to cast", e)
+        return {"error": "Failed to reply to cast", "message": f"{str(e)}"}, 500
 
     return {
         "status": "pending",

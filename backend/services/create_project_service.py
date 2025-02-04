@@ -19,7 +19,6 @@ class CreateProjectService:
         self.user_context: UserContext = data["user_context"]
 
         self.db = Database()
-        self.code_service = CodeService(project_id, job_id, self.user_context)
 
     def setup_core_infrastructure(self):
         """Fast initial setup without final verification"""
@@ -29,10 +28,10 @@ class CreateProjectService:
         self._setup_github_repo()
         self._setup_vercel_project()
         self._apply_initial_customization()
-        self.db.update_project(self.project_id, {
-            "status": "created",
-            "repo_url": f"github.com/{self.repo_name}"
-        })
+        self.db.update_project(
+            self.project_id,
+            {"status": "created", "repo_url": f"github.com/{self.repo_name}"},
+        )
         self.db.update_job_status(self.job_id, "awaiting_deployment")
         self._log("Core infrastructure ready for deployment")
 
@@ -46,7 +45,8 @@ class CreateProjectService:
         self._log(
             f"Apply initial customization with prompt: {customize_from_user_input_prompt}"
         )
-        result = self.code_service.run(customize_from_user_input_prompt)
+        code_service = CodeService(self.project_id, self.job_id, self.user_context)
+        result = code_service.run(customize_from_user_input_prompt)
         self._log(f"Customization result: {result}")
 
     def _generate_project_name(self):
@@ -98,9 +98,12 @@ class CreateProjectService:
 
 def get_template_customization_prompt(project_name: str, user_prompt: str) -> str:
     """Generate initial setup prompt for project customization"""
-    return f"""Create a Farcaster Frame called "{project_name}" based on the user instructions:
-{user_prompt}
+    return f"""Create a Farcaster Frame called "{project_name}" 
 
 Focus on:
 1. Updating Frame component in src/components/Frame.tsx
-2. Adding constants to src/lib/constants.ts"""
+2. Adding constants to src/lib/constants.ts
+
+Instructions:
+{user_prompt}
+"""

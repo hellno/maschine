@@ -23,8 +23,98 @@ class NeynarError(Exception):
     pass
 
 
-class NeynarPostTool:
-    name: str = "neynar_post_tool"
+def _get_api_key() -> str:
+    api_key = os.getenv("NEYNAR_API_KEY")
+    if not api_key:
+        raise ValueError("NEYNAR_API_KEY environment variable not set")
+    return api_key
+
+
+def get_author_display(author: Dict) -> str:
+    """Extract author display name and username safely"""
+    display_name = author.get("display_name", "Anonymous")
+    username = author.get("username", "unknown")
+    return f"{display_name} (@{username})"
+
+
+def get_location_string(author: Dict) -> str:
+    """Safely extract and format location information"""
+    try:
+        profile = author.get("profile", {})
+        location = profile.get("location", {}).get("address", {})
+        city = location.get("city")
+        country = location.get("country")
+
+        if city and country:
+            return f" from {city}, {country}"
+    except Exception:
+        pass
+    return ""
+
+
+def get_channel_string(cast_data: Dict) -> str:
+    """Safely extract and format channel information"""
+    try:
+        channel = cast_data.get("channel", {}).get("name")
+        return f" in #{channel}" if channel else ""
+    except Exception:
+        return ""
+
+
+def get_follower_string(author: Dict) -> str:
+    """Safely extract and format follower count"""
+    try:
+        follower_count = author.get("follower_count", 0)
+        return f" (has {follower_count:,} followers)"
+    except Exception:
+        return ""
+
+
+def format_cast(
+    cast: dict, include_location: bool = True, include_stats: bool = True
+) -> Optional[str]:
+    """
+    Format a single cast into a readable string
+    Args:
+        cast: Dictionary containing cast data from Neynar API or Dagster output
+    Returns:
+        Optional[str]: Formatted cast string or None if formatting fails
+    """
+    try:
+        print("format_cast: cast %s", cast)
+        text = cast.get("text")
+        if not text:
+            return None
+
+        author = cast.get("author", {})
+        reactions = cast.get("reactions", {})
+        replies = cast.get("replies", {})
+
+        # Format engagement metrics
+        likes = reactions.get("likes_count", 0)
+        recasts = reactions.get("recasts_count", 0)
+        reply_count = replies.get("count", 0)
+
+        # Get timestamp
+        timestamp = cast.get("timestamp", "")
+
+        # Build formatted string using helper functions
+        formatted_cast = f"""
+        posted by {get_author_display(author)}
+        {get_location_string(author) if include_location else ""}
+        {get_channel_string(cast)}
+        {get_follower_string(author) if include_stats else ""}
+        Date: {timestamp}
+        {f"Engagement: {likes} likes {recasts} recasts {reply_count} replies" if include_stats else ""}
+        Text: {text}
+        """
+        return formatted_cast
+    except Exception as e:
+        print("format_cast error: %s", e)
+        return None
+
+
+class NeynarPost:
     description: str = "Posts content to Farcaster social media network. Input should be the text content to post."
 
     def _run(self, text: str, **kwargs) -> str:
@@ -68,7 +158,13 @@ class NeynarPostTool:
         embeds = [{"cast_id": {"hash": cast_hash, "fid": cast_fid}}]
         return self._run(text, embeds=embeds)
 
-    def reply_to_cast(self, text: str, parent_hash: str, parent_fid: int) -> str:
+    def reply_to_cast(
+        self,
+        text: str,
+        parent_hash: str,
+        parent_fid: int,
+        embeds: Optional[List[Dict]] = [],
+    ) -> str:
         """
         Reply to an existing cast
         Args:
@@ -79,24 +175,13 @@ class NeynarPostTool:
             str: Response summary of the posting operation
         """
         parent_cast_id = {"hash": parent_hash, "fid": parent_fid}
-        return self._run(text, parent_cast_id=parent_cast_id)
+        return self._run(text, parent_cast_id=parent_cast_id, embeds=embeds)
 
     def validate_text(self, text: str) -> bool:
         # maximum byte length is 320 bytes
         if len(text.encode("utf-8")) > 320:
             raise ValueError("Post content is too long. Maximum 320 bytes allowed.")
         return True
-
-    def _get_credentials(self) -> str:
-        """
-        Get API key from environment variables
-        Returns:
-            str: api_key
-        """
-        api_key = os.getenv("NEYNAR_API_KEY")
-        if not api_key:
-            raise ValueError("NEYNAR_API_KEY environment variable not set")
-        return api_key
 
     def _post_content(
         self,
@@ -116,7 +201,7 @@ class NeynarPostTool:
         print("NeynarPostTool _post_content text: %s", text)
         print("NeynarPostTool _post_content embeds: %s", embeds)
         print("NeynarPostTool _post_content parent_cast_id: %s", parent_cast_id)
-        api_key = self._get_credentials()
+        api_key = _get_api_key()
         url = "https://hub-api.neynar.com/v1/submitMessage"
 
         headers = {
@@ -128,10 +213,11 @@ class NeynarPostTool:
         try:
             # Get required Farcaster credentials
             app_signer = os.getenv("FARCASTER_APP_SIGNER")
-            user_fid = os.getenv("FARCASTER_ID")
+            user_fid = os.getenv("FID")
+            print(f"using fid {user_fid} and app_signer {app_signer[:10]}")
             if not app_signer or not user_fid:
                 raise ValueError(
-                    "FARCASTER_APP_SIGNER and FARCASTER_ID environment variables must be set"
+                    "FARCASTER_APP_SIGNER and FID environment variables must be set"
                 )
 
             # Build and sign the message
@@ -168,6 +254,8 @@ class NeynarPostTool:
                                 else cast_id["hash"]
                             )
                         processed_embeds.append(Embed(**embed))
+                    elif "url" in embed:
+                        processed_embeds.append(Embed(url=embed["url"]))
 
             data = None
             # Set parent cast ID fields directly if it exists
@@ -229,3 +317,48 @@ class NeynarPostTool:
                 except Exception:
                     pass
             raise NeynarError(f"NeynarPostTool error: {error_msg}")
+
+
+def get_conversation_from_cast(cast_hash: str, reply_depth: int = 1) -> str:
+    """
+    Get the conversation thread for a specific cast
+    Args:
+        cast_hash: Hash of the cast to get conversation for
+        reply_depth: How many levels of replies to include (default 1)
+    Returns:
+        str: Conversation of formatted casts including the cast, its parents and its replies
+    """
+    try:
+        print(f"NeynarFeedTool get_conversation for cast_hash {cast_hash}")
+        api_key = _get_api_key()
+        fid = os.getenv("FID")
+        if not fid:
+            raise ValueError("FID environment variable not set")
+
+        headers = {"accept": "application/json", "api_key": api_key}
+
+        url = "https://api.neynar.com/v2/farcaster/cast/conversation"
+        params = {
+            "identifier": cast_hash,
+            "type": "hash",
+            "reply_depth": reply_depth,
+            "include_chronological_parent_casts": "true",
+            "viewer_fid": fid,
+            "fold": "above",
+            "limit": 20,
+        }
+
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+
+        conversation = response.json().get("conversation")
+        print(f"Retrieved conversation for cast {cast_hash}: {conversation}")
+        main_cast = conversation.get("cast")
+        parent_casts = conversation.get("chronological_parent_casts", [])
+        child_casts = main_cast.get("direct_replies", [])
+        casts = parent_casts + [main_cast] + child_casts
+        return "\n".join([format_cast(c, include_stats=False) for c in casts if c])
+
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching conversation: {str(e)}")
+        raise NeynarError(f"Failed to fetch conversation: {str(e)}")
