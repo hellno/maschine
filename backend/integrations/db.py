@@ -18,7 +18,9 @@ class Database:
 
         self.client = create_client(url, key)
 
-    def create_project(self, fid_owner: int, repo_url: str, frontend_url: str) -> str:
+    def create_project(
+        self, fid_owner: int, repo_url: str, frontend_url: str, data: dict = {}
+    ) -> str:
         """Create a new project record"""
         project_id = str(uuid.uuid4())
         print(
@@ -33,6 +35,8 @@ class Database:
                 "fid_owner": fid_owner,
                 "repo_url": repo_url,
                 "frontend_url": frontend_url,
+                "status": "created",
+                "data": data,
             }
         ).execute()
         return project_id

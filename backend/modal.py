@@ -12,9 +12,9 @@ base_image = (
     modal.Image.debian_slim(python_version="3.12")
     .env(CONTAINER_ENV_VARS)
     .apt_install("git", "curl", "python3-dev", "build-essential")
+    .pip_install("setuptools")
     .pip_install(
         "fastapi",
-        "aider-chat[playwright]",
         "GitPython",
         "PyGithub",
         "openai",
@@ -23,31 +23,25 @@ base_image = (
         "redis",
         "tenacity",
         "eth-account",
-        "boto3",
+        "playwright",
+        "farcaster-py",
+        "blake3",
     )
     .run_commands(
+        "pip install -U --upgrade-strategy only-if-needed aider-chat",
         "playwright install --with-deps chromium",
         "curl -fsSL https://deb.nodesource.com/setup_20.x | bash -",
         "apt-get install -y nodejs",
         "curl -fsSL https://get.pnpm.io/install.sh | SHELL=/bin/bash bash -",
         "pnpm add -g node-gyp",
+        "aider --install-main-branch --yes",
     )
 )
 
-# Create main app instance
 app = modal.App(name=config.APP_NAME, image=base_image)
 
 
-# s3_mount = CloudBucketMount(
-#     bucket_name=config.BUCKET_NAME,
-#     secret=modal.Secret.from_name("aws-secret"),
-#     read_only=False,
-#     key_prefix="projects/",
-
-# )
-
 volumes = {
-    # config.BASE_MOUNT: s3_mount,
     config.PATHS["GITHUB_REPOS"]: modal.Volume.from_name(
         config.VOLUMES["GITHUB_REPOS"], create_if_missing=True
     ),

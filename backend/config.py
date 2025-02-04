@@ -56,6 +56,4 @@ AIDER_CONFIG = {
 """,
     },
 }
-
-BASE_MOUNT = "/s3-projects"
-BUCKET_NAME = "frameception-projects-prod"  # Hardcoded bucket name
+FRONTEND_URL = "https://farcasterframeception.vercel.app"

@@ -24,11 +24,17 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "./ui/sheet";
-import { GitBranch, ArrowUp, Share, ExternalLink, Copy } from "lucide-react";
+import {
+  GitBranch,
+  ArrowUp,
+  Share,
+  ExternalLink,
+  Copy,
+  Play,
+} from "lucide-react";
 import { Button } from "./ui/button";
-import { FrameContext } from "@farcaster/frame-core";
 import sdk from "@farcaster/frame-sdk";
-import { Log, Project, VercelLogData } from "~/lib/types";
+import { Log, Project, UserContext, VercelLogData } from "~/lib/types";
 import Link from "next/link";
 
 const styles = {
@@ -55,15 +61,17 @@ const styles = {
 
 interface ProjectDetailViewProps {
   projectId: string | null;
-  userContext?: FrameContext["user"];
+  userContext?: UserContext;
 }
 
 function ProjectInfoCard({
   project,
-  status,
+  projectStatus,
+  onHandleDeploy,
 }: {
   project: Project;
-  status: ProjectStatus;
+  projectStatus: ProjectStatus;
+  onHandleDeploy: () => void;
 }) {
   const handleCopyUrl = async () => {
     if (project.frontend_url) {
@@ -98,9 +106,22 @@ function ProjectInfoCard({
               Created {new Date(project.created_at).toLocaleDateString()}
             </p>
           </div>
-          <ProjectStatusIndicator status={status} />
+          <ProjectStatusIndicator status={projectStatus} />
         </div>
+        <p className="text-gray-600 dark:text-gray-400">
+          {JSON.stringify(projectStatus)}
+        </p>
         <div className="flex flex-col sm:flex-row gap-3">
+          {projectStatus.state === "created" && (
+            <Button
+              onClick={onHandleDeploy}
+              className="flex-1 w-full"
+              variant="default"
+            >
+              <Play className="w-4 h-4 mr-2" />
+              Deploy Now
+            </Button>
+          )}
           {project.frontend_url && (
             <>
               <Link href={project.frontend_url} className="flex-1 w-full">
@@ -109,7 +130,7 @@ function ProjectInfoCard({
                   Open Frame
                 </Button>
               </Link>
-              {status.state === "deployed" && (
+              {projectStatus.state === "deployed" && (
                 <>
                   <Button
                     variant="outline"
@@ -140,9 +161,9 @@ function ProjectInfoCard({
             </Link>
           )}
         </div>
-        {status.error && (
+        {projectStatus.error && (
           <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-600 dark:text-red-400 text-sm">
-            {status.error}
+            {projectStatus.error}
           </div>
         )}
       </div>
@@ -167,14 +188,19 @@ function ConversationCard({
   setUpdatePrompt: (prompt: string) => void;
   isSubmitting: boolean;
   handleSubmitUpdate: () => void;
-  userContext?: FrameContext["user"];
+  userContext?: UserContext;
   vercelBuildStatus: VercelBuildStatus | null;
   onHandleTryAutofix: () => void;
 }) {
   const jobs =
-    project.jobs?.filter(
-      (job) => job.type === "update_code" || job.type === "setup_project"
-    ) || [];
+    project.jobs
+      ?.filter(
+        (job) => job.type === "update_code" || job.type === "setup_project"
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      ) || [];
 
   const hasAnyJobsPending = jobs.some((job) => job.status === "pending");
   const hasBuildErrors = vercelBuildStatus === "ERROR";
@@ -597,6 +623,30 @@ export function ProjectDetailView({
     }
   };
 
+  const onHandleDeploy = async () => {
+    if (!project) return;
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("/api/deploy-project", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          projectId: project.id,
+          userContext: userContext,
+        }),
+      });
+      if (!response.ok) throw new Error("Deployment failed");
+      await fetchProject();
+    } catch (err) {
+      console.error("Deployment error:", err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const onHandleTryAutofix = async () => {
     if (!project) return;
     setIsSubmitting(true);
@@ -670,7 +720,11 @@ export function ProjectDetailView({
 
   return (
     <div className={styles.container}>
-      <ProjectInfoCard project={project} status={projectStatus} />
+      <ProjectInfoCard
+        project={project}
+        projectStatus={projectStatus}
+        onHandleDeploy={onHandleDeploy}
+      />
       <ConversationCard
         project={project}
         logs={logs}

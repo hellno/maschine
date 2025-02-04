@@ -88,7 +88,6 @@ class CodeService:
             self.db.update_job_status(self.job_id, "failed", error_msg)
             self.terminate_sandbox()
             raise
-            # return {"status": "error", "error": error_msg}
 
     def terminate_sandbox(self):
         """Safely terminate the sandbox if it exists."""

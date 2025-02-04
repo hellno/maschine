@@ -6,11 +6,12 @@ import { useAccount } from "wagmi";
 import { CheckIcon, Loader2 } from "lucide-react";
 import { BigPurpleButton } from "~/components/ui/BigPurpleButton";
 import FancyLargeButton from "./FancyLargeButton";
-import { FrameContext } from "@farcaster/frame-sdk";
 import Link from "next/link";
+import { UserContext } from "~/lib/types";
+
 
 type AccessCheckProps = {
-  userContext?: FrameContext["user"];
+  userContext?: UserContext;
   onAccessGranted: () => void;
 };
 
@@ -97,7 +98,10 @@ export const AccessCheck = ({
   const renderButton = () => {
     if (hasAccess) {
       return (
-        <FancyLargeButton text="Start Building" onClick={() => onAccessGranted()} />
+        <FancyLargeButton
+          text="Start Building"
+          onClick={() => onAccessGranted()}
+        />
       );
     }
     if (!actionMessage || actionMessage === "register_farcaster_account") {
