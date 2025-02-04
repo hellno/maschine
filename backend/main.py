@@ -1,3 +1,5 @@
+import time
+
 from backend.types import UserContext
 import modal
 
@@ -34,6 +36,92 @@ def create_project_webhook(data: dict) -> dict:
         "data": data,
     }
     create_project.spawn(create_project_data)
+    return {
+        "status": "pending",
+        "project_id": project_id,
+        "job_id": job_id,
+        "message": "Project setup started",
+    }
+
+
+@app.function()
+@modal.web_endpoint(label="farcaster-webhook", docs=True, method="POST")
+def handle_farcaster_webhook(data: dict) -> dict:
+    # import os
+    # if token.credentials != os.environ["NEYNAR_WEBHOOK_AUTH_TOKEN"]:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_401_UNAUTHORIZED,
+    #         detail="Incorrect bearer token",
+    #         headers={"WWW-Authenticate": "Bearer"},
+    #     )
+    print(f"received handle_farcaster_webhook with data: {data}")
+    event_type = data.get("type")
+    if event_type == "cast.created":
+        text = data.get("data", {}).get("text")
+        if text:  # and "build this" in text.lower():
+            create_project_from_cast.spawn(data)
+            return {"status": "success"}
+    return {"status": "ignored"}
+
+
+@app.function(secrets=all_secrets)
+def create_project_from_cast(data: dict):
+    """Handle cast.created webhooks from Neynar"""
+    print("start create_project_from_cast with data: ", data)
+
+    # Post frame reply to original cast
+    from backend.integrations.neynar import NeynarPost
+    from backend.integrations.neynar import get_conversation_from_cast
+
+    try:
+        conversation = get_conversation_from_cast(data["data"]["hash"])
+        print("conversation: ", conversation)
+    except Exception as e:
+        print("Failed to fetch conversation", e)
+        return {"error": "Failed to fetch conversation", "message": f"{str(e)}"}, 500
+
+    return {"status": "success"}, 200
+
+    # otherwise reply with currently alpha phase, no access yet
+    prompt = cast_data["text"].strip()
+    user_fid = cast_data["author"]["fid"]
+    parent_cast_hash = cast_data["hash"]
+
+    # Create project record
+    db = Database()
+    project_id = db.create_project(
+        fid_owner=user_fid,
+        repo_url="",  # Will be populated later
+        frontend_url="",  # Will be populated later
+    )
+
+    # Create setup job
+    job_id = db.create_job(
+        project_id=project_id,
+        job_type="setup_project",
+        data={"prompt": prompt, "user_context": {"fid": user_fid}},
+    )
+
+    # Trigger async project setup
+    create_project.spawn(
+        {
+            "project_id": project_id,
+            "job_id": job_id,
+            "data": {"prompt": prompt, "user_context": {"fid": user_fid}},
+        }
+    )
+
+    # Wait for initial processing before responding
+    time.sleep(30)
+
+    frame_url = "https://farcasterframeception.vercel.app"
+    NeynarPost().reply_to_cast(
+        text=f"🚀 Your project is being created! Track status here: {frame_url}",
+        parent_hash=parent_cast_hash,
+        parent_fid=user_fid,
+        embeds=[{"url": frame_url}],
+    )
+
     return {
         "status": "pending",
         "project_id": project_id,
