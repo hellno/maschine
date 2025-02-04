@@ -24,7 +24,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "./ui/sheet";
-import { GitBranch, ArrowUp, Share, ExternalLink, Copy } from "lucide-react";
+import { GitBranch, ArrowUp, Share, ExternalLink, Copy, Play } from "lucide-react";
 import { Button } from "./ui/button";
 import { FrameContext } from "@farcaster/frame-core";
 import sdk from "@farcaster/frame-sdk";
@@ -101,6 +101,33 @@ function ProjectInfoCard({
           <ProjectStatusIndicator status={status} />
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
+          {projectStatus.state === "created" && (
+            <Button
+              onClick={async () => {
+                try {
+                  const response = await fetch("/api/deploy-project", {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                      projectId: project.id,
+                      userContext: userContext
+                    }),
+                  });
+                  if (!response.ok) throw new Error("Deployment failed");
+                  fetchProject();
+                } catch (err) {
+                  console.error("Deployment error:", err);
+                }
+              }}
+              className="flex-1 w-full"
+              variant="default"
+            >
+              <Play className="w-4 h-4 mr-2" />
+              Deploy Now
+            </Button>
+          )}
           {project.frontend_url && (
             <>
               <Link href={project.frontend_url} className="flex-1 w-full">
