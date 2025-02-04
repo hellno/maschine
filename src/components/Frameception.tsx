@@ -7,10 +7,7 @@ import { ProjectOverviewCard } from "./ProjectOverviewCard";
 import { ProjectDetailView } from "./ProjectDetailView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Card, CardContent } from "~/components/ui/card";
-import sdk, {
-  FrameNotificationDetails,
-  type FrameContext,
-} from "@farcaster/frame-sdk";
+import sdk, { FrameNotificationDetails } from "@farcaster/frame-sdk";
 import {
   useAccount,
   useSendTransaction,
@@ -36,7 +33,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "~/components/ui/sheet";
-import { Project } from "~/lib/types";
+import { FrameContext, Project } from "~/lib/types";
 
 const promptTemplates = [
   {
@@ -111,6 +108,7 @@ export default function Frameception() {
 
       const result = await sdk.actions.addFrame();
       console.log("addFrame result", result);
+      // @ts-expect-error - result type mixup
       if (result.added) {
         if (result.notificationDetails) {
           setNotificationDetails(result.notificationDetails);
@@ -120,9 +118,10 @@ export default function Frameception() {
             ? `Added, got notificaton token ${result.notificationDetails.token} and url ${result.notificationDetails.url}`
             : "Added, got no notification details"
         );
-      } else {
-        setAddFrameResult(`Not added: ${result.reason}`);
       }
+      // else {
+      //   setAddFrameResult(`Not added: ${result.reason}`);
+      // }
     } catch (error) {
       setAddFrameResult(`Error: ${error}`);
     }
@@ -236,7 +235,7 @@ export default function Frameception() {
         return;
       }
 
-      setContext(frameContext);
+      setContext(frameContext as unknown as FrameContext);
       setIsFramePinned(frameContext.client.added);
 
       sdk.on("frameAdded", ({ notificationDetails }) => {

@@ -12,9 +12,9 @@ base_image = (
     modal.Image.debian_slim(python_version="3.12")
     .env(CONTAINER_ENV_VARS)
     .apt_install("git", "curl", "python3-dev", "build-essential")
+    .pip_install("setuptools")
     .pip_install(
         "fastapi",
-        "aider-chat[playwright]",
         "GitPython",
         "PyGithub",
         "openai",
@@ -23,8 +23,12 @@ base_image = (
         "redis",
         "tenacity",
         "eth-account",
+        "playwright",
+        "farcaster-py",
+        "blake3",
     )
     .run_commands(
+        "pip install -U --upgrade-strategy only-if-needed aider-chat",
         "playwright install --with-deps chromium",
         "curl -fsSL https://deb.nodesource.com/setup_20.x | bash -",
         "apt-get install -y nodejs",
