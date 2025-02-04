@@ -172,9 +172,14 @@ function ConversationCard({
   onHandleTryAutofix: () => void;
 }) {
   const jobs =
-    project.jobs?.filter(
-      (job) => job.type === "update_code" || job.type === "setup_project"
-    ) || [];
+    project.jobs
+      ?.filter(
+        (job) => job.type === "update_code" || job.type === "setup_project"
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      ) || [];
 
   const hasAnyJobsPending = jobs.some((job) => job.status === "pending");
   const hasBuildErrors = vercelBuildStatus === "ERROR";
