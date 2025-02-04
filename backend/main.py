@@ -59,7 +59,7 @@ def handle_farcaster_webhook(data: dict) -> dict:
     event_type = data.get("type")
     if event_type == "cast.created":
         text = data.get("data", {}).get("text")
-        if text:  # and "build this" in text.lower():
+        if text and "build a frame" in text.lower():
             create_project_from_cast.spawn(data)
             return {"status": "success"}
     return {"status": "ignored"}
