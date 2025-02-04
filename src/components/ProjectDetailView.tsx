@@ -68,10 +68,12 @@ function ProjectInfoCard({
   project,
   projectStatus,
   onHandleDeploy,
+  isSubmitting,
 }: {
   project: Project;
   projectStatus: ProjectStatus;
   onHandleDeploy: () => void;
+  isSubmitting: boolean;
 }) {
   const handleCopyUrl = async () => {
     if (project.frontend_url) {
@@ -117,6 +119,7 @@ function ProjectInfoCard({
               onClick={onHandleDeploy}
               className="flex-1 w-full"
               variant="default"
+              disabled={isSubmitting}
             >
               <Play className="w-4 h-4 mr-2" />
               Deploy Now
@@ -724,6 +727,7 @@ export function ProjectDetailView({
         project={project}
         projectStatus={projectStatus}
         onHandleDeploy={onHandleDeploy}
+        isSubmitting={isSubmitting}
       />
       <ConversationCard
         project={project}

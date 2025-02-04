@@ -33,9 +33,7 @@ class DeployProjectService:
             self._log("Deployment completed successfully")
         except Exception as e:
             self._log(f"Deployment failed: {str(e)}", "error")
-            self.db.update_project(
-                self.project_id, {"status": "failed", "error": str(e)}
-            )
+            self.db.update_project(self.project_id, {"status": "failed"})
             raise
 
     def _update_metadata(self):
@@ -59,7 +57,7 @@ class DeployProjectService:
         """setup domain association for farcaster frame v2 to reflect user connection to new vercel domain"""
         self._log("Setting up domain association")
         print("should call update_code function via modal lookup here")
-        domain = f"{self.project_name}.vercel.app"
+        domain = self.project.get("frontend_url").replace("https://", "")
         domain_association = generate_domain_association(domain)
         update_domain_association_prompt = f"""
         Update src/app/.well-known/farcaster.json/route.ts so that the 'accountAssociation' field returns the following domain association:

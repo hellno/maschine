@@ -148,11 +148,12 @@ def create_project_from_cast(data: dict):
             }
         ]
 
-        if project.repo_url:
-            text += f"\n🔗 open source repo: {project.repo_url}"
+        repo_url = project.get("repo_url")
+        if repo_url:
+            text += f"\n🔗 open source repo: {repo_url}"
             embeds.append(
                 {
-                    "url": project.repo_url,
+                    "url": repo_url,
                 }
             )
 
