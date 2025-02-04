@@ -48,6 +48,7 @@ export function PinFrameButton({ projectId, className }: PinFrameButtonProps) {
     try {
       const result = await sdk.actions.addFrame();
 
+      // @ts-expect-error - result type mixup in SDK
       if (result.added) {
         // Only call API if frame was successfully pinned
         const response = await fetch("/api/increment-frame-pins", {
@@ -62,7 +63,7 @@ export function PinFrameButton({ projectId, className }: PinFrameButtonProps) {
           throw new Error("Failed to increment pin count");
         }
       } else {
-        setError(result.reason || "Failed to pin frame");
+        setError("Failed to pin frame");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");

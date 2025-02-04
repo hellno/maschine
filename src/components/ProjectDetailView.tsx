@@ -33,9 +33,8 @@ import {
   Play,
 } from "lucide-react";
 import { Button } from "./ui/button";
-import { FrameContext } from "@farcaster/frame-core";
 import sdk from "@farcaster/frame-sdk";
-import { Log, Project, VercelLogData } from "~/lib/types";
+import { Log, Project, UserContext, VercelLogData } from "~/lib/types";
 import Link from "next/link";
 
 const styles = {
@@ -62,7 +61,7 @@ const styles = {
 
 interface ProjectDetailViewProps {
   projectId: string | null;
-  userContext?: FrameContext["user"];
+  userContext?: UserContext;
 }
 
 function ProjectInfoCard({
@@ -189,7 +188,7 @@ function ConversationCard({
   setUpdatePrompt: (prompt: string) => void;
   isSubmitting: boolean;
   handleSubmitUpdate: () => void;
-  userContext?: FrameContext["user"];
+  userContext?: UserContext;
   vercelBuildStatus: VercelBuildStatus | null;
   onHandleTryAutofix: () => void;
 }) {
