@@ -510,7 +510,7 @@ export function ProjectDetailView({
   const [vercelBuildStatus, setVercelBuildStatus] =
     useState<VercelBuildStatus | null>(null);
 
-  const projectStatus = getMergedProjectStatus(project, vercelBuildStatus);
+  const projectStatus = getMergedProjectStatus(project);
 
   const fetchProject = useCallback(async () => {
     if (!projectId) return;

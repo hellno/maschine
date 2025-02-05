@@ -15,7 +15,7 @@ export enum VercelBuildStatus {
   QUEUED = 'QUEUED',
 }
 
-export function getMergedProjectStatus(project: Project | null, vercelStatus: VercelBuildStatus | null): ProjectStatus {
+export function getMergedProjectStatus(project: Project | null): ProjectStatus {
   if (!project) {
     return { state: 'error', message: 'Project not found' };
   }
