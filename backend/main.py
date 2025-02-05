@@ -58,8 +58,8 @@ def handle_farcaster_webhook(data: dict) -> dict:
     print(f"received handle_farcaster_webhook with data: {data}")
     event_type = data.get("type")
     if event_type == "cast.created":
-        text = data.get("data", {}).get("text")
-        if text and "build a frame" in text.lower():
+        text = data.get("data", {}).get("text", "").lower()
+        if text and "build" in text and "frame" in text:
             create_project_from_cast.spawn(data)
             return {"status": "success"}
     return {"status": "ignored"}
@@ -141,7 +141,8 @@ def create_project_from_cast(data: dict):
     time.sleep(30)
     try:
         project = db.get_project(project_id)
-        text = f"🚀 Your project is being created! Track status here: {config.FRONTEND_URL}"
+        text = f"""🚀 Your project is being created! Track status here: {config.FRONTEND_URL}
+        message @hellno for support"""
         embeds = [
             {
                 "url": config.FRONTEND_URL,

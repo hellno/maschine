@@ -48,28 +48,28 @@ class CodeService:
         try:
             coder = self._create_aider_coder()
 
-            print(f"[update_code] Running Aider with prompt: {prompt}")
+            print(f"[code_service] Running Aider with prompt: {prompt}")
             self.db.update_job_status(self.job_id, "running")
 
             aider_result = coder.run(prompt)
-            print(f"[update_code] Aider result (truncated): {aider_result[:250]}")
+            print(f"[code_service] Aider result (truncated): {aider_result[:250]}")
             _handle_pnpm_commands(aider_result, self.sandbox)
             has_errors, logs = self._run_build_in_sandbox()
 
             if has_errors:
                 error_fix_prompt = get_error_fix_prompt_from_logs(logs)
-                print("[update_code] Running Aider again to fix build errors")
+                print("[code_service] Running Aider again to fix build errors")
 
                 aider_result = coder.run(error_fix_prompt)
                 print(
-                    f"[update_code] Fix attempt result (truncated): {aider_result[:250]}"
+                    f"[code_service] Fix attempt result (truncated): {aider_result[:250]}"
                 )
 
                 has_errors, logs = self._run_build_in_sandbox(
                     terminate_after_build=True
                 )
                 if has_errors:
-                    print("[update_code] Build errors persist after fix attempt")
+                    print("[code_service] Build errors persist after fix attempt")
                     self.db.add_log(
                         self.job_id,
                         "backend",
@@ -83,7 +83,7 @@ class CodeService:
         except Exception as e:
             print("exception in run", e)
             error_msg = f"aider run failed: {str(e)}"
-            print(f"[update_code] {error_msg}")
+            print(f"[code_service] {error_msg}")
             self.db.add_log(self.job_id, "backend", error_msg)
             self.db.update_job_status(self.job_id, "failed", error_msg)
             self.terminate_sandbox()
@@ -93,10 +93,10 @@ class CodeService:
         """Safely terminate the sandbox if it exists."""
         if self.sandbox:
             try:
-                print(f"[update_code] Terminating sandbox - job id {self.job_id}")
+                print(f"[code_service] Terminating sandbox - job id {self.job_id}")
                 self.sandbox.terminate()
                 self.sandbox = None
-                print("[update_code] Sandbox terminated")
+                print("[code_service] Sandbox terminated")
             except Exception as e:
                 print(f"Error terminating sandbox job id {self.job_id}: {str(e)}")
 
@@ -111,7 +111,7 @@ class CodeService:
         if self.is_setup:
             return
 
-        print("[update_code] Setting up CodeService")
+        print("[code_service] Setting up CodeService")
         self.db = Database()
         self.repo_dir = tempfile.mkdtemp()
 
@@ -121,27 +121,32 @@ class CodeService:
         configure_git_user_for_repo(repo)
 
         self.is_setup = True
-        print("[update_code] CodeService setup complete")
+        print("[code_service] CodeService setup complete")
 
     def _sync_git_changes(self):
         """Sync any pending git changes with the remote repository."""
         try:
-            print("[update_code] Syncing git changes in repo dir", self.repo_dir)
-            repo = git.Repo(self.repo_dir)
+            print("[code_service] Syncing git changes in repo dir", self.repo_dir)
+            repo = git.Repo(path=self.repo_dir)
             # commits_behind, commits_ahead = repo.git.rev_list(
             #     "--left-right", "--count", "origin/main...main"
             # ).split()
             # print(
-            #     f"[update_code] Commits behind: {commits_behind}, ahead: {commits_ahead}"
+            #     f"[code_service] Commits behind: {commits_behind}, ahead: {commits_ahead}"
             # )
             # if int(commits_ahead) > 0:
-            #     print(f"[update_code] Pushing {commits_ahead} pending commits...")
+            #     print(f"[code_service] Pushing {commits_ahead} pending commits...")
             repo.git.push("origin", "main")
         except git.GitCommandError as e:
-            print(f"[update_code] sync git changes failed: {str(e)}")
+            print(f"[code_service] sync git changes failed: {str(e)}")
+
+    def _create_commit(self, message: str):
+        repo = git.Repo(path=self.repo_dir)
+        repo.git.add(A=True)
+        repo.git.commit("-m", message, "--allow-empty")
 
     def _run_install_in_sandbox(self):
-        print("[update_code] Running install command")
+        print("[code_service] Running install command")
         process = self.sandbox.exec("pnpm", "install")
         for line in process.stdout:
             print("[install]", line.strip())
@@ -194,7 +199,7 @@ class CodeService:
                 f"sandbox results: has_error_in_logs {has_error_in_logs} returncode {returncode} logs_str {logs_str} "
             )
             if terminate_after_build and not self.manual_sandbox_termination:
-                print("[update_code] Terminating sandbox after build")
+                print("[code_service] Terminating sandbox after build")
                 self.terminate_sandbox()
             return has_error_in_logs, logs_str
 
@@ -206,7 +211,7 @@ class CodeService:
 
     def _create_base_image_with_deps(self, repo_dir: str) -> modal.Image:
         """Create a base image with dependencies installed."""
-        print("[update_code] Creating base sandbox for dependency installation")
+        print("[code_service] Creating base sandbox for dependency installation")
 
         self._add_file_to_repo_dir(
             repo_dir=self.repo_dir,
@@ -225,7 +230,7 @@ class CodeService:
         )
         image = None
         try:
-            print("[update_code] Installing dependencies in base sandbox")
+            print("[code_service] Installing dependencies in base sandbox")
             process = base_sandbox.exec("pnpm", "install")
             for line in process.stdout:
                 print("[base install]", line.strip())
@@ -234,7 +239,7 @@ class CodeService:
             if process.returncode != 0:
                 raise Exception("Base dependency installation failed")
 
-            print("[update_code] Creating filesystem snapshot")
+            print("[code_service] Creating filesystem snapshot")
             image = base_sandbox.snapshot_filesystem()
         finally:
             base_sandbox.terminate()
@@ -259,7 +264,7 @@ class CodeService:
         )
         self.sandbox.set_tags({"project_id": self.project_id, "job_id": self.job_id})
         self._run_install_in_sandbox()
-        print("[update_code] Sandbox created")
+        print("[code_service] Sandbox created")
 
     def _create_aider_coder(self) -> Coder:
         """Create and configure the Aider coder instance."""
@@ -282,6 +287,10 @@ class CodeService:
             read_only_fnames=read_only_fnames,
             **config.AIDER_CONFIG["CODER"],
         )
+
+    def _get_latest_commit_sha(self) -> str:
+        repo = git.Repo(path=self.repo_dir)
+        return repo.head.commit.hexsha
 
 
 def get_error_fix_prompt_from_logs(logs: str) -> str:
@@ -321,7 +330,7 @@ def _handle_pnpm_commands(
     matches = re.finditer(pattern, aider_result, re.DOTALL)
 
     print(
-        f"[update_code] Found {len(list(matches))} package install commands in aider output"
+        f"[code_service] Found {len(list(matches))} package install commands in aider output"
     )
     for match in matches:
         packages = match.group(1).strip()
@@ -329,7 +338,7 @@ def _handle_pnpm_commands(
             continue
 
         try:
-            print(f"[update_code] Installing packages: {packages}")
+            print(f"[code_service] Installing packages: {packages}")
             print(f"Installing packages: {packages}")
             print(f"output of *packages.split() {packages.split()}")
             # Always use pnpm add regardless of whether npm install was specified
@@ -347,7 +356,7 @@ def _handle_pnpm_commands(
             exit_code = install_proc.wait()
             if exit_code != 0:
                 print(
-                    f"[update_code] Warning: pnpm add command failed with exit code {
+                    f"[code_service] Warning: pnpm add command failed with exit code {
                         exit_code
                     } but continuing..."
                 )
@@ -355,6 +364,6 @@ def _handle_pnpm_commands(
 
         except Exception as e:
             error_msg = f"Warning: Error installing packages {packages}: {e}"
-            print(f"[update_code] {error_msg}")
+            print(f"[code_service] {error_msg}")
             # Continue instead of failing
             continue

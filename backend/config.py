@@ -56,4 +56,5 @@ AIDER_CONFIG = {
 """,
     },
 }
+
 FRONTEND_URL = "https://farcasterframeception.vercel.app"

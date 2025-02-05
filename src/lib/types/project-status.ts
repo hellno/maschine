@@ -38,31 +38,34 @@ export function getMergedProjectStatus(project: Project | null, vercelStatus: Ve
       };
     case 'unknown':
       return { state: 'unknown', message: 'Unknown project state' };
+    case 'deploying':
+      return { state: 'deploying', message: 'Deploying...' };
+    case 'deployed':
+      return { state: 'deployed', message: 'Successfully deployed' };
+    default:
+      return { state: 'unknown', message: 'Unknown project state' };
   }
 
-  // Then handle deploying state with Vercel status
-  if (project.status === 'deployed' || project.status === 'deploying') {
-    switch (vercelStatus) {
-      case null:
-        return { state: 'unknown', message: 'Loading...' };
-      case 'QUEUED':
-        return { state: 'deploying', message: 'Deployment queued' };
-      case 'BUILDING':
-        return { state: 'deploying', message: 'Building...' };
-      case 'INITIALIZING':
-        return { state: 'deploying', message: 'Initializing...' };
-      case 'ERROR':
-        return {
-          state: 'error',
-          message: 'Build error',
-          error: 'Vercel build failed. Check logs for details.'
-        };
-      case 'READY':
-        return { state: 'deployed', message: 'Successfully deployed' };
-      default:
-        return { state: 'unknown', message: 'Unknown deployment state' };
-    }
-  }
-
-  return { state: 'unknown', message: 'Unknown project state' };
+  // // Then handle deploying state with Vercel status
+  // if (project.status === 'deployed' || project.status === 'deploying') {
+  //   switch (vercelStatus) {
+  //     case null:
+  //       return { state: 'unknown', message: 'Loading...' };
+  //     case 'QUEUED':
+  //       return { state: 'deploying', message: 'Deployment queued' };
+  //     case 'BUILDING':
+  //       return { state: 'deploying', message: 'Building...' };
+  //     case 'INITIALIZING':
+  //       return { state: 'deploying', message: 'Initializing...' };
+  //     case 'ERROR':
+  //       return {
+  //         state: 'error',
+  //         message: 'Build error',
+  //         error: 'Vercel build failed. Check logs for details.'
+  //       };
+  //     case 'READY':
+  //       return { state: 'deployed', message: 'Successfully deployed' };
+  //     default:
+  //       return { state: 'unknown', message: 'Unknown deployment state' };
+  //   }
 }

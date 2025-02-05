@@ -110,9 +110,6 @@ function ProjectInfoCard({
           </div>
           <ProjectStatusIndicator status={projectStatus} />
         </div>
-        <p className="text-gray-600 dark:text-gray-400">
-          {JSON.stringify(projectStatus)}
-        </p>
         <div className="flex flex-col sm:flex-row gap-3">
           {projectStatus.state === "created" && (
             <Button

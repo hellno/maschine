@@ -218,7 +218,7 @@ class VercelApi:
     ) -> Optional[dict]:
         try:
             response = requests.post(
-                f"https://api.vercel.com/v13/deployments",
+                "https://api.vercel.com/v13/deployments",
                 params={"teamId": self.vercel_team_id},
                 headers=self.headers,
                 json={
