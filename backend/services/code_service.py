@@ -128,6 +128,10 @@ class CodeService:
         try:
             print("[code_service] Syncing git changes in repo dir", self.repo_dir)
             repo = git.Repo(path=self.repo_dir)
+            if repo.is_dirty():
+                print("[code_service] Committing changes to git")
+                self._create_commit("automatic changes")
+
             # commits_behind, commits_ahead = repo.git.rev_list(
             #     "--left-right", "--count", "origin/main...main"
             # ).split()
