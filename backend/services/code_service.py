@@ -224,16 +224,19 @@ class CodeService:
         )
 
         app = modal.App.lookup(config.APP_NAME)
-        base_sandbox = modal.Sandbox.create(
-            app=app,
-            image=base_image.add_local_dir(repo_dir, remote_path="/repo"),
-            cpu=2,
-            memory=1024,
-            workdir="/repo",
-            timeout=config.TIMEOUTS["BUILD"],
-        )
         image = None
+        base_sandbox = None
+
         try:
+            base_sandbox = modal.Sandbox.create(
+                app=app,
+                image=base_image.add_local_dir(repo_dir, remote_path="/repo"),
+                cpu=2,
+                memory=1024,
+                workdir="/repo",
+                timeout=config.TIMEOUTS["BUILD"],
+            )
+
             print("[code_service] Installing dependencies in base sandbox")
             process = base_sandbox.exec("pnpm", "install")
             for line in process.stdout:
@@ -245,9 +248,16 @@ class CodeService:
 
             print("[code_service] Creating filesystem snapshot")
             image = base_sandbox.snapshot_filesystem()
-        finally:
-            base_sandbox.terminate()
             return image
+
+        except Exception as e:
+            print(f"[code_service] Base image creation failed: {str(e)}")
+            raise
+
+        finally:
+            if base_sandbox:
+                print("[code_service] Cleaning up base sandbox")
+                base_sandbox.terminate()
 
     def _create_sandbox(self, repo_dir: str):
         """Create a sandbox using the cached base image if available."""
@@ -331,12 +341,11 @@ def _handle_pnpm_commands(
 
     # Updated pattern to match both 'pnpm add' and 'npm install' commands
     pattern = r"```bash[\s\n]*(?:pnpm add|npm install(?: --save)?)\s+([^\n`]*)```"
-    matches = re.finditer(pattern, aider_result, re.DOTALL)
+    matches = list(re.finditer(pattern, aider_result, re.DOTALL))  # Convert to list first
 
-    print(
-        f"[code_service] Found {len(list(matches))} package install commands in aider output"
-    )
-    for match in matches:
+    print(f"[code_service] Found {len(matches)} package install commands in aider output")
+    
+    for match in matches:  # Now iterating over the cached list
         packages = match.group(1).strip()
         if not packages:
             continue
