@@ -1,3 +1,4 @@
+import os
 import time
 
 from backend.integrations.openrank import get_openrank_score_for_fid
@@ -8,6 +9,25 @@ from backend.modal import app, volumes, all_secrets, db_secrets
 from backend.services.deploy_project_service import DeployProjectService
 from backend import config
 from backend.integrations.db import Database
+import sentry_sdk
+
+SENTRY_DSN = os.environ.get("SENTRY_DSN")
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        # Add data like request headers and IP for users,
+        # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
+        send_default_pii=True,
+        # Set traces_sample_rate to 1.0 to capture 100%
+        # of transactions for tracing.
+        traces_sample_rate=1.0,
+        _experiments={
+            # Set continuous_profiling_auto_start to True
+            # to automatically start the profiler on when
+            # possible.
+            "continuous_profiling_auto_start": True,
+        },
+    )
 
 
 @app.function(secrets=db_secrets)
@@ -91,7 +111,7 @@ def create_project_from_cast(data: dict):
     user_fid = cast["author"]["fid"]
     openrank_score = get_openrank_score_for_fid(user_fid)
     print("openrank_score: ", openrank_score)
-    if openrank_score["percentile"] < 0.9:
+    if openrank_score["percentile"] < 80:
         print(
             f"user with fid {user_fid} has openrank score below 0.9, not creating project"
         )
