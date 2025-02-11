@@ -28,7 +28,7 @@ base_image = (
         "blake3",
     )
     .run_commands(
-        "pip install -U --upgrade-strategy only-if-needed aider-chat",
+        "pip install -U aider-chat",
         "playwright install --with-deps chromium",
         "curl -fsSL https://deb.nodesource.com/setup_20.x | bash -",
         "apt-get install -y nodejs",
@@ -62,7 +62,7 @@ all_secrets = [
     modal.Secret.from_name("farcaster-secret"),
     modal.Secret.from_name("neynar-secret"),
     modal.Secret.from_name("redis-secret"),
-    modal.Secret.from_name("aws-secret"),
+    modal.Secret.from_name("sentry-secret"),
 ]
 
 db_secrets = [

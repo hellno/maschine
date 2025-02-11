@@ -1,33 +1,14 @@
-import os
 import time
 
 from backend.integrations.openrank import get_openrank_score_for_fid
 from backend.types import UserContext
+from backend.utils.sentry import setup_sentry
 import modal
 
 from backend.modal import app, volumes, all_secrets, db_secrets
 from backend.services.deploy_project_service import DeployProjectService
 from backend import config
 from backend.integrations.db import Database
-import sentry_sdk
-
-SENTRY_DSN = os.environ.get("SENTRY_DSN")
-if SENTRY_DSN:
-    sentry_sdk.init(
-        dsn=SENTRY_DSN,
-        # Add data like request headers and IP for users,
-        # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
-        send_default_pii=True,
-        # Set traces_sample_rate to 1.0 to capture 100%
-        # of transactions for tracing.
-        traces_sample_rate=1.0,
-        _experiments={
-            # Set continuous_profiling_auto_start to True
-            # to automatically start the profiler on when
-            # possible.
-            "continuous_profiling_auto_start": True,
-        },
-    )
 
 
 @app.function(secrets=db_secrets)
@@ -116,7 +97,7 @@ def create_project_from_cast(data: dict):
             f"user with fid {user_fid} has openrank score below 0.9, not creating project"
         )
         NeynarPost().reply_to_cast(
-            text=f"you must be in the top 10% of users (based on openrank score) to create a project, while we're testing in alpha. {config.FRONTEND_URL}",
+            text=f"you must be in the top 20% of users (based on openrank score) to create a project, while we're testing in alpha. {config.FRONTEND_URL}",
             parent_hash=cast["hash"],
             parent_fid=user_fid,
             embeds=[{"url": config.FRONTEND_URL}],
@@ -205,6 +186,8 @@ def create_project_from_cast(data: dict):
 def create_project(data: dict) -> dict:
     from backend.services.create_project_service import CreateProjectService
 
+    setup_sentry()
+
     project_id = data["project_id"]
     job_id = data["job_id"]
     user_payload = data["data"]
@@ -282,6 +265,8 @@ def deploy_project_webhook(data: dict) -> dict:
 )
 def deploy_project(data: dict) -> dict:
     """Handle final deployment steps"""
+    setup_sentry()
+
     project_id = data["project_id"]
     job_id = data["job_id"]
     user_context = data["user_context"]
@@ -298,6 +283,8 @@ def deploy_project(data: dict) -> dict:
 )
 def update_code(data: dict) -> dict:
     from backend.services.code_service import CodeService
+
+    setup_sentry()
 
     project_id = data["project_id"]
     job_id = data["job_id"]
