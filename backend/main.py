@@ -92,12 +92,12 @@ def create_project_from_cast(data: dict):
     user_fid = cast["author"]["fid"]
     openrank_score = get_openrank_score_for_fid(user_fid)
     print("openrank_score: ", openrank_score)
-    if openrank_score["percentile"] < 80:
+    if openrank_score["percentile"] < 90:
         print(
-            f"user with fid {user_fid} has openrank score below 0.9, not creating project"
+            f"user with fid {user_fid} has openrank percentile below 90, not creating project. {openrank_score}",
         )
         NeynarPost().reply_to_cast(
-            text=f"you must be in the top 20% of users (based on openrank score) to create a project, while we're testing in alpha. {config.FRONTEND_URL}",
+            text=f"you must be in the top 10% of users (based on openrank score) to create a project, while we're testing in alpha. {config.FRONTEND_URL}",
             parent_hash=cast["hash"],
             parent_fid=user_fid,
             embeds=[{"url": config.FRONTEND_URL}],

@@ -44,3 +44,4 @@ next-env.d.ts
 .env
 **/*.pyc
 **/__pycache__/*
+/notebooks
