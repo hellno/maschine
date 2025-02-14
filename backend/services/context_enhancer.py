@@ -1,4 +1,5 @@
 import logging
+import pathlib
 from typing import Optional, TypedDict
 
 
@@ -8,16 +9,26 @@ class ContextPiece(TypedDict):
 
 
 class CodeContextEnhancer:
+    # Get project root (assuming this file is in backend/services/)
+    PROJECT_ROOT = pathlib.Path(__file__).parent.parent.parent
+    
     context_pieces = [
         ContextPiece(
-            filepath="llm_context/docs/neynar/cast_search.md",
+            filepath=str(PROJECT_ROOT / "llm_context/docs/neynar/cast_search.md"),
             keywords=["neynar", "cast", "search"],
         ),
-        ContextPiece(filepath="llm_context/docs/dune/dune_api.md", keywords=["dune"]),
+        ContextPiece(
+            filepath=str(PROJECT_ROOT / "llm_context/docs/dune/dune_api.md"),
+            keywords=["dune"]
+        ),
     ]
 
     def __init__(self):
         self.logger = logging.getLogger(__name__)
+        for piece in self.context_pieces:
+            if not pathlib.Path(piece["filepath"]).exists():
+                self.logger.error(f"Missing context file: {piece['filepath']}")
+                raise FileNotFoundError(f"Context file missing: {piece['filepath']}")
 
     def get_relevant_context(self, query: str) -> Optional[str]:
         """Retrieve raw context without formatting assumptions."""
