@@ -5,10 +5,10 @@ from backend.services.context_enhancer import CodeContextEnhancer
 
 @pytest.fixture
 def mock_docs(tmp_path):
-    # Create temporary docs structure
-    docs_dir = tmp_path / "llm_context/docs/dune"
+    # Create structure under backend/llm_context
+    docs_dir = tmp_path / "backend/llm_context/docs/dune"
     docs_dir.mkdir(parents=True)
-
+    
     dune_doc = docs_dir / "dune_api.md"
     dune_doc.write_text("Dune API documentation content")
 
@@ -22,7 +22,7 @@ def test_query_processing(mock_docs):
         "context_pieces",
         [
             {
-                "filepath": str(mock_docs / "llm_context/docs/dune/dune_api.md"),
+                "filepath": str(mock_docs / "backend/llm_context/docs/dune/dune_api.md"),
                 "keywords": ["dune"],
             }
         ],

@@ -9,16 +9,16 @@ class ContextPiece(TypedDict):
 
 
 class CodeContextEnhancer:
-    # Get project root (assuming this file is in backend/services/)
-    PROJECT_ROOT = pathlib.Path(__file__).parent.parent.parent
+    # Path is now relative to backend directory
+    BACKEND_ROOT = pathlib.Path(__file__).parent.parent
     
     context_pieces = [
         ContextPiece(
-            filepath=str(PROJECT_ROOT / "llm_context/docs/neynar/cast_search.md"),
+            filepath=str(BACKEND_ROOT / "llm_context/docs/neynar/cast_search.md"),
             keywords=["neynar", "cast", "search"],
         ),
         ContextPiece(
-            filepath=str(PROJECT_ROOT / "llm_context/docs/dune/dune_api.md"),
+            filepath=str(BACKEND_ROOT / "llm_context/docs/dune/dune_api.md"),
             keywords=["dune"]
         ),
     ]
