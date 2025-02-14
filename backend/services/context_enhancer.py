@@ -5,21 +5,20 @@ from typing import Optional, TypedDict
 
 class ContextPiece(TypedDict):
     filepath: str
+    parentDocFilepath: Optional[str]
     keywords: list[str]
 
 
 class CodeContextEnhancer:
-    # Path is now relative to backend directory
-    BACKEND_ROOT = pathlib.Path(__file__).parent.parent
-    
     context_pieces = [
         ContextPiece(
-            filepath=str(BACKEND_ROOT / "llm_context/docs/neynar/cast_search.md"),
+            filepath=str("backend/llm_context/docs/neynar/cast_search.md"),
             keywords=["neynar", "cast", "search"],
+            parentDocFilepath=str("backend/llm_context/docs/neynar/shared.md"),
         ),
         ContextPiece(
-            filepath=str(BACKEND_ROOT / "llm_context/docs/dune/dune_api.md"),
-            keywords=["dune"]
+            filepath=str("backend/llm_context/docs/dune/dune_api.md"),
+            keywords=["dune"],
         ),
     ]
 
@@ -54,11 +53,24 @@ class CodeContextEnhancer:
             return []
         print("matching_pieces", matching_pieces)
         contents = []
+
+        parent_docs = set(
+            piece.get("parentDocFilepath")
+            for piece in matching_pieces
+            if piece.get("parentDocFilepath")
+        )
+        for parent_doc in parent_docs:
+            try:
+                with open(parent_doc) as f:
+                    contents.append(f.read())
+            except Exception as e:
+                self.logger.error(f"Failed to read parent doc {parent_doc}: {e}")
+
         for piece in matching_pieces:
             try:
                 with open(piece["filepath"]) as f:
                     contents.append(f.read())
             except Exception as e:
-                self.logger.error(f"Failed to read {piece['filepath']}: {e}")
+                self.logger.error(f"Failed to read doc {piece['filepath']}: {e}")
         print("contents", contents)
         return contents

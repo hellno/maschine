@@ -5,7 +5,6 @@ from backend.services.context_enhancer import CodeContextEnhancer
 
 @pytest.fixture
 def mock_docs(tmp_path):
-    # Create structure under backend/llm_context
     docs_dir = tmp_path / "backend/llm_context/docs/dune"
     docs_dir.mkdir(parents=True)
     
