@@ -94,6 +94,18 @@ class VercelApi:
                         "type": "encrypted",
                         "target": ["production", "preview", "development"],
                     },
+                    {
+                        "key": "NEXT_PUBLIC_POSTHOG_KEY",
+                        "value": os.environ["NEXT_PUBLIC_POSTHOG_KEY"],
+                        "type": "encrypted",
+                        "target": ["production"],
+                    },
+                    {
+                        "key": "NEXT_PUBLIC_POSTHOG_HOST",
+                        "value": os.environ["NEXT_PUBLIC_POSTHOG_HOST"],
+                        "type": "encrypted",
+                        "target": ["production"],
+                    },
                 ],
             }
 
