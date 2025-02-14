@@ -29,6 +29,10 @@ PATHS = {
     "PNPM_STORE": "/pnpm-store",
 }
 
+CODE_CONTEXT = {
+    "ENABLED": True,
+}
+
 AIDER_CONFIG = {
     "MODEL": {
         # "model": "sonnet",

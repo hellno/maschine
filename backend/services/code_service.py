@@ -15,6 +15,8 @@ from backend.integrations.github_api import (
 import tempfile
 
 from backend.types import UserContext
+from backend.services.context_enhancer import CodeContextEnhancer
+from backend.config import CODE_CONTEXT
 
 DEFAULT_PROJECT_FILES = [
     "src/components/Frame.tsx",
@@ -50,7 +52,7 @@ class CodeService:
 
             print(f"[code_service] Running Aider with prompt: {prompt}")
             self.db.update_job_status(self.job_id, "running")
-
+            prompt = self._enhance_prompt_with_context(prompt)
             aider_result = coder.run(prompt)
             print(f"[code_service] Aider result (truncated): {aider_result[:250]}")
             _handle_pnpm_commands(aider_result, self.sandbox)
@@ -99,6 +101,15 @@ class CodeService:
                 print("[code_service] Sandbox terminated")
             except Exception as e:
                 print(f"Error terminating sandbox job id {self.job_id}: {str(e)}")
+
+    def _enhance_prompt_with_context(self, prompt: str) -> str:
+        if CODE_CONTEXT["ENABLED"]:
+            try:
+                context = CodeContextEnhancer().get_relevant_context(prompt)
+                return f"additional context {context}\n\nprompt {prompt}"
+            except Exception as e:
+                print(f"[code_service] Context enhancement failed: {str(e)}")
+        return prompt
 
     def _add_file_to_repo_dir(self, repo_dir: str, filename: str, content: str) -> None:
         """Create a context file for Aider in the repo directory."""
@@ -341,10 +352,14 @@ def _handle_pnpm_commands(
 
     # Updated pattern to match both 'pnpm add' and 'npm install' commands
     pattern = r"```bash[\s\n]*(?:pnpm add|npm install(?: --save)?)\s+([^\n`]*)```"
-    matches = list(re.finditer(pattern, aider_result, re.DOTALL))  # Convert to list first
+    matches = list(
+        re.finditer(pattern, aider_result, re.DOTALL)
+    )  # Convert to list first
 
-    print(f"[code_service] Found {len(matches)} package install commands in aider output")
-    
+    print(
+        f"[code_service] Found {len(matches)} package install commands in aider output"
+    )
+
     for match in matches:  # Now iterating over the cached list
         packages = match.group(1).strip()
         if not packages:
