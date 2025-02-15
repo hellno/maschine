@@ -6,17 +6,21 @@ from typing import List
 OUTPUT_PATH = "backend/llm_context/docs"  # Path to write the generated context files
 
 
-# ai! add additional optional skip words as parameter to the function
-def convert_openapi_to_llm_context(openapi_file: str, api_name: str) -> None:
+def convert_openapi_to_llm_context(
+    openapi_file: str, 
+    api_name: str,
+    additional_skip_words: Optional[List[str]] = None
+) -> None:
     """Convert OpenAPI spec to LLM context documentation.
 
     Args:
         openapi_file: Path to OpenAPI spec file (YAML)
         api_name: Name of API for grouping context files
+        additional_skip_words: Optional list of additional words to skip
 
     Example:
-        convert_openapi_to_llm_context('neynar_openapi.yaml', 'neynar')
-        # Creates files in backend/llm_context/docs/neynar/
+        convert_openapi_to_llm_context('neynar_openapi.yaml', 'neynar', ['temp','demo'])
+        # Creates files in backend/llm_context/docs/neynar/ skipping endpoints with temp/demo
     """
     skip_filter = [
         "test",
@@ -24,6 +28,9 @@ def convert_openapi_to_llm_context(openapi_file: str, api_name: str) -> None:
         "mock",
         "sample",
     ]  # Words that indicate test endpoints
+    
+    if additional_skip_words:
+        skip_filter += additional_skip_words
 
     try:
         with open(openapi_file, "r") as f:
