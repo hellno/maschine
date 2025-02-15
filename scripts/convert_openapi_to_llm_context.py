@@ -1,4 +1,5 @@
 import os
+from tqdm import tqdm
 import yaml
 from pathlib import Path
 from typing import List, Optional, Dict
@@ -9,9 +10,12 @@ OUTPUT_PATH = "backend/llm_context/docs"  # Path to write the generated context 
 def resolve_schema(schema: Dict, spec: Dict) -> Dict:
     """Resolve $ref references to actual schema components"""
     if "$ref" in schema:
-        ref_path = schema["$ref"].split("/")[-1]  # Extract component name from #/components/schemas/ComponentName
+        ref_path = schema["$ref"].split("/")[
+            -1
+        ]  # Extract component name from #/components/schemas/ComponentName
         return spec["components"]["schemas"].get(ref_path, schema)
     return schema
+
 
 def convert_openapi_to_llm_context(
     openapi_file: str, api_name: str, additional_skip_words: Optional[List[str]] = None
@@ -47,7 +51,8 @@ def convert_openapi_to_llm_context(
     output_dir = Path(OUTPUT_PATH) / api_name
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    for path, methods in spec.get("paths", {}).items():
+    items = spec.get("paths", {}).items()
+    for path, methods in tqdm(items, desc="Generating context files"):
         for method, details in methods.items():
             if "operationId" not in details:
                 continue
@@ -102,7 +107,7 @@ def convert_openapi_to_llm_context(
 def main():
     openapi_file = "notebooks/specs/Neynar_OAS_v2_spec.yaml"
     api_name = "neynar"
-    additional_skip_words = ["temp", "demo", "signer", 'delete']
+    additional_skip_words = ["temp", "demo", "signer", "delete", "webhook"]
     convert_openapi_to_llm_context(openapi_file, api_name, additional_skip_words)
 
 
