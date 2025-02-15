@@ -1,7 +1,7 @@
 import os
 import yaml
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 OUTPUT_PATH = "backend/llm_context/docs"  # Path to write the generated context files
 
