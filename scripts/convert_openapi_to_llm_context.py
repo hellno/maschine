@@ -7,9 +7,7 @@ OUTPUT_PATH = "backend/llm_context/docs"  # Path to write the generated context 
 
 
 def convert_openapi_to_llm_context(
-    openapi_file: str, 
-    api_name: str,
-    additional_skip_words: Optional[List[str]] = None
+    openapi_file: str, api_name: str, additional_skip_words: Optional[List[str]] = None
 ) -> None:
     """Convert OpenAPI spec to LLM context documentation.
 
@@ -28,7 +26,7 @@ def convert_openapi_to_llm_context(
         "mock",
         "sample",
     ]  # Words that indicate test endpoints
-    
+
     if additional_skip_words:
         skip_filter += additional_skip_words
 
@@ -60,6 +58,7 @@ def convert_openapi_to_llm_context(
             content = f"# {details['operationId']}\n\n"
             content += f"**Endpoint**: `{method.upper()} {path}`\n\n"
 
+            print(f"details {details}")
             if "description" in details:
                 content += f"## Description\n{details['description']}\n\n"
 
@@ -89,3 +88,14 @@ def convert_openapi_to_llm_context(
                 print(f"Created context file: {output_path}")
             except IOError as e:
                 print(f"Error writing file {output_path}: {str(e)}")
+
+
+def main():
+    openapi_file = "notebooks/specs/Neynar_OAS_v2_spec.yaml"
+    api_name = "neynar"
+    additional_skip_words = ["temp", "demo", "signer"]
+    convert_openapi_to_llm_context(openapi_file, api_name, additional_skip_words)
+
+
+if __name__ == "__main__":
+    main()
