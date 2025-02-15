@@ -1,10 +1,17 @@
 import os
 import yaml
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 OUTPUT_PATH = "backend/llm_context/docs"  # Path to write the generated context files
 
+
+def resolve_schema(schema: Dict, spec: Dict) -> Dict:
+    """Resolve $ref references to actual schema components"""
+    if "$ref" in schema:
+        ref_path = schema["$ref"].split("/")[-1]  # Extract component name from #/components/schemas/ComponentName
+        return spec["components"]["schemas"].get(ref_path, schema)
+    return schema
 
 def convert_openapi_to_llm_context(
     openapi_file: str, api_name: str, additional_skip_words: Optional[List[str]] = None
@@ -58,7 +65,6 @@ def convert_openapi_to_llm_context(
             content = f"# {details['operationId']}\n\n"
             content += f"**Endpoint**: `{method.upper()} {path}`\n\n"
 
-            print(f"details {details}")
             if "description" in details:
                 content += f"## Description\n{details['description']}\n\n"
 
@@ -75,10 +81,10 @@ def convert_openapi_to_llm_context(
                 content += "## Response\n"
                 success_response = details["responses"].get("200", {})
                 if "content" in success_response:
+                    schema = success_response["content"]["application/json"]["schema"]
+                    resolved_schema = resolve_schema(schema, spec)
                     content += "```typescript\n"
-                    content += str(
-                        success_response["content"]["application/json"]["schema"]
-                    )
+                    content += str(resolved_schema)
                     content += "\n```\n"
 
             # Write context file
