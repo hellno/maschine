@@ -8,6 +8,11 @@ Fetches FID to [assign it to new user](https://docs.neynar.com/reference/registe
 ## Parameters
 
 ## Response
-```typescript
-{'type': 'object', 'required': ['fid'], 'properties': {'fid': {'type': 'integer'}}}
+```yaml
+type: object
+required:
+- fid
+properties:
+  fid:
+    type: integer
 ```

@@ -11,6 +11,229 @@ Fetch subscribers for a given FID's contracts. Doesn't return addresses that don
 - `subscription_provider` (query): No description
 
 ## Response
-```typescript
-{'type': 'object', 'properties': {'subscribers': {'type': 'array', 'items': {'$ref': '#/components/schemas/Subscriber'}}}}
+```yaml
+type: object
+properties:
+  subscribers:
+    type: array
+    items:
+      type: object
+      required:
+      - object
+      - user
+      - subscribed_to
+      properties:
+        object:
+          type: string
+          examples:
+          - subscriber
+        user:
+          type: object
+          required:
+          - object
+          - fid
+          - custody_address
+          - username
+          - profile
+          - follower_count
+          - following_count
+          - verifications
+          - verified_addresses
+          - verified_accounts
+          - power_badge
+          properties:
+            object:
+              type: string
+              enum:
+              - user
+            fid:
+              type: integer
+              format: int32
+              description: The unique identifier of a farcaster user (unsigned integer)
+              examples:
+              - 3
+              - 191
+              - 2
+              - 194
+              - 19960
+            username:
+              type: string
+            display_name:
+              type: string
+            custody_address: &id001
+              type: string
+              pattern: ^0x[a-fA-F0-9]{40}$
+              description: Ethereum address
+            pfp_url:
+              type: string
+              description: The URL of the user's profile picture
+            profile:
+              type: object
+              required:
+              - bio
+              properties:
+                bio:
+                  type: object
+                  required:
+                  - text
+                  - mentioned_profiles
+                  properties:
+                    text:
+                      type: string
+                    mentioned_profiles:
+                      type: array
+                      items:
+                        type: string
+                      default: []
+                location:
+                  description: Coordinates and place names for a location
+                  type: object
+                  required:
+                  - latitude
+                  - longitude
+                  properties:
+                    latitude:
+                      type: number
+                      format: double
+                      minimum: -90
+                      maximum: 90
+                    longitude:
+                      type: number
+                      format: double
+                      minimum: -180
+                      maximum: 180
+                    address:
+                      type: object
+                      required:
+                      - city
+                      - country
+                      properties:
+                        city:
+                          type: string
+                        state:
+                          type: string
+                        state_code:
+                          type: string
+                        country:
+                          type: string
+                        country_code:
+                          type: string
+            follower_count:
+              type: integer
+              format: int32
+              description: The number of followers the user has.
+            following_count:
+              type: integer
+              format: int32
+              description: The number of users the user is following.
+            verifications:
+              type: array
+              items: *id001
+            verified_addresses:
+              type: object
+              required:
+              - eth_addresses
+              - sol_addresses
+              properties:
+                eth_addresses:
+                  type: array
+                  description: List of verified Ethereum addresses of the user sorted
+                    by oldest to most recent.
+                  items: *id001
+                sol_addresses:
+                  type: array
+                  description: List of verified Solana addresses of the user sorted
+                    by oldest to most recent.
+                  items:
+                    type: string
+                    pattern: ^[1-9A-HJ-NP-Za-km-z]{32,44}$
+                    description: Solana address
+            verified_accounts:
+              type: array
+              description: Verified accounts of the user on other platforms, currently
+                only X is supported.
+              items:
+                type: object
+                properties:
+                  platform:
+                    type: string
+                    enum:
+                    - x
+                    - github
+                  username:
+                    type: string
+            power_badge:
+              type: boolean
+            experimental:
+              type: object
+              required:
+              - neynar_user_score
+              properties:
+                neynar_user_score:
+                  type: number
+                  format: double
+                  description: Score that represents the probability that the account
+                    is not spam.
+            viewer_context:
+              type: object
+              description: Adds context on the viewer's follow relationship with the
+                user.
+              required:
+              - following
+              - followed_by
+              - blocking
+              - blocked_by
+              properties:
+                following:
+                  description: Indicates if the viewer is following the user.
+                  type: boolean
+                followed_by:
+                  description: Indicates if the viewer is followed by the user.
+                  type: boolean
+                blocking:
+                  description: Indicates if the viewer is blocking the user.
+                  type: boolean
+                blocked_by:
+                  description: Indicates if the viewer is blocked by the user.
+                  type: boolean
+        subscribed_to:
+          type: object
+          properties:
+            object:
+              type: string
+              examples:
+              - subscription_dehydrated
+            provider_name:
+              type: string
+              examples:
+              - fabric_stp
+            contract_address:
+              type: string
+              examples:
+              - '0x325b3e2c19f4900f8f4eb5f6872dc2715e77cbac'
+            protocol_version:
+              type: integer
+              examples:
+              - 1
+            chain:
+              type: integer
+              examples:
+              - 8453
+            expires_at:
+              type: string
+              format: date-time
+              examples:
+              - '2023-09-13T22:10:22.000Z'
+            subscribed_at:
+              type: string
+              format: date-time
+              examples:
+              - '2023-09-13T22:10:22.000Z'
+            tier_id:
+              type: string
+              examples:
+              - '0'
+          required:
+          - object
+          - provider_name
 ```

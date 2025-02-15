@@ -10,6 +10,12 @@ Fetch authorization url (Fetched authorized url useful for SIWN login operation)
 - `response_type` (query): No description
 
 ## Response
-```typescript
-{'type': 'object', 'required': ['authorization_url'], 'properties': {'authorization_url': {'type': 'string', 'format': 'uri'}}}
+```yaml
+type: object
+required:
+- authorization_url
+properties:
+  authorization_url:
+    type: string
+    format: uri
 ```

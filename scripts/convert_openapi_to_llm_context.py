@@ -113,7 +113,7 @@ def convert_openapi_to_llm_context(
             try:
                 with open(output_path, "w") as f:
                     f.write(content)
-                print(f"Created context file: {output_path}")
+                # print(f"Created context file: {output_path}")
             except IOError as e:
                 print(f"Error writing file {output_path}: {str(e)}")
 

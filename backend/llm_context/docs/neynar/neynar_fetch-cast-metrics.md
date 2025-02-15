@@ -12,6 +12,27 @@ Fetches metrics casts matching a query
 - `channel_id` (query): Channel ID of the casts you want to search
 
 ## Response
-```typescript
-{'type': 'object', 'required': ['metrics'], 'properties': {'metrics': {'type': 'array', 'items': {'$ref': '#/components/schemas/CastsMetrics'}}}}
+```yaml
+type: object
+required:
+- metrics
+properties:
+  metrics:
+    type: array
+    items:
+      type: object
+      required:
+      - start
+      - resolution_in_seconds
+      - cast_count
+      properties:
+        start:
+          type: string
+          format: date-time
+        resolution_in_seconds:
+          type: integer
+          format: int32
+        cast_count:
+          type: integer
+          format: int32
 ```

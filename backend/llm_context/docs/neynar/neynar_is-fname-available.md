@@ -9,6 +9,11 @@ Check if a given fname is available
 - `fname` (query): No description
 
 ## Response
-```typescript
-{'type': 'object', 'required': ['available'], 'properties': {'available': {'type': 'boolean'}}}
+```yaml
+type: object
+required:
+- available
+properties:
+  available:
+    type: boolean
 ```

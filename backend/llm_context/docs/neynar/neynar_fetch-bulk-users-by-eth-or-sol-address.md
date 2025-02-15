@@ -17,6 +17,10 @@ You can pass in Ethereum and Solana addresses, comma separated, in the same requ
 - `viewer_fid` (query): No description
 
 ## Response
-```typescript
-{'type': 'object', 'additionalProperties': {'type': 'array', 'items': {'$ref': '#/components/schemas/User'}}}
+```yaml
+type: object
+additionalProperties:
+  type: array
+  items:
+    $ref: '#/components/schemas/User'
 ```

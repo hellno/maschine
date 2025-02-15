@@ -6,6 +6,11 @@
 Follow a channel
 
 ## Response
-```typescript
-{'type': 'object', 'properties': {'success': {'type': 'boolean'}, 'message': {'type': 'string'}}}
+```yaml
+type: object
+properties:
+  success:
+    type: boolean
+  message:
+    type: string
 ```
