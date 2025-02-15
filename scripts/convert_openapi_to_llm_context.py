@@ -65,6 +65,9 @@ def convert_openapi_to_llm_context(
             if "parameters" in details:
                 content += "## Parameters\n"
                 for param in details["parameters"]:
+                    # Skip parameters that are references without inline names
+                    if "name" not in param:
+                        continue
                     content += f"- `{param['name']}` ({param.get('in', 'query')}): {param.get('description', 'No description')}\n"
                 content += "\n"
 
