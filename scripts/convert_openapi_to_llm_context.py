@@ -96,7 +96,7 @@ def convert_openapi_to_llm_context(
 def main():
     openapi_file = "notebooks/specs/Neynar_OAS_v2_spec.yaml"
     api_name = "neynar"
-    additional_skip_words = ["temp", "demo", "signer"]
+    additional_skip_words = ["temp", "demo", "signer", 'delete']
     convert_openapi_to_llm_context(openapi_file, api_name, additional_skip_words)
 
 
