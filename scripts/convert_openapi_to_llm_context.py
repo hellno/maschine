@@ -1,25 +1,32 @@
-OUTPUT_PATH = 'backend/llm_context/docs' # Path to write the generated context files
-
 import os
 import yaml
 from pathlib import Path
 from typing import List
 
+OUTPUT_PATH = "backend/llm_context/docs"  # Path to write the generated context files
+
+
+# ai! add additional optional skip words as parameter to the function
 def convert_openapi_to_llm_context(openapi_file: str, api_name: str) -> None:
     """Convert OpenAPI spec to LLM context documentation.
-    
+
     Args:
         openapi_file: Path to OpenAPI spec file (YAML)
         api_name: Name of API for grouping context files
-    
+
     Example:
         convert_openapi_to_llm_context('neynar_openapi.yaml', 'neynar')
         # Creates files in backend/llm_context/docs/neynar/
     """
-    skip_filter = ["test", "example", "mock", "sample"]  # Words that indicate test endpoints
-    
+    skip_filter = [
+        "test",
+        "example",
+        "mock",
+        "sample",
+    ]  # Words that indicate test endpoints
+
     try:
-        with open(openapi_file, 'r') as f:
+        with open(openapi_file, "r") as f:
             spec = yaml.safe_load(f)
     except FileNotFoundError:
         print(f"Error: OpenAPI file not found at {openapi_file}")
@@ -27,45 +34,50 @@ def convert_openapi_to_llm_context(openapi_file: str, api_name: str) -> None:
 
     output_dir = Path(OUTPUT_PATH) / api_name
     output_dir.mkdir(parents=True, exist_ok=True)
-    
-    for path, methods in spec.get('paths', {}).items():
+
+    for path, methods in spec.get("paths", {}).items():
         for method, details in methods.items():
-            if 'operationId' not in details:
+            if "operationId" not in details:
                 continue
-                
+
             # Skip test/example endpoints
-            op_id = details['operationId'].lower()
-            description = details.get('description', '').lower()
-            if any(skip_word in op_id or skip_word in description for skip_word in skip_filter):
+            op_id = details["operationId"].lower()
+            description = details.get("description", "").lower()
+            if any(
+                skip_word in op_id or skip_word in description
+                for skip_word in skip_filter
+            ):
                 continue
-            
+
             # Generate context content
             content = f"# {details['operationId']}\n\n"
             content += f"**Endpoint**: `{method.upper()} {path}`\n\n"
-            
-            if 'description' in details:
+
+            if "description" in details:
                 content += f"## Description\n{details['description']}\n\n"
-            
-            if 'parameters' in details:
+
+            if "parameters" in details:
                 content += "## Parameters\n"
-                for param in details['parameters']:
+                for param in details["parameters"]:
                     content += f"- `{param['name']}` ({param.get('in', 'query')}): {param.get('description', 'No description')}\n"
                 content += "\n"
-            
-            if 'responses' in details:
+
+            if "responses" in details:
                 content += "## Response\n"
-                success_response = details['responses'].get('200', {})
-                if 'content' in success_response:
+                success_response = details["responses"].get("200", {})
+                if "content" in success_response:
                     content += "```typescript\n"
-                    content += str(success_response['content']['application/json']['schema'])
+                    content += str(
+                        success_response["content"]["application/json"]["schema"]
+                    )
                     content += "\n```\n"
-            
+
             # Write context file
             filename = f"{api_name}_{details['operationId']}.md"
             output_path = output_dir / filename
-            
+
             try:
-                with open(output_path, 'w') as f:
+                with open(output_path, "w") as f:
                     f.write(content)
                 print(f"Created context file: {output_path}")
             except IOError as e:
