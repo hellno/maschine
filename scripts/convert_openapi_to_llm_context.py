@@ -8,12 +8,26 @@ OUTPUT_PATH = "backend/llm_context/docs"  # Path to write the generated context 
 
 
 def resolve_schema(schema: Dict, spec: Dict) -> Dict:
-    """Resolve $ref references to actual schema components"""
+    """Resolve $ref references to actual schema components recursively"""
     if "$ref" in schema:
-        ref_path = schema["$ref"].split("/")[
-            -1
-        ]  # Extract component name from #/components/schemas/ComponentName
-        return spec["components"]["schemas"].get(ref_path, schema)
+        ref_path = schema["$ref"].split("/")[-1]
+        resolved = spec["components"]["schemas"].get(ref_path, schema)
+        return resolve_schema(resolved, spec)  # Recurse on resolved schema
+    
+    # Handle nested object properties
+    if "properties" in schema:
+        for prop_name, prop_schema in schema["properties"].items():
+            schema["properties"][prop_name] = resolve_schema(prop_schema, spec)
+    
+    # Handle array items
+    if "items" in schema:
+        schema["items"] = resolve_schema(schema["items"], spec)
+    
+    # Handle anyOf/allOf/oneOf
+    for union_type in ["anyOf", "allOf", "oneOf"]:
+        if union_type in schema:
+            schema[union_type] = [resolve_schema(s, spec) for s in schema[union_type]]
+    
     return schema
 
 
@@ -88,9 +102,9 @@ def convert_openapi_to_llm_context(
                 if "content" in success_response:
                     schema = success_response["content"]["application/json"]["schema"]
                     resolved_schema = resolve_schema(schema, spec)
-                    content += "```typescript\n"
-                    content += str(resolved_schema)
-                    content += "\n```\n"
+                    content += "```yaml\n"
+                    content += yaml.dump(resolved_schema, sort_keys=False)
+                    content += "```\n"
 
             # Write context file
             filename = f"{api_name}_{details['operationId']}.md"
