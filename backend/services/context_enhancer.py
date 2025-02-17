@@ -29,13 +29,11 @@ You are a technical query refinement assistant. Transform the following user pro
 • Identify specific API endpoints, function or method names, or SDK operations implied by the description.
 • Use precise, domain-specific terminology.
 
-If the description does not reference any APIs or SDKs, reply with an empty message.
-
+If no clear API-related details are present, do not generate any queries.
+ 
 Original prompt: {query}
 Refined queries:
 """
-# • Emphasize integration patterns (e.g. data flows, service interactions) and configuration details.
-# • Highlight authentication or authorization requirements (e.g. keys, tokens, protocols).
 
 
 class CodeContextEnhancer:
