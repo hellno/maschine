@@ -1,44 +1,38 @@
 import logging
 import pathlib
 from typing import Optional, TypedDict
+from llama_index.core import SimpleDirectoryReader, GPTVectorStoreIndex
 
 
 class ContextPiece(TypedDict):
     filepath: str
     parentDocFilepath: Optional[str]
-    keywords: list[str]
+
+
+PARENT_UPDATE_DOC = "shared.md"
+DOCS_ROOT_PATH = "llm_context/docs"
 
 
 class CodeContextEnhancer:
     def __init__(self):
-        self.context_pieces = self._load_context_pieces()
         self.logger = logging.getLogger(__name__)
-        for piece in self.context_pieces:
-            if not pathlib.Path(piece["filepath"]).exists():
-                self.logger.error(f"Missing context file: {piece['filepath']}")
-                raise FileNotFoundError(f"Context file missing: {piece['filepath']}")
+        self._prepare_query_engine()
 
-    def _load_context_pieces(self) -> list[ContextPiece]:
+    def _prepare_query_engine(self) -> list[ContextPiece]:
         """Dynamically load context pieces from docs directory structure."""
-        context_pieces = []
-        docs_root = pathlib.Path("llm_context/docs")
-        
-        # Find all markdown files except shared.md
-        for md_path in docs_root.glob("**/*.md"):
-            if md_path.name == "shared.md":
-                continue
-            
-            # Create parent doc path in same directory
-            parent_doc = md_path.parent / "shared.md"
-            
-            context_pieces.append(ContextPiece(
-                filepath=str(md_path),
-                keywords=[],  # Empty array as specified
-                parentDocFilepath=str(parent_doc) if parent_doc.exists() else None
-            ))
-        
-        return context_pieces
-    
+
+        # Load documents from directory (including subdirectories)
+        self.documents = SimpleDirectoryReader(
+            input_dir=DOCS_ROOT_PATH, recursive=True
+        ).load_data()
+
+        print("self.documents", self.documents)
+        # Build a vector index
+        index = GPTVectorStoreIndex.from_documents(self.documents)
+
+        # Create a query engine to fetch top 3 documents
+        self.query_engine = index.as_query_engine(query_kwargs={"top_k": 3})
+
     def get_relevant_context(self, query: str) -> Optional[str]:
         """Retrieve raw context without formatting assumptions."""
 
