@@ -200,9 +200,8 @@ class CodeService:
 
             logs_cleaned = clean_log_lines(logs)
             logs_str = "\n".join(logs_cleaned)
-            returncode = process.returncode
             print(
-                f"sandbox results: has_error_in_logs {has_error_in_logs} returncode {returncode} logs_str {logs_str} "
+                f"sandbox results: has_error_in_logs {has_error_in_logs} returncode {build_code} logs_str {logs_str} "
             )
             if terminate_after_build and not self.manual_sandbox_termination:
                 print("[code_service] Terminating sandbox after build")
