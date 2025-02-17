@@ -7,7 +7,7 @@ from backend.services.context_enhancer import CodeContextEnhancer
 def mock_docs(tmp_path):
     docs_dir = tmp_path / "backend/llm_context/docs/dune"
     docs_dir.mkdir(parents=True)
-    
+
     dune_doc = docs_dir / "dune_api.md"
     dune_doc.write_text("Dune API documentation content")
 
@@ -16,13 +16,17 @@ def mock_docs(tmp_path):
 
 def test_query_processing(mock_docs):
     # Patch the context pieces to use temporary paths
+    # ai! context_pieces is not on the instance and not on the class anymore
+    # adjust the patch to mock the _load_context_pieces method 
     with mock.patch.object(
         CodeContextEnhancer,
         "context_pieces",
         [
             {
-                "filepath": str(mock_docs / "backend/llm_context/docs/dune/dune_api.md"),
-                "keywords": ["dune"],
+                "filepath": str(
+                    mock_docs / "backend/llm_context/docs/dune/dune_api.md"
+                ),
+                "parentDocFilepath": "shared.md",
             }
         ],
     ):
