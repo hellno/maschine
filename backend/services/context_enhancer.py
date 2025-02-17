@@ -10,17 +10,17 @@ class ContextPiece(TypedDict):
 
 
 class CodeContextEnhancer:
-    context_pieces = [
-        ContextPiece(
-            filepath=str("backend/llm_context/docs/neynar/cast_search.md"),
-            keywords=["neynar", "cast", "search"],
-            parentDocFilepath=str("backend/llm_context/docs/neynar/shared.md"),
-        ),
-        ContextPiece(
-            filepath=str("backend/llm_context/docs/dune/dune_api.md"),
-            keywords=["dune"],
-        ),
-    ]
+    # context_pieces = [
+    #     ContextPiece(
+    #         filepath=str("backend/llm_context/docs/neynar/cast_search.md"),
+    #         keywords=["neynar", "cast", "search"],
+    #         parentDocFilepath=str("backend/llm_context/docs/neynar/shared.md"),
+    #     ),
+    #     ContextPiece(
+    #         filepath=str("backend/llm_context/docs/dune/dune_api.md"),
+    #         keywords=["dune"],
+    #     ),
+    # ]
 
     def __init__(self):
         self.logger = logging.getLogger(__name__)
@@ -29,6 +29,13 @@ class CodeContextEnhancer:
                 self.logger.error(f"Missing context file: {piece['filepath']}")
                 raise FileNotFoundError(f"Context file missing: {piece['filepath']}")
 
+    def _load_context_pieces(self):
+        # ai!
+        # glob iterate from llm_context/docs
+        # for each file, read the keywords and parentDocFilepath
+        # return a list of ContextPiece
+        pass
+    
     def get_relevant_context(self, query: str) -> Optional[str]:
         """Retrieve raw context without formatting assumptions."""
 
