@@ -251,13 +251,10 @@ class CodeService:
             check_files(repo_dir)
             print("[code_service] Installing dependencies in base sandbox")
             process = base_sandbox.exec("pnpm", "install", "--loglevel", "debug")
-            for line in process.stdout:
-                print(f"[base install] {line}")
-            print("[code_service] Waiting for base install process to complete")
-            process.wait()
+            returncode = self.parse_sandbox_process(process, prefix="base install")
             print("[code_service] base install process completed")
 
-            if process.returncode != 0:
+            if returncode != 0:
                 raise Exception("Base dependency installation failed")
 
             print("[code_service] Creating filesystem snapshot")
@@ -267,8 +264,18 @@ class CodeService:
         except Exception as e:
             print(f"[code_service] Base image creation failed: {str(e)}")
             process = base_sandbox.exec(
-                "strace", "-f", "-e", "trace=openat", "-s", "300", "-o", "trace.log",
-                "pnpm", "install", "--loglevel", "debug"
+                "strace",
+                "-f",
+                "-e",
+                "trace=openat",
+                "-s",
+                "300",
+                "-o",
+                "trace.log",
+                "pnpm",
+                "install",
+                "--loglevel",
+                "debug",
             )
             for line in process.stdout:
                 print(f"[base install RETRY] {line}")
@@ -305,43 +312,47 @@ class CodeService:
         self._run_install_in_sandbox()
         print("[code_service] Sandbox created")
 
-    def _read_stream(self, stream, logs: list) -> None:
+    def _read_stream(self, stream, logs: list, prefix: str) -> None:
         """Read and decode a stream line by line with error handling."""
         try:
-            for line in iter(stream.readline, b''):
+            for line in iter(stream.readline, b""):
                 try:
-                    decoded = line.decode('utf-8', 'ignore').strip()
+                    decoded = line.decode("utf-8", "ignore").strip()
                     logs.append(decoded)
-                    print(f"[sandbox] {decoded}")
+                    print(f"[{prefix or 'sandbox'}] {decoded}")
                 except UnicodeDecodeError as ude:
                     error_msg = f"Decode error: {str(ude)}"
                     logs.append(error_msg)
-                    print(f"[sandbox ERR] {error_msg}")
+                    print(f"[{prefix or 'sandbox'} ERR] {error_msg}")
         except Exception as e:
             logs.append(f"Stream read failed: {str(e)}")
-            print(f"[sandbox CRITICAL] Stream error: {str(e)}")
+            print(f"[{prefix or 'sandbox'} CRITICAL] Stream error: {str(e)}")
 
-    def parse_sandbox_process(self, process) -> tuple[list, int]:
+    def parse_sandbox_process(self, process, prefix="") -> tuple[list, int]:
         """Safely parse stdout/stderr from a sandbox process."""
         logs = []
         try:
             # Read stdout and stderr in parallel
             from threading import Thread
-            
-            stdout_thread = Thread(target=self._read_stream, args=(process.stdout, logs))
-            stderr_thread = Thread(target=self._read_stream, args=(process.stderr, logs))
-            
+
+            stdout_thread = Thread(
+                target=self._read_stream, args=(process.stdout, logs, prefix)
+            )
+            stderr_thread = Thread(
+                target=self._read_stream, args=(process.stderr, logs, prefix)
+            )
+
             stdout_thread.start()
             stderr_thread.start()
-            
+
             stdout_thread.join()
             stderr_thread.join()
-            
+
             exit_code = process.wait()
             return logs, exit_code
-            
+
         except Exception as e:
-            logs.append(f"Process handling failed: {str(e)}")
+            logs.append(f"[{prefix or 'sandbox'}] Process handling failed: {str(e)}")
             return logs, -1
 
     def _create_aider_coder(self) -> Coder:
@@ -406,7 +417,9 @@ def _handle_pnpm_commands(
     pattern = r"```bash[\s\n]*(?:pnpm add|npm install(?: --save)?)\s+([^\n`]*)```"
     matches = list(re.finditer(pattern, aider_result, re.DOTALL))
 
-    print(f"[code_service] Found {len(matches)} package install commands in aider output")
+    print(
+        f"[code_service] Found {len(matches)} package install commands in aider output"
+    )
 
     for match in matches:
         packages = match.group(1).strip()
@@ -416,10 +429,10 @@ def _handle_pnpm_commands(
         try:
             print(f"[code_service] Installing packages: {packages}")
             install_proc = sandbox.exec("pnpm", "add", *packages.split())
-            
+
             # Use the new parsing utility
             logs, exit_code = CodeService.parse_sandbox_process(install_proc)
-            
+
             if exit_code != 0:
                 print(f"[code_service] pnpm add failed with code {exit_code}")
                 print("Installation logs:", "\n".join(logs))
