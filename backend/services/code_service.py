@@ -312,48 +312,44 @@ class CodeService:
         self._run_install_in_sandbox()
         print("[code_service] Sandbox created")
 
-    def _read_stream(self, stream, logs: list, prefix: str) -> None:
-        """Read and decode a stream line by line with error handling."""
+
+    def parse_sandbox_process(self, process, prefix="") -> tuple[list, int]:
+        """Safely parse stdout/stderr from a sandbox process using Modal's StreamReader."""
+        logs = []
+        exit_code = -1
+        
         try:
-            for line in iter(stream.readline, b""):
+            # Read stdout
+            for line in process.stdout:
                 try:
                     decoded = line.decode("utf-8", "ignore").strip()
                     logs.append(decoded)
-                    print(f"[{prefix or 'sandbox'}] {decoded}")
+                    print(f"[{prefix}] {decoded}")
                 except UnicodeDecodeError as ude:
                     error_msg = f"Decode error: {str(ude)}"
                     logs.append(error_msg)
-                    print(f"[{prefix or 'sandbox'} ERR] {error_msg}")
-        except Exception as e:
-            logs.append(f"Stream read failed: {str(e)}")
-            print(f"[{prefix or 'sandbox'} CRITICAL] Stream error: {str(e)}")
+                    print(f"[{prefix} ERR] {error_msg}")
 
-    def parse_sandbox_process(self, process, prefix="") -> tuple[list, int]:
-        """Safely parse stdout/stderr from a sandbox process."""
-        logs = []
-        try:
-            # Read stdout and stderr in parallel
-            from threading import Thread
+            # Read stderr
+            for line in process.stderr:
+                try:
+                    decoded = line.decode("utf-8", "ignore").strip()
+                    logs.append(decoded)
+                    print(f"[{prefix} ERR] {decoded}")
+                except UnicodeDecodeError as ude:
+                    error_msg = f"Decode error: {str(ude)}"
+                    logs.append(error_msg)
+                    print(f"[{prefix} ERR] {error_msg}")
 
-            stdout_thread = Thread(
-                target=self._read_stream, args=(process.stdout, logs, prefix)
-            )
-            stderr_thread = Thread(
-                target=self._read_stream, args=(process.stderr, logs, prefix)
-            )
-
-            stdout_thread.start()
-            stderr_thread.start()
-
-            stdout_thread.join()
-            stderr_thread.join()
-
+            # Get exit code after reading all output
             exit_code = process.wait()
-            return logs, exit_code
-
+            
         except Exception as e:
-            logs.append(f"[{prefix or 'sandbox'}] Process handling failed: {str(e)}")
-            return logs, -1
+            error_msg = f"Process handling failed: {str(e)}"
+            logs.append(error_msg)
+            print(f"[{prefix} CRITICAL] {error_msg}")
+
+        return logs, exit_code
 
     def _create_aider_coder(self) -> Coder:
         """Create and configure the Aider coder instance."""
