@@ -16,7 +16,6 @@ import tempfile
 
 from backend.types import UserContext
 from backend.services.context_enhancer import CodeContextEnhancer
-from backend.config import CODE_CONTEXT
 
 DEFAULT_PROJECT_FILES = [
     "src/components/Frame.tsx",
@@ -103,12 +102,11 @@ class CodeService:
                 print(f"Error terminating sandbox job id {self.job_id}: {str(e)}")
 
     def _enhance_prompt_with_context(self, prompt: str) -> str:
-        if CODE_CONTEXT["ENABLED"]:
-            try:
-                context = CodeContextEnhancer().get_relevant_context(prompt)
-                return f"additional context {context}\n\nprompt {prompt}"
-            except Exception as e:
-                print(f"[code_service] Context enhancement failed: {str(e)}")
+        try:
+            context = CodeContextEnhancer().get_relevant_context(prompt)
+            return f"additional context {context}\n\nprompt {prompt}"
+        except Exception as e:
+            print(f"[code_service] Context enhancement failed: {str(e)}")
         return prompt
 
     def _add_file_to_repo_dir(self, repo_dir: str, filename: str, content: str) -> None:
@@ -187,7 +185,7 @@ class CodeService:
 
             process = self.sandbox.exec("pnpm", "install")
             for line in process.stdout:
-                print("[base install]", line.strip())
+                print("[install]", line.strip())
             process.wait()
 
             print("[build] Running build command")
@@ -243,16 +241,29 @@ class CodeService:
                 app=app,
                 image=base_image.add_local_dir(repo_dir, remote_path="/repo"),
                 cpu=2,
-                memory=1024,
+                memory=2048,
                 workdir="/repo",
                 timeout=config.TIMEOUTS["BUILD"],
             )
 
+            def check_files(path):
+                for root, _, files in os.walk(path):
+                    for file in files:
+                        fp = os.path.join(root, file)
+                        try:
+                            with open(fp, encoding="utf-8") as f:
+                                f.read()
+                        except UnicodeDecodeError as err:
+                            print(f"Error in {fp}: {err}")
+
+            check_files(repo_dir)
             print("[code_service] Installing dependencies in base sandbox")
-            process = base_sandbox.exec("pnpm", "install")
+            process = base_sandbox.exec("pnpm", "install", "--loglevel", "debug")
             for line in process.stdout:
-                print("[base install]", line.strip())
+                print(f"[base install] {line}")
+            print("[code_service] Waiting for base install process to complete")
             process.wait()
+            print("[code_service] base install process completed")
 
             if process.returncode != 0:
                 raise Exception("Base dependency installation failed")
@@ -263,6 +274,17 @@ class CodeService:
 
         except Exception as e:
             print(f"[code_service] Base image creation failed: {str(e)}")
+            process = base_sandbox.exec(
+                "strace", "-f", "-e", "trace=openat", "-s", "300", "-o", "trace.log",
+                "pnpm", "install", "--loglevel", "debug"
+            )
+            for line in process.stdout:
+                print(f"[base install RETRY] {line}")
+            process.wait()
+            trace_proc = base_sandbox.exec("cat", "trace.log")
+            for line in trace_proc.stdout:
+                print("[strace]", line.strip())
+            trace_proc.wait()
             raise
 
         finally:
