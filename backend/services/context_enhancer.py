@@ -10,31 +10,34 @@ class ContextPiece(TypedDict):
 
 
 class CodeContextEnhancer:
-    # context_pieces = [
-    #     ContextPiece(
-    #         filepath=str("backend/llm_context/docs/neynar/cast_search.md"),
-    #         keywords=["neynar", "cast", "search"],
-    #         parentDocFilepath=str("backend/llm_context/docs/neynar/shared.md"),
-    #     ),
-    #     ContextPiece(
-    #         filepath=str("backend/llm_context/docs/dune/dune_api.md"),
-    #         keywords=["dune"],
-    #     ),
-    # ]
-
     def __init__(self):
+        self.context_pieces = self._load_context_pieces()
         self.logger = logging.getLogger(__name__)
         for piece in self.context_pieces:
             if not pathlib.Path(piece["filepath"]).exists():
                 self.logger.error(f"Missing context file: {piece['filepath']}")
                 raise FileNotFoundError(f"Context file missing: {piece['filepath']}")
 
-    def _load_context_pieces(self):
-        # ai!
-        # glob iterate from llm_context/docs
-        # for each file, read the keywords and parentDocFilepath
-        # return a list of ContextPiece
-        pass
+    def _load_context_pieces(self) -> list[ContextPiece]:
+        """Dynamically load context pieces from docs directory structure."""
+        context_pieces = []
+        docs_root = pathlib.Path("llm_context/docs")
+        
+        # Find all markdown files except shared.md
+        for md_path in docs_root.glob("**/*.md"):
+            if md_path.name == "shared.md":
+                continue
+            
+            # Create parent doc path in same directory
+            parent_doc = md_path.parent / "shared.md"
+            
+            context_pieces.append(ContextPiece(
+                filepath=str(md_path),
+                keywords=[],  # Empty array as specified
+                parentDocFilepath=str(parent_doc) if parent_doc.exists() else None
+            ))
+        
+        return context_pieces
     
     def get_relevant_context(self, query: str) -> Optional[str]:
         """Retrieve raw context without formatting assumptions."""
