@@ -88,3 +88,14 @@ class CodeContextEnhancer:
             print(f"Index created and stored at {INDEX_STORAGE_PATH}")
 
         self.query_engine = index.as_query_engine(query_kwargs={"top_k": 3})
+
+    def refresh_persisted_index(self):
+        """Rebuild and persist the context index."""
+        documents = SimpleDirectoryReader(
+            input_dir=CONTEXT_DOCS_PATH, recursive=True
+        ).load_data()
+
+        # Build a vector index
+        index = VectorStoreIndex.from_documents(documents)
+        index.storage_context.persist(persist_dir=INDEX_STORAGE_PATH)
+        print(f"Index refreshed and stored at {INDEX_STORAGE_PATH}")
