@@ -1,5 +1,6 @@
 import os
 from typing import Optional
+from backend.integrations.deepseek import get_deepseek_client, MODEL_NAME
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.openai import OpenAI
 from llama_index.llms.openai.utils import DEFAULT_OPENAI_API_BASE

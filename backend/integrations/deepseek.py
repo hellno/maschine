@@ -60,12 +60,31 @@ Refined queries:
 def _generate_queries(self, user_prompt: str, num_queries: int = 3) -> list[str]:
     """Generate expanded technical queries for documentation search."""
     print(f"Generating queries from prompt: {user_prompt}")
-    response = model.predict(
-        prompt=PromptTemplate(QUERY_GEN_STR),
-        user_prompt=user_prompt,
-        num_queries=num_queries,
-    )
-    print("Raw model response:", response)
-    queries = [q.strip() for q in response.split("\n") if q.strip()]
-    print(f"Generated queries: {queries}")
-    return queries
+    
+    try:
+        deepseek = get_deepseek_client()
+        system_prompt = QUERY_GEN_STR.format(
+            num_queries=num_queries, 
+            user_prompt=user_prompt
+        )
+        
+        response = deepseek.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            max_tokens=300,
+            temperature=0.7
+        )
+        
+        llm_content = response.choices[0].message.content.strip()
+        print("Raw model response:", llm_content)
+        
+        queries = [q.strip() for q in llm_content.split("\n") if q.strip()]
+        print(f"Generated queries: {queries}")
+        return queries
+        
+    except Exception as e:
+        print(f"Query generation failed: {e}")
+        return []
