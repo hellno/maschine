@@ -46,30 +46,26 @@ def generate_project_name(prompt: str) -> str:
         return "new-frame-project"
 
 
-# def improve_user_instructions(prompt: str) -> str:
-#     """Use LLM to improve and expand the user's instructions."""
-#     deepseek = get_deepseek_client()
+QUERY_GEN_STR = """\
+You are a technical query refinement assistant. Transform the following user project description into up to {num_queries} concise, highly technical search queries—one per line—that will help retrieve relevant API documentation. Your queries should:
+• Identify specific API endpoints, function or method names, or SDK operations implied by the description.
+• Use precise, domain-specific terminology.
 
-#     try:
-#         response = deepseek.chat.completions.create(
-#             model="deepseek-reasoner",
-#             messages=[
-#                 {
-#                     "role": "system",
-#                     "content": "You are an expert at improving and clarifying instructions for creating Farcaster Frames.",
-#                 },
-#                 {
-#                     "role": "user",
-#                     "content": f"Improve these instructions for creating a Farcaster Frame, adding specific technical details while keeping the original intent:\n\n{prompt}",
-#                 },
-#             ],
-#             max_tokens=500,
-#         )
-#         reasoning_content = response.choices[0].message.reasoning_content
-#         content = response.choices[0].message.content.strip()
-#         print(f"Reasoning content: {reasoning_content}")
-#         print(f"Improved instructions: {content}")
-#         return content
-#     except Exception as e:
-#         print(f"Warning: Could not improve instructions: {str(e)}")
-#         return prompt
+If no clear API-related details are present, do not generate any queries.
+ 
+Original prompt: {user_prompt}
+Refined queries:
+"""
+# ai! transform the function below to use the get_deepseek_client above
+def _generate_queries(self, user_prompt: str, num_queries: int = 3) -> list[str]:
+    """Generate expanded technical queries for documentation search."""
+    print(f"Generating queries from prompt: {user_prompt}")
+    response = model.predict(
+        prompt=PromptTemplate(QUERY_GEN_STR),
+        user_prompt=user_prompt,
+        num_queries=num_queries,
+    )
+    print("Raw model response:", response)
+    queries = [q.strip() for q in response.split("\n") if q.strip()]
+    print(f"Generated queries: {queries}")
+    return queries

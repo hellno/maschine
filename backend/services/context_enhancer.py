@@ -1,5 +1,8 @@
-import logging
-from typing import Optional, TypedDict
+import os
+from typing import Optional
+from llama_index.embeddings.openai import OpenAIEmbedding
+from llama_index.llms.openai import OpenAI
+from llama_index.llms.openai.utils import DEFAULT_OPENAI_API_BASE
 from llama_index.core import (
     SimpleDirectoryReader,
     VectorStoreIndex,
@@ -8,41 +11,38 @@ from llama_index.core import (
     StorageContext,
     load_index_from_storage,
 )
-from llama_index.embeddings.openai import OpenAIEmbedding
-from llama_index.llms.openai import OpenAI
 
-Settings.embed_model = OpenAIEmbedding(model="text-embedding-3-small")
-Settings.model = OpenAI(model="gpt-4o-mini")
+from backend.config import CODE_CONTEXT
 
+embed_model = OpenAIEmbedding(
+    model="text-embedding-3-small",
+    api_base=DEFAULT_OPENAI_API_BASE,
+    api_key=os.environ.get("REAL_OPENAI_API_KEY"),
+)
+model = OpenAI(
+    model="gpt-4o-mini",
+    api_base=DEFAULT_OPENAI_API_BASE,
+    api_key=os.environ.get("REAL_OPENAI_API_KEY"),
+)
 
-class ContextPiece(TypedDict):
-    filepath: str
-    parentDocFilepath: Optional[str]
-
+Settings.embed_model = embed_model
+Settings.model = model
 
 PARENT_UPDATE_DOC = "shared.md"
 CONTEXT_DOCS_PATH = "backend/llm_context/docs"
 INDEX_STORAGE_PATH = "backend/llm_context/index"
 
-QUERY_GEN_STR = """\
-You are a technical query refinement assistant. Transform the following user project description into up to {num_queries} concise, highly technical search queries—one per line—that will help retrieve relevant API documentation. Your queries should:
-• Identify specific API endpoints, function or method names, or SDK operations implied by the description.
-• Use precise, domain-specific terminology.
-
-If no clear API-related details are present, do not generate any queries.
- 
-Original prompt: {query}
-Refined queries:
-"""
-
 
 class CodeContextEnhancer:
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
         self._prepare_query_engine()
 
     def get_relevant_context(self, query: str) -> Optional[str]:
         """Retrieve context using generated technical queries."""
+        if not CODE_CONTEXT["ENABLED"]:
+            print("Context enhancement disabled.")
+            return None
+
         try:
             if not query or not query.strip():
                 return None
@@ -55,20 +55,10 @@ class CodeContextEnhancer:
 
             return "\n\n".join(content_pieces) if content_pieces else None
         except Exception as e:
-            self.logger.error(f"Failed to query context: {e}")
+            print(f"Failed to query context: {e}")
             return None
 
-    def _generate_queries(self, prompt: str, num_queries: int = 3) -> list[str]:
-        """Generate expanded technical queries for documentation search."""
-        print(f"Generating queries from prompt: {prompt}")
-        response = Settings.model.predict(
-            PromptTemplate(QUERY_GEN_STR), query=prompt, num_queries=num_queries
-        )
-        queries = [q.strip() for q in response.split("\n") if q.strip()]
-        print(f"Generated queries from prompt:\nqueries: {queries}")
-        return queries
-
-    def _prepare_query_engine(self) -> list[ContextPiece]:
+    def _prepare_query_engine(self):
         """Dynamically load context pieces from docs directory structure."""
 
         try:
