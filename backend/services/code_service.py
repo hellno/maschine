@@ -251,10 +251,10 @@ class CodeService:
             check_files(repo_dir)
             print("[code_service] Installing dependencies in base sandbox")
             process = base_sandbox.exec("pnpm", "install", "--loglevel", "debug")
-            returncode = self.parse_sandbox_process(process, prefix="base install")
+            install_logs, exit_code = self.parse_sandbox_process(process, prefix="base install")
             print("[code_service] base install process completed")
 
-            if returncode != 0:
+            if exit_code != 0:
                 raise Exception("Base dependency installation failed")
 
             print("[code_service] Creating filesystem snapshot")
@@ -319,10 +319,13 @@ class CodeService:
         exit_code = -1
         
         try:
-            # Read stdout
+            # Handle stdout - check if bytes need decoding
             for line in process.stdout:
                 try:
-                    decoded = line.decode("utf-8", "ignore").strip()
+                    if isinstance(line, bytes):  # Handle both str and bytes
+                        decoded = line.decode("utf-8", "ignore").strip()
+                    else:
+                        decoded = str(line).strip()  # Convert to string if needed
                     logs.append(decoded)
                     print(f"[{prefix}] {decoded}")
                 except UnicodeDecodeError as ude:
@@ -330,10 +333,13 @@ class CodeService:
                     logs.append(error_msg)
                     print(f"[{prefix} ERR] {error_msg}")
 
-            # Read stderr
+            # Handle stderr the same way
             for line in process.stderr:
                 try:
-                    decoded = line.decode("utf-8", "ignore").strip()
+                    if isinstance(line, bytes):
+                        decoded = line.decode("utf-8", "ignore").strip()
+                    else:
+                        decoded = str(line).strip()
                     logs.append(decoded)
                     print(f"[{prefix} ERR] {decoded}")
                 except UnicodeDecodeError as ude:
