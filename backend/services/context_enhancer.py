@@ -1,7 +1,8 @@
 import logging
 import pathlib
 from typing import Optional, TypedDict
-from llama_index.core import SimpleDirectoryReader, GPTVectorStoreIndex
+from llama_index.core import SimpleDirectoryReader, GPTVectorStoreIndex, PromptTemplate
+from llama_index.llms.openai import OpenAI
 
 
 class ContextPiece(TypedDict):
@@ -14,9 +15,32 @@ DOCS_ROOT_PATH = "llm_context/docs"
 
 
 class CodeContextEnhancer:
+    QUERY_GEN_STR = """\
+    You are a technical assistant that generates search queries to find relevant API documentation.
+    Generate {num_queries} technical search queries, one per line, focused on identifying:
+    - Specific API endpoints or SDK methods
+    - Service integration patterns
+    - Authentication requirements
+    - Rate limiting or quota information
+    
+    Original query: {query}
+    Queries:
+    """
+    
     def __init__(self):
         self.logger = logging.getLogger(__name__)
+        self.llm = OpenAI(model="gpt-3.5-turbo")
+        self.query_gen_prompt = PromptTemplate(self.QUERY_GEN_STR)
         self._prepare_query_engine()
+
+    def _generate_queries(self, query: str, num_queries: int = 4) -> list[str]:
+        """Generate expanded technical queries for documentation search."""
+        response = self.llm.predict(
+            self.query_gen_prompt, 
+            num_queries=num_queries,
+            query=query
+        )
+        return [q.strip() for q in response.split("\n") if q.strip()]
 
     def _prepare_query_engine(self) -> list[ContextPiece]:
         """Dynamically load context pieces from docs directory structure."""
@@ -34,13 +58,21 @@ class CodeContextEnhancer:
         self.query_engine = index.as_query_engine(query_kwargs={"top_k": 3})
 
     def get_relevant_context(self, query: str) -> Optional[str]:
-        """Retrieve raw context without formatting assumptions."""
-
+        """Retrieve context using generated technical queries."""
         try:
-            content_pieces = self.get_content_pieces(query)
-            if not content_pieces:
-                return None
-            return "\n".join(content_pieces)
+            # Generate focused technical queries
+            queries = self._generate_queries(query)
+            self.logger.info(f"Generated search queries: {queries}")
+            
+            # Collect unique content from all queries
+            content_pieces = set()
+            for q in queries:
+                response = self.query_engine.query(q)
+                content_pieces.update(
+                    node.text for node in response.source_nodes
+                )
+            
+            return "\n\n".join(content_pieces) if content_pieces else None
         except Exception as e:
             self.logger.error(f"Failed to query context: {e}")
             return None
