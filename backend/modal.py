@@ -70,6 +70,7 @@ all_secrets = [
     modal.Secret.from_name("redis-secret"),
     modal.Secret.from_name("sentry-secret"),
     modal.Secret.from_name("posthog-secret"),
+    modal.Secret.from_name("dune-secret"),
 ]
 
 db_secrets = [
