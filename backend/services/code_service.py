@@ -232,7 +232,7 @@ class CodeService:
             base_sandbox = modal.Sandbox.create(
                 app=app,
                 image=base_image.add_local_dir(repo_dir, remote_path="/repo"),
-                cpu=2,
+                cpu=4,
                 memory=2048,
                 workdir="/repo",
                 timeout=config.TIMEOUTS["BUILD"],
@@ -250,8 +250,23 @@ class CodeService:
 
             check_files(repo_dir)
             print("[code_service] Installing dependencies in base sandbox")
-            process = base_sandbox.exec("pnpm", "install", "--loglevel", "debug")
-            install_logs, exit_code = self.parse_sandbox_process(process, prefix="base install")
+            process = base_sandbox.exec(
+                "pnpm",
+                "install",
+                "--loglevel",
+                "debug",
+                "--reporter",
+                "ndjson",
+            )
+            install_logs, exit_code = self.parse_sandbox_process(
+                process, prefix="base install"
+            )
+            print(
+                "[code_service] Base install logs:",
+                "\n".join(install_logs),
+                "exit code",
+                exit_code,
+            )
             print("[code_service] base install process completed")
 
             if exit_code != 0:
@@ -263,29 +278,7 @@ class CodeService:
 
         except Exception as e:
             print(f"[code_service] Base image creation failed: {str(e)}")
-            process = base_sandbox.exec(
-                "strace",
-                "-f",
-                "-e",
-                "trace=openat",
-                "-s",
-                "300",
-                "-o",
-                "trace.log",
-                "pnpm",
-                "install",
-                "--loglevel",
-                "debug",
-            )
-            for line in process.stdout:
-                print(f"[base install RETRY] {line}")
-            process.wait()
-            trace_proc = base_sandbox.exec("cat", "trace.log")
-            for line in trace_proc.stdout:
-                print("[strace]", line.strip())
-            trace_proc.wait()
             raise
-
         finally:
             if base_sandbox:
                 print("[code_service] Cleaning up base sandbox")
@@ -312,12 +305,11 @@ class CodeService:
         self._run_install_in_sandbox()
         print("[code_service] Sandbox created")
 
-
     def parse_sandbox_process(self, process, prefix="") -> tuple[list, int]:
         """Safely parse stdout/stderr from a sandbox process using Modal's StreamReader."""
         logs = []
         exit_code = -1
-        
+
         try:
             # Handle stdout - check if bytes need decoding
             for line in process.stdout:
@@ -327,7 +319,7 @@ class CodeService:
                     else:
                         decoded = str(line).strip()  # Convert to string if needed
                     logs.append(decoded)
-                    print(f"[{prefix}] {decoded}")
+                    # print(f"[{prefix}] {decoded}")
                 except UnicodeDecodeError as ude:
                     error_msg = f"Decode error: {str(ude)}"
                     logs.append(error_msg)
@@ -341,7 +333,7 @@ class CodeService:
                     else:
                         decoded = str(line).strip()
                     logs.append(decoded)
-                    print(f"[{prefix} ERR] {decoded}")
+                    # print(f"[{prefix} ERR] {decoded}")
                 except UnicodeDecodeError as ude:
                     error_msg = f"Decode error: {str(ude)}"
                     logs.append(error_msg)
@@ -349,7 +341,7 @@ class CodeService:
 
             # Get exit code after reading all output
             exit_code = process.wait()
-            
+
         except Exception as e:
             error_msg = f"Process handling failed: {str(e)}"
             logs.append(error_msg)

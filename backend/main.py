@@ -6,7 +6,6 @@ from backend.utils.sentry import setup_sentry
 import modal
 
 from backend.modal import app, volumes, all_secrets, db_secrets
-from backend.services.deploy_project_service import DeployProjectService
 from backend import config
 from backend.integrations.db import Database
 
@@ -265,6 +264,8 @@ def deploy_project_webhook(data: dict) -> dict:
 )
 def deploy_project(data: dict) -> dict:
     """Handle final deployment steps"""
+    from backend.services.deploy_project_service import DeployProjectService
+
     setup_sentry()
 
     project_id = data["project_id"]

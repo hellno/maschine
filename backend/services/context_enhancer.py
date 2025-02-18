@@ -1,13 +1,14 @@
 import os
 from typing import Optional
-from backend.integrations.deepseek import get_deepseek_client, MODEL_NAME
+from backend.integrations.deepseek import (
+    generate_search_queries_from_user_input,
+)
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.openai import OpenAI
 from llama_index.llms.openai.utils import DEFAULT_OPENAI_API_BASE
 from llama_index.core import (
     SimpleDirectoryReader,
     VectorStoreIndex,
-    PromptTemplate,
     Settings,
     StorageContext,
     load_index_from_storage,
@@ -38,20 +39,20 @@ class CodeContextEnhancer:
     def __init__(self):
         self._prepare_query_engine()
 
-    def get_relevant_context(self, query: str) -> Optional[str]:
+    def get_relevant_context(self, user_input: str) -> Optional[str]:
         """Retrieve context using generated technical queries."""
         if not CODE_CONTEXT["ENABLED"]:
             print("Context enhancement disabled.")
             return None
 
         try:
-            if not query or not query.strip():
+            if not user_input or not user_input.strip():
                 return None
-            queries = self._generate_queries(query)
+            queries = generate_search_queries_from_user_input(user_input=user_input)
             content_pieces = set()
             for q in queries:
                 response = self.query_engine.query(q)
-                print(f"Query: {q}, Response: {response}")
+                print(f"Search query: {q}, Response: {response}, Nodes: {response.source_nodes}")
                 content_pieces.update(node.text for node in response.source_nodes)
 
             return "\n\n".join(content_pieces) if content_pieces else None
@@ -67,6 +68,7 @@ class CodeContextEnhancer:
                 persist_dir=INDEX_STORAGE_PATH
             )
             index = load_index_from_storage(storage_context)
+            print(f"Index loaded from {INDEX_STORAGE_PATH}")
         except Exception as e:
             print(f"Error loading index: {e}")
             documents = SimpleDirectoryReader(
@@ -78,7 +80,7 @@ class CodeContextEnhancer:
             index.storage_context.persist(persist_dir=INDEX_STORAGE_PATH)
             print(f"Index created and stored at {INDEX_STORAGE_PATH}")
 
-        self.query_engine = index.as_query_engine(query_kwargs={"top_k": 3})
+        self.query_engine = index.as_query_engine(llm=model, query_kwargs={"top_k": 3})
 
     def refresh_persisted_index(self):
         """Rebuild and persist the context index."""
