@@ -7,7 +7,7 @@ import modal
 from backend.integrations.github_api import GithubApi
 from backend.integrations.vercel_api import VercelApi
 from backend.integrations.db import Database
-from backend.integrations.deepseek import generate_project_name
+from backend.integrations.llm import generate_project_name
 from backend.utils.strings import sanitize_project_name
 
 

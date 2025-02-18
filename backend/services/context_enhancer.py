@@ -1,6 +1,6 @@
 import os
 from typing import Optional
-from backend.integrations.deepseek import (
+from backend.integrations.llm import (
     generate_search_queries_from_user_input,
 )
 from llama_index.embeddings.openai import OpenAIEmbedding

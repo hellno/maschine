@@ -3,17 +3,24 @@ import os
 from openai import OpenAI
 
 
-MODEL_NAME = "deepseek-chat"
-# MODEL_NAME = "qwen32b" # venice ai model
-
-
 def get_deepseek_client() -> OpenAI:
     """Get a Deepseek client."""
-    # testing venice ai while deepseek is down
-    # VENICE_AI_BASE_URL = "https://api.venice.ai/api/v1"
-    # return OpenAI(api_key=os.environ["VENICE_AI_API_KEY"], base_url=VENICE_AI_BASE_URL)
     return OpenAI(
         api_key=os.environ["DEEPSEEK_API_KEY"], base_url="https://api.deepseek.com/v1"
+    )
+
+
+def get_openai_client() -> OpenAI:
+    """Get an OpenAI client."""
+    return OpenAI(
+        api_key=os.environ["REAL_OPENAI_API_KEY"], base_url="https://api.openai.com/v1"
+    )
+
+
+def get_venice_ai_client() -> OpenAI:
+    """Get a Venice AI client."""
+    return OpenAI(
+        api_key=os.environ["VENICE_AI_API_KEY"], base_url="https://api.venice.ai/api/v1"
     )
 
 
@@ -23,7 +30,7 @@ def generate_project_name(prompt: str) -> str:
 
     try:
         response = deepseek.chat.completions.create(
-            model=MODEL_NAME,
+            model="deepseek-chat",
             messages=[
                 {
                     "role": "system",
@@ -64,11 +71,11 @@ def generate_search_queries_from_user_input(
     print(f"Generating queries from prompt: {user_input}")
 
     try:
-        deepseek = get_deepseek_client()
+        client = get_venice_ai_client()
         system_prompt = QUERY_GEN_STR.format(num_queries=num_queries)
 
-        response = deepseek.chat.completions.create(
-            model=MODEL_NAME,
+        response = client.chat.completions.create(
+            model="llama-3.3-70b",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {
