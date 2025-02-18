@@ -85,7 +85,6 @@ export default function Frameception() {
   const [txHash, setTxHash] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("create_project");
   const [flowState, setFlowState] = useState<FlowState>("enteringPrompt");
-  const [addFrameResult, setAddFrameResult] = useState("");
   const [sendNotificationResult, setSendNotificationResult] = useState("");
   const [inputValue, setInputValue] = useState("");
   const [creationError, setCreationError] = useState<string | null>(null);
@@ -105,31 +104,6 @@ export default function Frameception() {
     "context",
     context
   );
-
-  const addFrame = useCallback(async () => {
-    try {
-      setNotificationDetails(null);
-
-      const result = await sdk.actions.addFrame();
-      console.log("addFrame result", result);
-      // @ts-expect-error - result type mixup
-      if (result.added) {
-        if (result.notificationDetails) {
-          setNotificationDetails(result.notificationDetails);
-        }
-        setAddFrameResult(
-          result.notificationDetails
-            ? `Added, got notificaton token ${result.notificationDetails.token} and url ${result.notificationDetails.url}`
-            : "Added, got no notification details"
-        );
-      }
-      // else {
-      //   setAddFrameResult(`Not added: ${result.reason}`);
-      // }
-    } catch (error) {
-      setAddFrameResult(`Error: ${error}`);
-    }
-  }, []);
 
   const handleCreateProject = useCallback(async () => {
     try {
