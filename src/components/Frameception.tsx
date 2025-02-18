@@ -3,6 +3,7 @@
 import { useCallback, useState, useMemo, useEffect } from "react";
 import { useMobileTheme } from "~/hooks/useMobileTheme";
 import { useFrameSDK } from "~/hooks/useFrameSDK";
+import { useProjects } from "~/hooks/useProjects";
 import { AccessCheck } from "./AccessCheck";
 import { ProjectOverviewCard } from "./ProjectOverviewCard";
 import { ProjectDetailView } from "./ProjectDetailView";
@@ -75,6 +76,11 @@ export default function Frameception() {
     notificationDetails, 
     lastEvent 
   } = useFrameSDK();
+  const { 
+    projects, 
+    isLoading: isLoadingProjects,
+    createProject,
+  } = useProjects(context?.user?.fid);
   const [isContextOpen, setIsContextOpen] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("create_project");
@@ -83,7 +89,6 @@ export default function Frameception() {
   const [sendNotificationResult, setSendNotificationResult] = useState("");
   const [inputValue, setInputValue] = useState("");
   const [creationError, setCreationError] = useState<string | null>(null);
-  const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
     null
   );
@@ -152,27 +157,16 @@ export default function Frameception() {
       setFlowState("pending");
       setCreationError(null);
 
-      const response = await fetch("/api/new-frame-project", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt: inputValue,
-          userContext: context?.user,
-        }),
+      const response = await createProject.mutateAsync({
+        prompt: inputValue,
+        userContext: context.user,
       });
-      if (!response.ok) {
-        throw new Error("Failed to create project");
-      }
 
-      const responseData = await response.json();
-      console.log("create frame project responseData", responseData);
-      const projectId = responseData.project_id;
+      const projectId = response.project_id;
       setNewProjectId(projectId);
       setSelectedProjectId(projectId);
       setFlowState("success");
-      await fetchProjects();
+      
       requestAnimationFrame(() => {
         const detailView = document.getElementById("project-detail-view");
         if (detailView) {
@@ -378,13 +372,15 @@ export default function Frameception() {
                       className="w-full py-4 text-lg font-semibold"
                       onClick={handleCreateProject}
                       disabled={
-                        inputValue.trim().length < 25 || flowState === "pending"
+                        inputValue.trim().length < 25 || 
+                        flowState === "pending" ||
+                        createProject.isPending
                       }
                     >
-                      {flowState === "pending" ? (
+                      {flowState === "pending" || createProject.isPending ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Creating Project...
+                          {createProject.isPending ? "Creating Project..." : "Creating Project..."}
                         </>
                       ) : (
                         "Start Building →"
@@ -462,18 +458,23 @@ export default function Frameception() {
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4">
-                {projects.map((project) => (
-                  <ProjectOverviewCard
-                    key={project.id}
-                    project={project}
-                    onClick={() => setSelectedProjectId(project.id)}
-                  />
-                ))}
-                {projects.length === 0 && (
+                {isLoadingProjects ? (
                   <div className="text-center text-gray-500 py-8">
-                    No projects yet. Create your first project in the Create
-                    tab!
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin inline" />
+                    Loading projects...
                   </div>
+                ) : projects.length === 0 ? (
+                  <div className="text-center text-gray-500 py-8">
+                    No projects yet. Create your first project in the Create tab!
+                  </div>
+                ) : (
+                  projects.map((project) => (
+                    <ProjectOverviewCard
+                      key={project.id}
+                      project={project}
+                      onClick={() => setSelectedProjectId(project.id)}
+                    />
+                  ))
                 )}
               </div>
             )}
