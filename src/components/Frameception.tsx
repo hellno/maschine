@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useMemo } from "react";
+import { useCallback, useState, useMemo, useEffect } from "react";
 import { useMobileTheme } from "~/hooks/useMobileTheme";
 import { useFrameSDK } from "~/hooks/useFrameSDK";
 import { AccessCheck } from "./AccessCheck";
@@ -189,10 +189,6 @@ export default function Frameception() {
   }, [inputValue, context?.user, fetchProjects]);
 
   useEffect(() => {
-    setNotificationDetails(context?.client.notificationDetails ?? null);
-  }, [context]);
-
-  useEffect(() => {
     fetchProjects();
   }, [context?.user?.fid, fetchProjects]);
 
@@ -226,13 +222,7 @@ export default function Frameception() {
 
   const { disconnect } = useDisconnect();
   const { connect } = useConnect();
-  console.log("context", context);
   
-
-  // ai! move this sdk loading and context setting to a separate hook
-  // I want to have a context wrapper that will handle all the sdk loading and context setting
-  // and then I can just use the context in the components
-
   /**
    * Additional helpers
    */
