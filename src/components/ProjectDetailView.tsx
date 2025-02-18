@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useState, useCallback } from "react";
 import posthog from "posthog-js";
 
@@ -36,9 +38,9 @@ import { Button } from "./ui/button";
 import sdk from "@farcaster/frame-sdk";
 import { Log, Project, UserContext, VercelLogData } from "~/lib/types";
 import Link from "next/link";
+import { useFrameSDK } from "~/hooks/useFrameSDK";
 
 const styles = {
-  container: "max-w-4xl mx-auto space-y-6 py-2",
   card: "bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700",
   cardHeader: "px-6 py-4 border-b border-gray-100 dark:border-gray-700",
   cardContent: "p-6",
@@ -61,7 +63,6 @@ const styles = {
 
 interface ProjectDetailViewProps {
   projectId: string | null;
-  userContext?: UserContext;
 }
 
 function ProjectInfoCard({
@@ -219,6 +220,79 @@ function ConversationCard({
       </CardHeader>
       <CardContent>
         <div className="space-y-4 max-w-full">
+          <div className="space-y-4 max-w-full">
+            {hasAnyJobsPending && (
+              <div className="p-4 bg-gray-50 rounded-lg text-sm text-gray-500">
+                There are pending jobs for this project. Please wait for them to
+                finish.
+              </div>
+            )}
+            {!hasAnyJobsPending && (
+              <>
+                <textarea
+                  rows={4}
+                  value={updatePrompt}
+                  onChange={(e) => setUpdatePrompt(e.target.value)}
+                  placeholder="Describe the changes you'd like to make..."
+                  className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 break-words overflow-wrap-anywhere"
+                  disabled={isSubmitting || hasAnyJobsPending}
+                />
+                <Button
+                  onClick={handleSubmitUpdate}
+                  disabled={
+                    !updatePrompt.trim() ||
+                    isSubmitting ||
+                    !userContext ||
+                    hasAnyJobsPending
+                  }
+                  className="w-full flex items-center justify-center gap-2"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Updating...
+                    </>
+                  ) : (
+                    <>
+                      Update Frame
+                      <ArrowUp className="w-4 h-4" />
+                    </>
+                  )}
+                </Button>
+              </>
+            )}
+            {hasBuildErrors && (
+              <div className="grid grid-cols-2 gap-4">
+                <Button
+                  onClick={onHandleTryAutofix}
+                  disabled={isSubmitting || hasAnyJobsPending}
+                  className="w-full"
+                >
+                  Try Autofix
+                </Button>
+                <Sheet>
+                  <SheetTrigger asChild>
+                    <Button variant="outline" className="w-full">
+                      View Build Errors
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent className="w-[400px] sm:w-[540px] lg:w-[680px] overflow-y-auto flex flex-col h-full">
+                    <div className="flex-none">
+                      <SheetHeader>
+                        <SheetTitle>Build Error Details</SheetTitle>
+                        <SheetDescription>
+                          {new Date(buildErrorLog.created_at).toLocaleString()}
+                        </SheetDescription>
+                      </SheetHeader>
+                    </div>
+                    {buildErrorLog?.data?.logs && (
+                      <LogViewer logs={buildErrorLog.data.logs} />
+                    )}
+                  </SheetContent>
+                </Sheet>
+              </div>
+            )}
+          </div>
           {jobs.length > 0 ? (
             jobs.map((job) => (
               <div key={job.id} className="space-y-2">
@@ -246,79 +320,6 @@ function ConversationCard({
               No conversations yet. Start by describing the changes you&apos;d
               like to make.
             </div>
-          )}
-        </div>
-        <div className="mt-8 space-y-4 max-w-full">
-          {hasAnyJobsPending && (
-            <div className="p-4 bg-gray-50 rounded-lg text-sm text-gray-500">
-              There are pending jobs for this project. Please wait for them to
-              finish.
-            </div>
-          )}
-          {hasBuildErrors && (
-            <div className="grid grid-cols-2 gap-4">
-              <Button
-                onClick={onHandleTryAutofix}
-                disabled={isSubmitting || hasAnyJobsPending}
-                className="w-full"
-              >
-                Try Autofix
-              </Button>
-              <Sheet>
-                <SheetTrigger asChild>
-                  <Button variant="outline" className="w-full">
-                    View Build Errors
-                  </Button>
-                </SheetTrigger>
-                <SheetContent className="w-[400px] sm:w-[540px] lg:w-[680px] overflow-y-auto flex flex-col h-full">
-                  <div className="flex-none">
-                    <SheetHeader>
-                      <SheetTitle>Build Error Details</SheetTitle>
-                      <SheetDescription>
-                        {new Date(buildErrorLog.created_at).toLocaleString()}
-                      </SheetDescription>
-                    </SheetHeader>
-                  </div>
-                  {buildErrorLog?.data?.logs && (
-                    <LogViewer logs={buildErrorLog.data.logs} />
-                  )}
-                </SheetContent>
-              </Sheet>
-            </div>
-          )}
-          {!hasAnyJobsPending && (
-            <>
-              <textarea
-                rows={4}
-                value={updatePrompt}
-                onChange={(e) => setUpdatePrompt(e.target.value)}
-                placeholder="Describe the changes you'd like to make..."
-                className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 break-words overflow-wrap-anywhere"
-                disabled={isSubmitting || hasAnyJobsPending}
-              />
-              <Button
-                onClick={handleSubmitUpdate}
-                disabled={
-                  !updatePrompt.trim() ||
-                  isSubmitting ||
-                  !userContext ||
-                  hasAnyJobsPending
-                }
-                className="w-full flex items-center justify-center gap-2"
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Updating...
-                  </>
-                ) : (
-                  <>
-                    Update Frame
-                    <ArrowUp className="w-4 h-4" />
-                  </>
-                )}
-              </Button>
-            </>
           )}
         </div>
       </CardContent>
@@ -475,33 +476,10 @@ function ActivityLogCard({ logs }: { logs: Log[] }) {
   );
 }
 
-export function ProjectDetailView({
-  projectId,
-  userContext,
-}: ProjectDetailViewProps) {
+function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
+  const { context } = useFrameSDK();
+  const userContext = context?.user;
   const [project, setProject] = useState<Project | null>(null);
-
-  useEffect(() => {
-    // Only run if we have both PostHog and a user FID
-    if (!userContext?.fid || !posthog?.isFeatureEnabled) return;
-
-    const fidId = `fc_${userContext.fid}`;
-    const currentId = posthog.get_distinct_id();
-
-    // Skip if already identified with this FID
-    if (currentId === fidId) return;
-
-    // Create alias from session ID → FID
-    posthog.alias(fidId, currentId);
-
-    // Identify future events with FID
-    posthog.identify(fidId, {
-      farcaster_username: userContext.username,
-      farcaster_display_name: userContext.displayName,
-      farcaster_fid: userContext.fid,
-    });
-  }, [userContext]); // Only runs when FID changes
-
   const [logs, setLogs] = useState<Log[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [updatePrompt, setUpdatePrompt] = useState("");
@@ -719,7 +697,8 @@ export function ProjectDetailView({
   }
 
   return (
-    <div className={styles.container}>
+    // ai! adjust this width to be responsive from mobile screen size width to max-w-5xl on desktop
+    <div className="mx-auto space-y-6">
       <ProjectInfoCard
         project={project}
         projectStatus={projectStatus}
@@ -741,3 +720,5 @@ export function ProjectDetailView({
     </div>
   );
 }
+
+export default ProjectDetailView;
