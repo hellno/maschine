@@ -15,13 +15,6 @@ type AccessCheckProps = {
   onAccessGranted: () => void;
 };
 
-type Requirement = {
-  idx: number;
-  isValid: boolean;
-  name: string;
-  message?: string;
-};
-
 export const AccessCheck = ({
   userContext,
   onAccessGranted,

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import posthog from "posthog-js";
 
 declare module "next-auth" {
   interface Session {
@@ -697,8 +696,7 @@ function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
   }
 
   return (
-    // ai! adjust this width to be responsive from mobile screen size width to max-w-5xl on desktop
-    <div className="mx-auto space-y-6 px-4 md:max-w-3xl lg:max-w-4xl xl:max-w-5xl">
+    <div className="mx-auto space-y-6 px-4 max-w-sm lg:max-w-4xl xl:max-w-5xl">
       <ProjectInfoCard
         project={project}
         projectStatus={projectStatus}

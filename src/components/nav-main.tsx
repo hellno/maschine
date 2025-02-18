@@ -2,8 +2,6 @@
 
 import { ChevronRight, type LucideIcon } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { render } from "react-dom";
 
 import {
   Collapsible,
@@ -34,17 +32,16 @@ type NavItem = {
 };
 
 export function NavMain({ items }: { items: NavItem[] }) {
-  const router = useRouter();
   const { toggleSidebar } = useSidebar();
   const renderMainItemButton = (item: NavItem) => (
     <Link href={item.url} passHref>
       <SidebarMenuButton
+        className="text-xl"
         tooltip={item.title}
         onClick={
           item.url
             ? () => {
                 toggleSidebar();
-                // router.push(item.url);
               }
             : undefined
         }
@@ -76,11 +73,13 @@ export function NavMain({ items }: { items: NavItem[] }) {
                   <SidebarMenuSub>
                     {item.items?.map((subItem) => (
                       <SidebarMenuSubItem key={subItem.title}>
-                        <SidebarMenuSubButton asChild>
-                          <a href={subItem.url}>
+                        <Link href={subItem.url}>
+                          <SidebarMenuSubButton asChild className="text-lg">
+                            {/* <a href={subItem.url}> */}
                             <span>{subItem.title}</span>
-                          </a>
-                        </SidebarMenuSubButton>
+                            {/* </a> */}
+                          </SidebarMenuSubButton>
+                        </Link>
                       </SidebarMenuSubItem>
                     ))}
                   </SidebarMenuSub>

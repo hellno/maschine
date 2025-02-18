@@ -7,6 +7,8 @@ export function useProjects(fid?: number) {
   const query = useQuery<{ projects: Project[] }>({
     queryKey: ["projects", fid],
     queryFn: async () => {
+      if (!fid) return { projects: [] };
+      
       const response = await fetch(`/api/projects?fid=${fid}`);
       if (!response.ok) throw new Error("Failed to fetch projects");
       return response.json();

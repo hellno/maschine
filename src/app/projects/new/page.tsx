@@ -3,11 +3,11 @@
 import { Card, CardContent } from "~/components/ui/card";
 
 import { ArrowUp, AlertCircle, Loader2 } from "lucide-react";
-import { useCallback, useState } from "react";
-import { ProjectDetailView } from "~/components/ProjectDetailView";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { useFrameSDK } from "~/hooks/useFrameSDK";
 import { useProjects } from "~/hooks/useProjects";
+import { useRouter } from "next/navigation";
 
 const promptTemplates = [
   {
@@ -33,8 +33,9 @@ const promptTemplates = [
 ];
 
 const Page = () => {
+  const router = useRouter();
   const { context } = useFrameSDK();
-  const { createProject } = useProjects();
+  const { createProject } = useProjects(context?.user.fid);
   const [inputValue, setInputValue] = useState("");
   const [flowState, setFlowState] = useState<
     "enteringPrompt" | "pending" | "success"
@@ -79,6 +80,12 @@ const Page = () => {
       setFlowState("enteringPrompt");
     }
   }, [inputValue, context?.user, createProject]);
+
+  useEffect(() => {
+    if ((flowState === "pending" || flowState === "success") && newProjectId) {
+      router.push(`/projects/${newProjectId}`);
+    }
+  }, [flowState, newProjectId, router]);
 
   return (
     <div className="space-y-6">
@@ -168,18 +175,6 @@ const Page = () => {
         <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 rounded-xl text-red-600 dark:text-red-400 flex items-center">
           <AlertCircle className="w-5 h-5 mr-2" />
           {creationError}
-        </div>
-      )}
-
-      {(flowState === "pending" || flowState === "success") && newProjectId && (
-        <div
-          id="project-detail-view"
-          className="flex flex-col items-center gap-4 w-full max-w-3xl mx-auto px-4 scroll-target"
-        >
-          <ProjectDetailView
-            projectId={newProjectId}
-            userContext={context?.user}
-          />
         </div>
       )}
     </div>

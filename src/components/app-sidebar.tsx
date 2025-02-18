@@ -1,27 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  ArrowUp,
-  ArrowUp01,
-  ArrowUpWideNarrow,
-  AudioWaveform,
-  BookOpen,
-  Bot,
-  CircleFadingArrowUp,
-  Command,
-  Frame,
-  GalleryVerticalEnd,
-  HelpCircle,
-  Home,
-  Map,
-  PieChart,
-  PlusCircle,
-  Settings2,
-  Sparkle,
-  Sparkles,
-  SquareTerminal,
-} from "lucide-react";
+import { HelpCircle, Home, Sparkles } from "lucide-react";
 
 import { NavMain } from "~/components/nav-main";
 import { NavProjects } from "~/components/nav-projects";

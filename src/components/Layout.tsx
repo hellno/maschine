@@ -16,6 +16,7 @@ import {
 } from "~/components/ui/sidebar";
 import { useFrameSDK } from "~/hooks/useFrameSDK";
 import { useMobileTheme } from "~/hooks/useMobileTheme";
+import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 
 const CustomSidebarTrigger = () => {
   const { toggleSidebar } = useSidebar();
@@ -65,19 +66,32 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
         <AppSidebar />
         <SidebarInset>
           <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
-            <div className="flex items-center gap-2 px-4">
+            <div className="flex items-center gap-2 px-4 w-[calc(100%-2rem)]">
               <CustomSidebarTrigger />
               <Separator orientation="vertical" className="mr-2 h-4" />
-              <Breadcrumb>
-                <BreadcrumbList>
-                  <BreadcrumbItem>
-                    <BreadcrumbPage>Maschine</BreadcrumbPage>
-                  </BreadcrumbItem>
-                </BreadcrumbList>
-              </Breadcrumb>
+              <div className="flex justify-between items-center min-w-full">
+                <span className="font-normal text-foreground">Maschine</span>
+                <div className="flex items-center gap-2 max-w-[calc(50%)]">
+                  <Avatar className="h-8 w-8 rounded-lg">
+                    <AvatarImage
+                      src={context?.user?.pfpUrl}
+                      alt={context?.user?.username}
+                    />
+                    <AvatarFallback className="rounded-lg">DR</AvatarFallback>
+                  </Avatar>
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-semibold">
+                      {context?.user?.username}
+                    </span>
+                    <span className="truncate text-xs">
+                      {context?.user?.displayName}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           </header>
-          <div className="flex flex-1 flex-col gap-4 p-4 pt-0">{children}</div>
+          <div className="flex flex-1 flex-col gap-4">{children}</div>
         </SidebarInset>
       </SidebarProvider>
     </div>

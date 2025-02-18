@@ -1,5 +1,3 @@
-import { useFrameSDK } from "~/hooks/useFrameSDK";
-
 import dynamic from "next/dynamic";
 import WelcomeHero from "./WelcomeHero";
 
@@ -8,7 +6,6 @@ const DebugView = dynamic(() => import("~/components/DebugView"), {
 });
 
 export default function Frameception() {
-
   const renderDebugView = () => {
     if (process.env.NODE_ENV === "development") {
       return <DebugView />;
@@ -18,10 +15,9 @@ export default function Frameception() {
     }
   };
   return (
-
-      <div className="mx-auto py-2 px-2 md:px-4 max-w-3xl text-center">
-        <WelcomeHero />
-        {renderDebugView()}
-      </div>
-        );
+    <div className="mx-auto py-2 px-2 md:px-4 max-w-3xl text-center">
+      <WelcomeHero />
+      {renderDebugView()}
+    </div>
+  );
 }

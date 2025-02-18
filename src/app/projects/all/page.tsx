@@ -1,18 +1,17 @@
 "use client";
 
 import { Loader2, PlusCircle, RefreshCcw } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ProjectOverviewCard } from "~/components/ProjectOverviewCard";
 import { Button } from "~/components/ui/button";
+import { useFrameSDK } from "~/hooks/useFrameSDK";
 import { useProjects } from "~/hooks/useProjects";
 
 const Page = () => {
   const router = useRouter();
-  const { projects, isLoading, refetch } = useProjects();
-
-  const onOpenProject = (projectId: string) => {
-    router.push(`/projects/${projectId}`);
-  };
+  const { context } = useFrameSDK();
+  const { projects, isLoading, refetch } = useProjects(context?.user.fid);
 
   const onCreateProject = () => {
     router.push("/projects/new");
@@ -40,11 +39,9 @@ const Page = () => {
         </div>
       ) : (
         projects.map((project) => (
-          <ProjectOverviewCard
-            key={project.id}
-            project={project}
-            onClick={() => onOpenProject(project.id)}
-          />
+          <Link key={project.id} href={`/projects/${project.id}`}>
+            <ProjectOverviewCard key={project.id} project={project} />
+          </Link>
         ))
       )}
     </div>

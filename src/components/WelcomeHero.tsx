@@ -47,7 +47,7 @@ const WelcomeHero = () => {
             </div>
           </div> */}
       <p className="mt-6 mx-8 text-pretty text-lg font-medium text-gray-600 sm:text-xl/8 dark:text-gray-400 max-w-2xl">
-        From idea to live frame to share with the world. Create your own
+        From idea to shareable frame in minutes. Create your own
         Farcaster frame right here.
       </p>
       <Link className="mt-8 flex justify-center" href="/projects/new">

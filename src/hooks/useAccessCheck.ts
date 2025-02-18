@@ -1,5 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import type { Requirement } from "../components/AccessCheck";
+
+type Requirement = {
+  idx: number;
+  isValid: boolean;
+  name: string;
+  message?: string;
+};
 
 type AccessCheckResponse = {
   requirements: Requirement[];
