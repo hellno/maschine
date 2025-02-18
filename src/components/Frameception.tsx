@@ -131,20 +131,6 @@ export default function Frameception() {
     }
   }, []);
 
-  const fetchProjects = useCallback(async () => {
-    if (context?.user?.fid) {
-      try {
-        const response = await fetch(`/api/projects?fid=${context.user.fid}`);
-        const data = await response.json();
-        if (data.projects) {
-          setProjects(data.projects);
-        }
-      } catch (error) {
-        console.error("Error fetching projects:", error);
-      }
-    }
-  }, [context?.user?.fid]);
-
   const handleCreateProject = useCallback(async () => {
     try {
       if (inputValue.trim().length < 25) {
