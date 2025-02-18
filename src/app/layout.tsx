@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { getSession } from "~/auth";
 import { Providers } from "~/app/providers";
 import Script from "next/script";
-import Layout from "~/components/Layout";
+import Layout from "~/components/Layout2";
 
 export const metadata: Metadata = {
   title: "frameception",
