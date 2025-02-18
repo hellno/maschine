@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { getSession } from "~/auth"
+import { getSession } from "~/auth";
 import "~/app/globals.css";
 import { Providers } from "~/app/providers";
 import Script from "next/script";
+import Layout from "~/components/layout";
 
 export const metadata: Metadata = {
   title: "frameception",
@@ -15,7 +16,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const session = await getSession();
-  
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -34,7 +35,7 @@ export default async function RootLayout({
       </head>
       <body className="min-h-screen bg-background antialiased">
         <Providers session={session}>
-          {children}
+          <Layout>{children}</Layout>
         </Providers>
       </body>
     </html>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import sdk from "@farcaster/frame-sdk";
 import { FrameContext, FrameNotificationDetails } from "~/lib/types";
 
@@ -8,6 +8,7 @@ export function useFrameSDK() {
   const [isFramePinned, setIsFramePinned] = useState(false);
   const [notificationDetails, setNotificationDetails] = useState<FrameNotificationDetails | null>(null);
   const [lastEvent, setLastEvent] = useState("");
+  const [pinFrameResponse, setPinFrameResponse] = useState("");
 
   useEffect(() => {
     const load = async () => {
@@ -55,8 +56,34 @@ export function useFrameSDK() {
     }
   }, [isSDKLoaded]);
 
+
+  const pinFrame = useCallback(async () => {
+    try {
+      setNotificationDetails(null);
+
+      const result = await sdk.actions.addFrame();
+      console.log("addFrame result", result);
+      // @ts-expect-error - result type mixup
+      if (result.added) {
+        if (result.notificationDetails) {
+          setNotificationDetails(result.notificationDetails);
+        }
+        setPinFrameResponse(
+          result.notificationDetails
+            ? `Added, got notificaton token ${result.notificationDetails.token} and url ${result.notificationDetails.url}`
+            : "Added, got no notification details"
+        );
+      }
+    } catch (error) {
+      setPinFrameResponse(`Error: ${error}`);
+    }
+  }, []);
+
+
   return {
     context,
+    pinFrame,
+    pinFrameResponse,
     isFramePinned,
     notificationDetails,
     lastEvent,
