@@ -8,6 +8,28 @@ import modal
 from backend.modal import app, volumes, all_secrets, db_secrets
 from backend import config
 from backend.integrations.db import Database
+from backend.services.context_enhancer import CodeContextEnhancer
+
+
+@app.function()
+@modal.web_endpoint(method="POST", label="context-enhancer")
+def enhance_context_endpoint(data: dict) -> dict:
+    """Enhance a user prompt with relevant technical context"""
+    try:
+        if "prompt" not in data or not data["prompt"].strip():
+            return {"error": "Prompt is required"}, 400
+        
+        enhancer = CodeContextEnhancer()
+        context = enhancer.get_relevant_context(data["prompt"])
+        
+        return {
+            "enhanced_prompt": context or data["prompt"],
+            "original_prompt": data["prompt"],
+            "had_context": bool(context)
+        }
+    
+    except Exception as e:
+        return {"error": f"Context enhancement failed: {str(e)}"}, 500
 
 
 @app.function(secrets=db_secrets)
