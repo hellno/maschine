@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent } from "~/components/ui/card";
 import { useAccount } from "wagmi";
+import { useAccessCheck } from "~/hooks/useAccessCheck";
 import { CheckIcon, Loader2 } from "lucide-react";
 import { BigPurpleButton } from "~/components/ui/BigPurpleButton";
 import FancyLargeButton from "./FancyLargeButton";
@@ -15,76 +15,30 @@ type AccessCheckProps = {
   onAccessGranted: () => void;
 };
 
-type Requirement = {
-  idx: number;
-  isValid: boolean;
-  name: string;
-  message?: string;
-};
-
 export const AccessCheck = ({
   userContext,
   onAccessGranted,
 }: AccessCheckProps) => {
   const { address } = useAccount();
-  const [requirements, setRequirements] = useState<Requirement[]>([]);
-  const [isCheckingAccess, setIsCheckingAccess] = useState(true);
-  const [hasAccess, setHasAccess] = useState(false);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const fid = userContext?.fid;
 
-  const checkAccess = useCallback(async () => {
-    try {
-      if (!userContext?.fid) {
-        const mockRequirements: Requirement[] = [
-          {
-            idx: 0,
-            isValid: false,
-            name: "Farcaster Account",
-            message: "No Farcaster account detected",
-          },
-        ];
-        setRequirements(mockRequirements);
-        setIsCheckingAccess(false);
+  const { 
+    data, 
+    isLoading: isCheckingAccess, 
+    error 
+  } = useAccessCheck(fid, address);
 
-        return;
-      }
-
-      const response = await fetch("/api/check-access", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ fids: [userContext.fid], address }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Access check failed");
-      }
-
-      const data = await response.json();
-      setRequirements(data.requirements || []);
-      setHasAccess(data.hasAccess);
-      setActionMessage(data.actionMessage);
-      setIsCheckingAccess(false);
-    } catch (error) {
-      console.error("Access check failed:", error);
-      const mockRequirements: Requirement[] = [
-        {
-          idx: 0,
-          isValid: false,
-          name: "Farcaster Account",
-          message: "Error validating account status",
-        },
-      ];
-      setRequirements(mockRequirements);
-      setIsCheckingAccess(false);
-      setActionMessage("register_farcaster_account");
+  const requirements = error ? [
+    {
+      idx: 0,
+      isValid: false,
+      name: "Farcaster Account",
+      message: "Error validating account status",
     }
-  }, [address, userContext]);
+  ] : data?.requirements || [];
 
-  useEffect(() => {
-    checkAccess();
-  }, [checkAccess]);
+  const hasAccess = data?.hasAccess || false;
+  const actionMessage = error ? "register_farcaster_account" : data?.actionMessage;
 
   if (isCheckingAccess) {
     return (
