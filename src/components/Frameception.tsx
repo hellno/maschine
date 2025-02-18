@@ -140,11 +140,7 @@ export default function Frameception() {
       );
       setFlowState("enteringPrompt");
     }
-  }, [inputValue, context?.user, fetchProjects]);
-
-  useEffect(() => {
-    fetchProjects();
-  }, [context?.user?.fid, fetchProjects]);
+  }, [inputValue, context?.user, createProject]);
 
   useEffect(() => {
     if (isFramePinned) {
@@ -278,21 +274,13 @@ export default function Frameception() {
           defaultValue="create_project"
           className="w-full pt-8"
           value={activeTab}
-          onValueChange={(value) => {
-            setActiveTab(value);
-            if (value === "view_projects") {
-              fetchProjects();
-            }
-          }}
+          onValueChange={setActiveTab}
         >
           <TabsList className="grid w-full grid-cols-2 mb-6">
             <TabsTrigger value="create_project">New Project</TabsTrigger>
             <TabsTrigger
               value="view_projects"
-              onClick={() => {
-                setSelectedProjectId(null);
-                fetchProjects();
-              }}
+              onClick={() => setSelectedProjectId(null)}
             >
               My Frames
             </TabsTrigger>
