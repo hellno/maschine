@@ -1,5 +1,7 @@
+import os
+
+
 def setup_sentry():
-    import os
     import sentry_sdk
 
     SENTRY_DSN = os.environ.get("SENTRY_DSN")

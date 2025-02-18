@@ -29,12 +29,16 @@ PATHS = {
     "PNPM_STORE": "/pnpm-store",
 }
 
+CODE_CONTEXT = {
+    "ENABLED": True,
+}
+
 AIDER_CONFIG = {
     "MODEL": {
-        # "model": "sonnet",
-        # "model": "r1", # deepseek has API issues right now :(
-        "model": "openai/deepseek-ai/DeepSeek-R1",  # together.ai via openrouter in env vars
+        "model": "r1",
         "editor_model": "sonnet",
+        # "model": "sonnet",
+        # "model": "openai/deepseek-ai/DeepSeek-R1",  # together.ai via openrouter in env vars
     },
     "CODER": {"verbose": False, "cache_prompts": True},
     "MODEL_SETTINGS": {

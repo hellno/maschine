@@ -15,6 +15,7 @@ from backend.integrations.github_api import (
 import tempfile
 
 from backend.types import UserContext
+from backend.services.context_enhancer import CodeContextEnhancer
 
 DEFAULT_PROJECT_FILES = [
     "src/components/Frame.tsx",
@@ -50,7 +51,7 @@ class CodeService:
 
             print(f"[code_service] Running Aider with prompt: {prompt}")
             self.db.update_job_status(self.job_id, "running")
-
+            prompt = self._enhance_prompt_with_context(prompt)
             aider_result = coder.run(prompt)
             print(f"[code_service] Aider result (truncated): {aider_result[:250]}")
             _handle_pnpm_commands(aider_result, self.sandbox)
@@ -99,6 +100,14 @@ class CodeService:
                 print("[code_service] Sandbox terminated")
             except Exception as e:
                 print(f"Error terminating sandbox job id {self.job_id}: {str(e)}")
+
+    def _enhance_prompt_with_context(self, prompt: str) -> str:
+        try:
+            context = CodeContextEnhancer().get_relevant_context(prompt)
+            return f"additional context {context}\n\nprompt {prompt}"
+        except Exception as e:
+            print(f"[code_service] Context enhancement failed: {str(e)}")
+        return prompt
 
     def _add_file_to_repo_dir(self, repo_dir: str, filename: str, content: str) -> None:
         """Create a context file for Aider in the repo directory."""
@@ -152,9 +161,8 @@ class CodeService:
     def _run_install_in_sandbox(self):
         print("[code_service] Running install command")
         process = self.sandbox.exec("pnpm", "install")
-        for line in process.stdout:
-            print("[install]", line.strip())
-        process.wait()
+        logs, exit_code = self.parse_sandbox_process(process)
+        return exit_code
 
     def _run_build_in_sandbox(
         self, terminate_after_build: bool = False
@@ -166,28 +174,22 @@ class CodeService:
             logs = []
             print("[build] Current git status:")
             git_status = self.sandbox.exec("git", "status")
-            for line in git_status.stdout:
-                print("[git]", line.strip())
+            status_logs, _ = self.parse_sandbox_process(git_status)
+            logs.extend(status_logs)
 
             print("[build] Latest commit:")
             git_log = self.sandbox.exec("git", "log", "-1", "--oneline")
-            for line in git_log.stdout:
-                print("[git]", line.strip())
+            log_lines, _ = self.parse_sandbox_process(git_log)
+            logs.extend(log_lines)
 
-            process = self.sandbox.exec("pnpm", "install")
-            for line in process.stdout:
-                print("[base install]", line.strip())
-            process.wait()
+            install_process = self.sandbox.exec("pnpm", "install")
+            install_logs, install_code = self.parse_sandbox_process(install_process)
+            logs.extend(install_logs)
 
             print("[build] Running build command")
-            process = self.sandbox.exec("pnpm", "build")
-            for line in process.stdout:
-                logs.append(line.strip())
-                print("[build]", line.strip())
-            for line in process.stderr:
-                logs.append(line.strip())
-                print("[build ERR]", line.strip())
-            process.wait()
+            build_process = self.sandbox.exec("pnpm", "build")
+            build_logs, build_code = self.parse_sandbox_process(build_process)
+            logs.extend(build_logs)
 
             has_error_in_logs = any(
                 "error" in line.lower()
@@ -198,9 +200,8 @@ class CodeService:
 
             logs_cleaned = clean_log_lines(logs)
             logs_str = "\n".join(logs_cleaned)
-            returncode = process.returncode
             print(
-                f"sandbox results: has_error_in_logs {has_error_in_logs} returncode {returncode} logs_str {logs_str} "
+                f"sandbox results: has_error_in_logs {has_error_in_logs} returncode {build_code} logs_str {logs_str} "
             )
             if terminate_after_build and not self.manual_sandbox_termination:
                 print("[code_service] Terminating sandbox after build")
@@ -231,19 +232,44 @@ class CodeService:
             base_sandbox = modal.Sandbox.create(
                 app=app,
                 image=base_image.add_local_dir(repo_dir, remote_path="/repo"),
-                cpu=2,
-                memory=1024,
+                cpu=4,
+                memory=2048,
                 workdir="/repo",
                 timeout=config.TIMEOUTS["BUILD"],
             )
 
-            print("[code_service] Installing dependencies in base sandbox")
-            process = base_sandbox.exec("pnpm", "install")
-            for line in process.stdout:
-                print("[base install]", line.strip())
-            process.wait()
+            def check_files(path):
+                for root, _, files in os.walk(path):
+                    for file in files:
+                        fp = os.path.join(root, file)
+                        try:
+                            with open(fp, encoding="utf-8") as f:
+                                f.read()
+                        except UnicodeDecodeError as err:
+                            print(f"Error in {fp}: {err}")
 
-            if process.returncode != 0:
+            check_files(repo_dir)
+            print("[code_service] Installing dependencies in base sandbox")
+            process = base_sandbox.exec(
+                "pnpm",
+                "install",
+                "--loglevel",
+                "debug",
+                "--reporter",
+                "ndjson",
+            )
+            install_logs, exit_code = self.parse_sandbox_process(
+                process, prefix="base install"
+            )
+            print(
+                "[code_service] Base install logs:",
+                "\n".join(install_logs),
+                "exit code",
+                exit_code,
+            )
+            print("[code_service] base install process completed")
+
+            if exit_code != 0:
                 raise Exception("Base dependency installation failed")
 
             print("[code_service] Creating filesystem snapshot")
@@ -253,7 +279,6 @@ class CodeService:
         except Exception as e:
             print(f"[code_service] Base image creation failed: {str(e)}")
             raise
-
         finally:
             if base_sandbox:
                 print("[code_service] Cleaning up base sandbox")
@@ -279,6 +304,50 @@ class CodeService:
         self.sandbox.set_tags({"project_id": self.project_id, "job_id": self.job_id})
         self._run_install_in_sandbox()
         print("[code_service] Sandbox created")
+
+    def parse_sandbox_process(self, process, prefix="") -> tuple[list, int]:
+        """Safely parse stdout/stderr from a sandbox process using Modal's StreamReader."""
+        logs = []
+        exit_code = -1
+
+        try:
+            # Handle stdout - check if bytes need decoding
+            for line in process.stdout:
+                try:
+                    if isinstance(line, bytes):  # Handle both str and bytes
+                        decoded = line.decode("utf-8", "ignore").strip()
+                    else:
+                        decoded = str(line).strip()  # Convert to string if needed
+                    logs.append(decoded)
+                    # print(f"[{prefix}] {decoded}")
+                except UnicodeDecodeError as ude:
+                    error_msg = f"Decode error: {str(ude)}"
+                    logs.append(error_msg)
+                    print(f"[{prefix} ERR] {error_msg}")
+
+            # Handle stderr the same way
+            for line in process.stderr:
+                try:
+                    if isinstance(line, bytes):
+                        decoded = line.decode("utf-8", "ignore").strip()
+                    else:
+                        decoded = str(line).strip()
+                    logs.append(decoded)
+                    # print(f"[{prefix} ERR] {decoded}")
+                except UnicodeDecodeError as ude:
+                    error_msg = f"Decode error: {str(ude)}"
+                    logs.append(error_msg)
+                    print(f"[{prefix} ERR] {error_msg}")
+
+            # Get exit code after reading all output
+            exit_code = process.wait()
+
+        except Exception as e:
+            error_msg = f"Process handling failed: {str(e)}"
+            logs.append(error_msg)
+            print(f"[{prefix} CRITICAL] {error_msg}")
+
+        return logs, exit_code
 
     def _create_aider_coder(self) -> Coder:
         """Create and configure the Aider coder instance."""
@@ -339,44 +408,29 @@ def _handle_pnpm_commands(
     """Parse and execute pnpm/npm install commands from Aider output"""
     import re
 
-    # Updated pattern to match both 'pnpm add' and 'npm install' commands
     pattern = r"```bash[\s\n]*(?:pnpm add|npm install(?: --save)?)\s+([^\n`]*)```"
-    matches = list(re.finditer(pattern, aider_result, re.DOTALL))  # Convert to list first
+    matches = list(re.finditer(pattern, aider_result, re.DOTALL))
 
-    print(f"[code_service] Found {len(matches)} package install commands in aider output")
-    
-    for match in matches:  # Now iterating over the cached list
+    print(
+        f"[code_service] Found {len(matches)} package install commands in aider output"
+    )
+
+    for match in matches:
         packages = match.group(1).strip()
         if not packages:
             continue
 
         try:
             print(f"[code_service] Installing packages: {packages}")
-            print(f"Installing packages: {packages}")
-            print(f"output of *packages.split() {packages.split()}")
-            # Always use pnpm add regardless of whether npm install was specified
             install_proc = sandbox.exec("pnpm", "add", *packages.split())
 
-            # Capture and log output
-            for line in install_proc.stdout:
-                line_str = line.strip()
-                print(f"[PNPM STDOUT] {line_str}")
+            # Use the new parsing utility
+            logs, exit_code = CodeService.parse_sandbox_process(install_proc)
 
-            for line in install_proc.stderr:
-                line_str = line.strip()
-                print(f"[PNPM STDERR] {line_str}")
-
-            exit_code = install_proc.wait()
             if exit_code != 0:
-                print(
-                    f"[code_service] Warning: pnpm add command failed with exit code {
-                        exit_code
-                    } but continuing..."
-                )
-                continue  # Continue with next package set instead of failing
+                print(f"[code_service] pnpm add failed with code {exit_code}")
+                print("Installation logs:", "\n".join(logs))
 
         except Exception as e:
-            error_msg = f"Warning: Error installing packages {packages}: {e}"
+            error_msg = f"Error installing packages {packages}: {e}"
             print(f"[code_service] {error_msg}")
-            # Continue instead of failing
-            continue

@@ -6,9 +6,30 @@ from backend.utils.sentry import setup_sentry
 import modal
 
 from backend.modal import app, volumes, all_secrets, db_secrets
-from backend.services.deploy_project_service import DeployProjectService
 from backend import config
 from backend.integrations.db import Database
+
+
+@app.function(secrets=[modal.Secret.from_name("llm-api-keys")])
+@modal.web_endpoint(method="POST", label="context-enhancer")
+def enhance_context_endpoint(data: dict) -> dict:
+    """Enhance a user prompt with relevant technical context"""
+    try:
+        if "prompt" not in data or not data["prompt"].strip():
+            return {"error": "Prompt is required"}, 400
+
+        from backend.services.context_enhancer import CodeContextEnhancer
+
+        enhancer = CodeContextEnhancer()
+        context = enhancer.get_relevant_context(data["prompt"])
+
+        return {
+            "prompt": data["prompt"],
+            "context": context,
+        }
+
+    except Exception as e:
+        return {"error": f"Context enhancement failed: {str(e)}"}, 500
 
 
 @app.function(secrets=db_secrets)
@@ -265,6 +286,8 @@ def deploy_project_webhook(data: dict) -> dict:
 )
 def deploy_project(data: dict) -> dict:
     """Handle final deployment steps"""
+    from backend.services.deploy_project_service import DeployProjectService
+
     setup_sentry()
 
     project_id = data["project_id"]

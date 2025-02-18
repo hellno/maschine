@@ -95,6 +95,12 @@ class VercelApi:
                         "target": ["production", "preview", "development"],
                     },
                     {
+                        "key": "DUNE_API_KEY",
+                        "value": os.environ["DUNE_API_KEY"],
+                        "type": "encrypted",
+                        "target": ["production", "preview", "development"],
+                    },
+                    {
                         "key": "NEXT_PUBLIC_POSTHOG_KEY",
                         "value": os.environ["NEXT_PUBLIC_POSTHOG_KEY"],
                         "type": "encrypted",
