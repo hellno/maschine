@@ -1,18 +1,8 @@
 "use client";
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Card, CardContent } from "~/components/ui/card";
-import sdk, { FrameNotificationDetails } from "@farcaster/frame-sdk";
 
-import { ArrowUp, AlertCircle, PlayCircle, Loader2 } from "lucide-react";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "~/components/ui/sheet";
-import { FrameContext, Project } from "~/lib/types";
+import { ArrowUp, AlertCircle, Loader2 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { ProjectDetailView } from "~/components/ProjectDetailView";
 import { Button } from "~/components/ui/button";

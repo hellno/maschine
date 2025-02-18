@@ -56,7 +56,6 @@ export function useFrameSDK() {
     }
   }, [isSDKLoaded]);
 
-
   const pinFrame = useCallback(async () => {
     try {
       setNotificationDetails(null);

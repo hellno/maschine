@@ -51,11 +51,11 @@ const data = {
       items: [
         {
           title: "New",
-          url: "projects/new",
+          url: "/projects/new",
         },
         {
           title: "All",
-          url: "projects/all",
+          url: "/projects/all",
         },
       ],
     },
