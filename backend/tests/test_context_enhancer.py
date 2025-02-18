@@ -5,7 +5,6 @@ from backend.services.context_enhancer import CodeContextEnhancer
 
 @pytest.fixture
 def mock_docs(tmp_path):
-    # Create temporary docs structure
     docs_dir = tmp_path / "llm_context/docs/dune"
     docs_dir.mkdir(parents=True)
 
@@ -16,21 +15,31 @@ def mock_docs(tmp_path):
 
 
 def test_query_processing(mock_docs):
-    # Patch the context pieces to use temporary paths
+    # Mock the query generation and engine responses
     with mock.patch.object(
         CodeContextEnhancer,
-        "context_pieces",
-        [
-            {
-                "filepath": str(mock_docs / "llm_context/docs/dune/dune_api.md"),
-                "keywords": ["dune"],
-            }
-        ],
+        "_generate_queries",
+        return_value=["Dune API authentication", "Dune query execution methods"]
     ):
+        # Create instance first
         enhancer = CodeContextEnhancer()
-        result = enhancer.get_relevant_context("make something nice with dune api")
-
+        
+        # Now mock the query_engine on the instance
+        mock_engine = mock.Mock()
+        enhancer.query_engine = mock_engine
+        
+        # Setup mock response
+        mock_response = mock.Mock()
+        mock_response.source_nodes = [
+            mock.Mock(text="Dune API documentation content"),
+            mock.Mock(text="Common Dune authentication methods")
+        ]
+        mock_engine.query.return_value = mock_response
+        
+        result = enhancer.get_relevant_context("How to query Dune API?")
+        
         assert "Dune API documentation content" in result
+        assert "Common Dune authentication methods" in result
 
 
 def test_empty_query():

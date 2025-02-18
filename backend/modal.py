@@ -11,7 +11,12 @@ CONTAINER_ENV_VARS = {
 base_image = (
     modal.Image.debian_slim(python_version="3.12")
     .env(CONTAINER_ENV_VARS)
-    .apt_install("git", "curl", "python3-dev", "build-essential")
+    .apt_install(
+        "git",
+        "curl",
+        "python3-dev",
+        "build-essential",
+    )
     .pip_install("setuptools")
     .pip_install(
         "fastapi",
@@ -26,6 +31,7 @@ base_image = (
         "playwright",
         "farcaster-py",
         "blake3",
+        "llama-index",
     )
     .run_commands(
         "pip install -U aider-chat",
@@ -64,6 +70,7 @@ all_secrets = [
     modal.Secret.from_name("redis-secret"),
     modal.Secret.from_name("sentry-secret"),
     modal.Secret.from_name("posthog-secret"),
+    modal.Secret.from_name("dune-secret"),
 ]
 
 db_secrets = [

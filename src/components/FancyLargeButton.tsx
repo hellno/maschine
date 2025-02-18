@@ -3,7 +3,7 @@ const FancyLargeButton = ({
     onClick,
 }: {
     text: string;
-    onClick: () => void;
+    onClick?: () => void;
 }) => {
   return (
     <button

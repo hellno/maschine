@@ -1,53 +1,94 @@
-import logging
-from typing import Optional, TypedDict
+import os
+from typing import Optional
+from backend.integrations.llm import (
+    generate_search_queries_from_user_input,
+)
+from llama_index.embeddings.openai import OpenAIEmbedding
+from llama_index.llms.openai import OpenAI
+from llama_index.llms.openai.utils import DEFAULT_OPENAI_API_BASE
+from llama_index.core import (
+    SimpleDirectoryReader,
+    VectorStoreIndex,
+    Settings,
+    StorageContext,
+    load_index_from_storage,
+)
 
+from backend.config import CODE_CONTEXT
 
-class ContextPiece(TypedDict):
-    filepath: str
-    keywords: list[str]
+embed_model = OpenAIEmbedding(
+    model="text-embedding-3-small",
+    api_base=DEFAULT_OPENAI_API_BASE,
+    api_key=os.environ.get("REAL_OPENAI_API_KEY"),
+)
+model = OpenAI(
+    model="gpt-4o-mini",
+    api_base=DEFAULT_OPENAI_API_BASE,
+    api_key=os.environ.get("REAL_OPENAI_API_KEY"),
+)
+
+Settings.embed_model = embed_model
+Settings.model = model
+
+PARENT_UPDATE_DOC = "shared.md"
+CONTEXT_DOCS_PATH = "backend/llm_context/docs"
+INDEX_STORAGE_PATH = "backend/llm_context/index"
 
 
 class CodeContextEnhancer:
-    context_pieces = [
-        ContextPiece(
-            filepath="llm_context/docs/neynar/cast_search.md",
-            keywords=["neynar", "cast", "search"],
-        ),
-        ContextPiece(filepath="llm_context/docs/dune/dune_api.md", keywords=["dune"]),
-    ]
-
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
+        self._prepare_query_engine()
 
-    def get_relevant_context(self, query: str) -> Optional[str]:
-        """Retrieve raw context without formatting assumptions."""
-
-        try:
-            content_pieces = self.get_content_pieces(query)
-            if not content_pieces:
-                return None
-            return "\n".join(content_pieces)
-        except Exception as e:
-            self.logger.error(f"Failed to query context: {e}")
+    def get_relevant_context(self, user_input: str) -> Optional[str]:
+        """Retrieve context using generated technical queries."""
+        if not CODE_CONTEXT["ENABLED"]:
+            print("Context enhancement disabled.")
             return None
 
-    def get_content_pieces(self, query: str) -> list[str]:
-        """Retrieve context pieces for a given query."""
-        matching_pieces = [
-            piece
-            for piece in self.context_pieces
-            if any(kw in query for kw in piece["keywords"])
-        ]
+        try:
+            if not user_input or not user_input.strip():
+                return None
+            queries = generate_search_queries_from_user_input(user_input=user_input)
+            content_pieces = set()
+            for q in queries:
+                response = self.query_engine.query(q)
+                print(f"Search query: {q}, Response: {response}, Nodes: {response.source_nodes}")
+                content_pieces.update(node.text for node in response.source_nodes)
 
-        if not matching_pieces:
-            return []
-        print("matching_pieces", matching_pieces)
-        contents = []
-        for piece in matching_pieces:
-            try:
-                with open(piece["filepath"]) as f:
-                    contents.append(f.read())
-            except Exception as e:
-                self.logger.error(f"Failed to read {piece['filepath']}: {e}")
-        print("contents", contents)
-        return contents
+            return "\n\n".join(content_pieces) if content_pieces else None
+        except Exception as e:
+            print(f"Failed to query context: {e}")
+            return None
+
+    def _prepare_query_engine(self):
+        """Dynamically load context pieces from docs directory structure."""
+
+        try:
+            storage_context = StorageContext.from_defaults(
+                persist_dir=INDEX_STORAGE_PATH
+            )
+            index = load_index_from_storage(storage_context)
+            print(f"Index loaded from {INDEX_STORAGE_PATH}")
+        except Exception as e:
+            print(f"Error loading index: {e}")
+            documents = SimpleDirectoryReader(
+                input_dir=CONTEXT_DOCS_PATH, recursive=True
+            ).load_data()
+
+            # Build a vector index
+            index = VectorStoreIndex.from_documents(documents)
+            index.storage_context.persist(persist_dir=INDEX_STORAGE_PATH)
+            print(f"Index created and stored at {INDEX_STORAGE_PATH}")
+
+        self.query_engine = index.as_query_engine(llm=model, query_kwargs={"top_k": 3})
+
+    def refresh_persisted_index(self):
+        """Rebuild and persist the context index."""
+        documents = SimpleDirectoryReader(
+            input_dir=CONTEXT_DOCS_PATH, recursive=True
+        ).load_data()
+
+        # Build a vector index
+        index = VectorStoreIndex.from_documents(documents)
+        index.storage_context.persist(persist_dir=INDEX_STORAGE_PATH)
+        print(f"Index refreshed and stored at {INDEX_STORAGE_PATH}")
