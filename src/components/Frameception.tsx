@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useCallback, useState, useMemo } from "react";
+import { useCallback, useState, useMemo } from "react";
 import { useMobileTheme } from "~/hooks/useMobileTheme";
+import { useFrameSDK } from "~/hooks/useFrameSDK";
 import { AccessCheck } from "./AccessCheck";
 import { ProjectOverviewCard } from "./ProjectOverviewCard";
 import { ProjectDetailView } from "./ProjectDetailView";
@@ -68,18 +69,15 @@ type FlowState =
 
 export default function Frameception() {
   useMobileTheme();
-  const [isSDKLoaded, setIsSDKLoaded] = useState(false);
-  const [context, setContext] = useState<FrameContext>();
+  const { 
+    context, 
+    isFramePinned, 
+    notificationDetails, 
+    lastEvent 
+  } = useFrameSDK();
   const [isContextOpen, setIsContextOpen] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
-
   const [activeTab, setActiveTab] = useState("create_project");
-
-  const [isFramePinned, setIsFramePinned] = useState(false);
-  const [notificationDetails, setNotificationDetails] =
-    useState<FrameNotificationDetails | null>(null);
-
-  const [lastEvent, setLastEvent] = useState("");
   const [flowState, setFlowState] = useState<FlowState>("enteringPrompt");
   const [addFrameResult, setAddFrameResult] = useState("");
   const [sendNotificationResult, setSendNotificationResult] = useState("");
@@ -234,60 +232,6 @@ export default function Frameception() {
   // ai! move this sdk loading and context setting to a separate hook
   // I want to have a context wrapper that will handle all the sdk loading and context setting
   // and then I can just use the context in the components
-  useEffect(() => {
-    const load = async () => {
-      const frameContext = await sdk.context;
-      if (!frameContext) {
-        return;
-      }
-
-      setContext(frameContext as unknown as FrameContext);
-      setIsFramePinned(frameContext.client.added);
-
-      sdk.on("frameAdded", ({ notificationDetails }) => {
-        setLastEvent(
-          `frameAdded${notificationDetails ? ", notifications enabled" : ""}`
-        );
-
-        setIsFramePinned(true);
-        if (notificationDetails) {
-          setNotificationDetails(notificationDetails);
-        }
-      });
-
-      sdk.on("frameAddRejected", ({ reason }) => {
-        setLastEvent(`frameAddRejected, reason ${reason}`);
-      });
-
-      sdk.on("frameRemoved", () => {
-        setLastEvent("frameRemoved");
-        setIsFramePinned(false);
-        setNotificationDetails(null);
-      });
-
-      sdk.on("notificationsEnabled", ({ notificationDetails }) => {
-        setLastEvent("notificationsEnabled");
-        setNotificationDetails(notificationDetails);
-      });
-      sdk.on("notificationsDisabled", () => {
-        setLastEvent("notificationsDisabled");
-        setNotificationDetails(null);
-      });
-
-      sdk.on("primaryButtonClicked", () => {
-        console.log("primaryButtonClicked");
-      });
-
-      sdk.actions.ready({});
-    };
-    if (sdk && !isSDKLoaded) {
-      setIsSDKLoaded(true);
-      load();
-      return () => {
-        sdk.removeAllListeners();
-      };
-    }
-  }, [isSDKLoaded]);
 
   /**
    * Additional helpers
