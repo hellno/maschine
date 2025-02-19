@@ -31,6 +31,7 @@ PATHS = {
 
 CODE_CONTEXT = {
     "ENABLED": True,
+    "MIN_RAG_SCORE": 0.45,
 }
 
 AIDER_CONFIG = {

@@ -66,8 +66,10 @@ class SetupProjectService:
         self.db.update_project(self.project_id, dict(name=project_name))
 
     def _add_brainstorm_docs_to_repo(self, code_service: CodeService, prompt: str):
+        print('Adding brainstormed docs to repo')
         context = CodeContextEnhancer().get_relevant_context(prompt)
-
+        
+        print('got context, now sending prompt to reasoning model')
         create_spec = CREATE_SPEC_PROMPT.format(context=context, prompt=prompt)
         spec_content, spec_reasoning = send_prompt_to_reasoning_model(create_spec)
         print(f"Received spec content: {spec_content}\nReasoning: {spec_reasoning}")

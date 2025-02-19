@@ -1,27 +1,78 @@
-FARCASTER_DESCRIPTION = ""
+CREATE_SPEC_PROMPT = """Convert raw user description and requirements into an implementation-ready specification.
 
-CREATE_SPEC_PROMPT = """Compile our findings into a comprehensive, developer-ready specification. 
-Include all relevant requirements, architecture choices, data handling details, error handling strategies, so a developer can immediately begin implementation.
-API context:
+## API Context
 {context}
 
-User prompt:
+## User Requirements
 {prompt}
+
+## Output Format
+1. Markdown document with these sections:
+   - Functional User Requirements
+   - Architecture Diagram
+   - Data Flow Specification
+   - Error Handling Strategies
+2. Technical terms clearly defined"""
+
+CREATE_SPEC_FROM_PLAN_PROMPT = """Implementation Plan Breakdown
+1. Analyze provided specification
+2. Break into sequential implementation steps
+3. Validate step sizing (2-4 file changes per step)
+
+## Prompt Generation Rules
+- One discrete task per prompt
+- Reference previous implementations
+- Specify exact files to modify
+- Include integration checks
+
+## Step Format
+### Step [N]: [Action-oriented Title]
+```text
+1. Primary objective
+2. Required files
+3. Implementation details
+``` 
+
+{spec}"""
+
+CREATE_TODO_LIST_PROMPT = """## Checklist Requirements
+Generate prioritized implementation tasks in markdown format
+
+### Format Rules
+- Categories: ### Core, ### API, ### UI
+- Tasks start with [ ] 
+- Ordered by dependencies
+- Max 1hr per task
+- Includes validation criteria
+
+{plan}"""
+
+IMPLEMENT_TODO_LIST_PROMPT = """## Current Todo State
+{todo}
+
+## Implementation Rules
+1. Complete highest priority unchecked task
+2. Verify against validation criteria
+3. Mark [x] when done
+4. Write production-grade code
+5. Maintain existing functionality
+
+## Required Outputs
+- Updated todo.md
+- Implement changes
 """
 
-CREATE_SPEC_FROM_PLAN_PROMPT = """Draft a detailed, step-by-step blueprint for building this project. Then, once you have a solid plan, break it down into small, iterative chunks that build on each other. Look at these chunks and then go another round to break it into small steps. review the results and make sure that the steps are small enough to be implemented safely, but big enough to move the project forward. Iterate until you feel that the steps are right sized for this project.
-From here you should have the foundation to provide a series of prompts for a code-generation LLM that will implement each step. Prioritize best practices, and incremental progress, ensuring no big jumps in complexity at any stage. Make sure that each prompt builds on the previous prompts, and ends with wiring things together. There should be no hanging or orphaned code that isn't integrated into a previous step.
-Make sure and separate each prompt section. Use markdown. Each prompt should be tagged as text using code tags. The goal is to output prompts, but context, etc is important as well.
+RETRY_IMPLEMENT_TODO_LIST_PROMPT = """## Validation Checks
+1. Verify todo.md completion
+2. Confirm requirement matching
+3. Test error handling
+4. Validate integrations
 
-{spec}
+## Correction Protocol
+1. Fix implementation gaps
+2. Mark completed tasks
+
+## Output Requirements
+- Revised todo.md
+- Implement changes
 """
-
-CREATE_TODO_LIST_PROMPT = """
-Make a `todo.md` that I can use as a checklist for building this project.
-
-{plan}
-"""
-
-IMPLEMENT_TODO_LIST_PROMPT = "Implement the todos described in `todo.md`. When you're done, you should have a working project. When you complete a task, mark it as done in the todo list."
-
-RETRY_IMPLEMENT_TODO_LIST_PROMPT = "Validate that the todos in `todo.md` are implemented correctly. If you find any issues, fix them and mark the task as done in the todo list."

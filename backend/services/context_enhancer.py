@@ -49,16 +49,20 @@ class CodeContextEnhancer:
             if not user_input or not user_input.strip():
                 return None
             queries = generate_search_queries_from_user_input(user_input=user_input)
-            content_pieces = set()
+            filename_to_context = dict()
             for q in queries:
                 response = self.query_engine.query(q)
                 print(f"Search query: {q}, Nodes: {response.source_nodes}")
-                # Use filepath as unique identifier
-                content_pieces.update({node.metadata.get('filename', '') for node in response.source_nodes})
+                for node in response.source_nodes:
+                    if node.score > CODE_CONTEXT["MIN_RAG_SCORE"]:
+                        filename = node.metadata.get("file_name")
+                        filename_to_context[filename] = node.text
 
-            # Convert to just text for final output
-            unique_texts = {response.source_nodes[i].text for i in range(len(response.source_nodes)) if response.source_nodes[i].metadata.get('filename', '') in content_pieces}
-            return "\n\n".join(unique_texts) if unique_texts else None
+            unique_texts = list(set(filename_to_context.values()))
+            print(f"context pieces: {len(unique_texts)}")
+            context = "\n\n".join(unique_texts) if unique_texts else None
+            print("context length:", len(context))
+            return context
         except Exception as e:
             print(f"Failed to query context: {e}")
             return None
@@ -83,7 +87,7 @@ class CodeContextEnhancer:
             index.storage_context.persist(persist_dir=INDEX_STORAGE_PATH)
             print(f"Index created and stored at {INDEX_STORAGE_PATH}")
 
-        self.query_engine = index.as_query_engine(llm=model, query_kwargs={"top_k": 3})
+        self.query_engine = index.as_query_engine(llm=model, query_kwargs={"top_k": 2})
 
     def refresh_persisted_index(self):
         """Rebuild and persist the context index."""

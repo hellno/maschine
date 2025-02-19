@@ -25,17 +25,30 @@ def get_venice_ai_client() -> OpenAI:
     )
 
 
+def get_together_ai_client() -> OpenAI:
+    """Get a Together AI client."""
+    return OpenAI(
+        api_key=os.environ["TOGETHERAI_API_KEY"],
+        base_url="https://api.together.xyz/v1",
+    )
+
+
+@measure_time
 def send_prompt_to_reasoning_model(prompt: str) -> Tuple[str, str]:
-    client = get_venice_ai_client()
+    client = get_together_ai_client()
     response = client.chat.completions.create(
-        model="deepseek-r1-671b",
+        model="deepseek-ai/DeepSeek-R1",
+        temperature=0.6,
         messages=[
             {"role": "user", "content": prompt},
         ],
     )
     content = response.choices[0].message.content.strip()
+    if "<think>" not in content and "</think>" not in content:
+        return content, ""
+
     reasoning = content.split("</think>")[0].split("<think>")[1].strip()
-    response = reasoning.split("</think>")[1].strip()
+    response = content.split("</think>")[1].strip()
     return response, reasoning
 
 
@@ -78,7 +91,7 @@ Your queries should:
 If no clear API-related details are present, do not generate any queries.
 """
 
-# ai! add simple timing measurment to this function
+
 @measure_time
 def generate_search_queries_from_user_input(
     user_input: str, num_queries: int = 2
@@ -87,11 +100,11 @@ def generate_search_queries_from_user_input(
     print(f"Generating queries from prompt: {user_input}")
 
     try:
-        client = get_venice_ai_client()
+        client = get_openai_client()
         system_prompt = QUERY_GEN_STR.format(num_queries=num_queries)
 
         response = client.chat.completions.create(
-            model="llama-3.1-405b",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {
@@ -103,8 +116,9 @@ def generate_search_queries_from_user_input(
 
         llm_content = response.choices[0].message.content.strip()
         print("Raw model response:", llm_content)
-
-        queries = [q.strip() for q in llm_content.split("\n") if q.strip()]
+        llm_content = llm_content.replace("`", "").strip()
+        queries = [q.lstrip("-").strip() for q in llm_content.split("\n") if q]
+        queries = [q for q in queries if q]
         print(f"Generated queries: {queries}")
         return queries
 
