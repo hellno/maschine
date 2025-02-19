@@ -1,7 +1,7 @@
 import os
 from typing import Tuple
-
 from openai import OpenAI
+from backend.utils.timing import measure_time
 
 
 def get_deepseek_client() -> OpenAI:
@@ -79,6 +79,7 @@ If no clear API-related details are present, do not generate any queries.
 """
 
 # ai! add simple timing measurment to this function
+@measure_time
 def generate_search_queries_from_user_input(
     user_input: str, num_queries: int = 2
 ) -> list[str]:
