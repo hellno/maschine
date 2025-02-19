@@ -1,3 +1,5 @@
+import git
+import os
 from backend.services.code_service import CodeService
 from backend.services.context_enhancer import CodeContextEnhancer
 from backend.services.prompts import (
@@ -21,8 +23,8 @@ class SetupProjectService:
         self.job_id = job_id
         self.data = data
         self.user_context: UserContext = data["user_context"]
-
         self.db = Database()
+        self.github_api = None  # Will be initialized after project name is generated
 
     def run(self):
         """Fast initial setup without final verification"""
@@ -44,24 +46,46 @@ class SetupProjectService:
         prompt = self.data["prompt"]
         context = CodeContextEnhancer().get_relevant_context(prompt)
 
-        # ai! save spec, plan, todo into a markdown file in the repo_dir
-        # commit and push the changes to the repo
-        # then run code service on the todo list
-        # we can run the prompt using send_prompt_to_reasoning_model
+        # Generate spec, plan, and todo
         spec = CREATE_SPEC_PROMPT.format(context=context, prompt=prompt)
         plan = BREAKDOWN_SPEC_INTO_PLAN_PROMPT.format(spec=spec)
         todo = MAKE_TODO_LIST_PROMPT.format(plan=plan)
 
-        self._log(f"Applying initial customization: {prompt[:50]}...")
-        customize_from_user_input_prompt = TEMPLATE_CUSTOMIZATION_PROMPT.format(
-            self.project_name, prompt
-        )
+        # Create markdown content
+        markdown_content = f"""# Project Documentation
+## Specification
+{spec}
 
-        self._log(
-            f"Apply initial customization with prompt: {customize_from_user_input_prompt}"
-        )
+## Plan
+{plan}
+
+## Todo List
+{todo}"""
+
+        # Get repository directory
+        repo_dir = self.github_api.get_repo_directory()
+        
+        # Write to markdown file
+        file_path = os.path.join(repo_dir, "documentation.md")
+        with open(file_path, "w") as f:
+            f.write(markdown_content)
+
+        # Commit and push changes
+        try:
+            repo = git.Repo(repo_dir)
+            repo.index.add([file_path])
+            repo.index.commit("Add project documentation")
+            repo.remote().push()
+        except git.exc.GitCommandError as e:
+            self._log(f"Error updating repository: {str(e)}", level="error")
+
+        # Run code service on todo list
+        self._log(f"Applying initial customization: {prompt[:50]}...")
         code_service = CodeService(self.project_id, self.job_id, self.user_context)
-        result = code_service.run(customize_from_user_input_prompt)
+        
+        # Format the todo list for processing
+        todo_prompt = f"Implement the following tasks: {todo}"
+        result = code_service.run(todo_prompt)
         self._log(f"Customization result: {result}")
 
     def _generate_project_name(self):
@@ -72,11 +96,11 @@ class SetupProjectService:
 
     def _setup_github_repo(self):
         self._log("Creating GitHub repository")
-        github_api = GithubApi(
+        self.github_api = GithubApi(
             self.job_id, self.project_name, username=self.user_context["username"]
         )
-        self.repo_name = github_api.create_repo()
-        github_api.copy_template_to_repo()
+        self.repo_name = self.github_api.create_repo()
+        self.github_api.copy_template_to_repo()
         self._log(f"GitHub repository setup complete {self.repo_name}")
         self.db.update_project(
             self.project_id, dict(repo_url=f"github.com/{self.repo_name}")
