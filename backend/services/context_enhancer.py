@@ -50,15 +50,15 @@ class CodeContextEnhancer:
                 return None
             queries = generate_search_queries_from_user_input(user_input=user_input)
             content_pieces = set()
-            # ai! i want to have no duplicate texts in the content_pieces
-            # duplicates are possible because each query can return up to 3 nodes and they can overlap
-            # store (filename, text) tuples and make sure we return unique texts
             for q in queries:
                 response = self.query_engine.query(q)
                 print(f"Search query: {q}, Nodes: {response.source_nodes}")
-                content_pieces.update(node.text for node in response.source_nodes)
+                # Add (filename, text) tuples to ensure uniqueness
+                content_pieces.update({(node.metadata.get('filename', ''), node.text) for node in response.source_nodes})
 
-            return "\n\n".join(content_pieces) if content_pieces else None
+            # Convert to just text for final output
+            unique_texts = {text for (_, text) in content_pieces}
+            return "\n\n".join(unique_texts) if unique_texts else None
         except Exception as e:
             print(f"Failed to query context: {e}")
             return None

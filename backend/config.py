@@ -35,11 +35,8 @@ CODE_CONTEXT = {
 
 AIDER_CONFIG = {
     "MODEL": {
-        "model": "openai/deepseek-r1-671b",  # venice.ai
+        "model": "sonnet",
         "editor_model": "sonnet",
-        # "model": "r1", # official deepseek
-        # "model": "sonnet",
-        # "model": "openai/deepseek-ai/DeepSeek-R1",  # together.ai via openrouter in env vars
     },
     "CODER": {"verbose": False, "cache_prompts": True},
 }
