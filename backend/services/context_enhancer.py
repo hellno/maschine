@@ -53,11 +53,11 @@ class CodeContextEnhancer:
             for q in queries:
                 response = self.query_engine.query(q)
                 print(f"Search query: {q}, Nodes: {response.source_nodes}")
-                # Add (filename, text) tuples to ensure uniqueness
-                content_pieces.update({(node.metadata.get('filename', ''), node.text) for node in response.source_nodes})
+                # Use filepath as unique identifier
+                content_pieces.update({node.metadata.get('filename', '') for node in response.source_nodes})
 
             # Convert to just text for final output
-            unique_texts = {text for (_, text) in content_pieces}
+            unique_texts = {response.source_nodes[i].text for i in range(len(response.source_nodes)) if response.source_nodes[i].metadata.get('filename', '') in content_pieces}
             return "\n\n".join(unique_texts) if unique_texts else None
         except Exception as e:
             print(f"Failed to query context: {e}")
