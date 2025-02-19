@@ -1,4 +1,5 @@
 import os
+from typing import Tuple
 
 from openai import OpenAI
 
@@ -22,6 +23,20 @@ def get_venice_ai_client() -> OpenAI:
     return OpenAI(
         api_key=os.environ["VENICE_AI_API_KEY"], base_url="https://api.venice.ai/api/v1"
     )
+
+
+def send_prompt_to_reasoning_model(prompt: str) -> Tuple[str, str]:
+    client = get_venice_ai_client()
+    response = client.completions.create(
+        model="deepseek-r1-671b",
+        messages=[
+            {"role": "user", "content": prompt},
+        ],
+    )
+    content = response.choices[0].message.content.strip()
+    reasoning = content.split("</think>")[0].split("<think>")[1].strip()
+    response = reasoning.split("</think>")[1].strip()
+    return response, reasoning
 
 
 def generate_project_name(prompt: str) -> str:

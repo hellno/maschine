@@ -23,6 +23,13 @@ DEFAULT_PROJECT_FILES = [
     "src/app/opengraph-image.tsx",
 ]
 
+DOC_FILES = ["todo.md"]
+
+READONLY_FILES = [
+    "plan.md",
+    "spec.md",
+]
+
 
 class CodeService:
     def __init__(
@@ -51,7 +58,7 @@ class CodeService:
 
             print(f"[code_service] Running Aider with prompt: {prompt}")
             self.db.update_job_status(self.job_id, "running")
-            prompt = self._enhance_prompt_with_context(prompt)
+            # prompt = self._enhance_prompt_with_context(prompt)
             aider_result = coder.run(prompt)
             print(f"[code_service] Aider result (truncated): {aider_result[:250]}")
             _handle_pnpm_commands(aider_result, self.sandbox)

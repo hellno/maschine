@@ -8,7 +8,7 @@ GITHUB = {
 
 APP_NAME = "frameception"
 MODAL_UPDATE_CODE_FUNCTION_NAME = "update_code"
-MODAL_CREATE_PROJECT_FUNCTION_NAME = "create_project"
+MODAL_SETUP_PROJECT_FUNCTION_NAME = "setup_project"
 MODAL_DEPLOY_PROJECT_FUNCTION_NAME = "deploy_project"
 
 TIMEOUTS = {

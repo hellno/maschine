@@ -1,17 +1,21 @@
-import json
-from backend import config
 from backend.services.code_service import CodeService
+from backend.services.context_enhancer import CodeContextEnhancer
+from backend.services.prompts import (
+    BREAKDOWN_SPEC_INTO_PLAN_PROMPT,
+    CREATE_SPEC_PROMPT,
+    MAKE_TODO_LIST_PROMPT,
+    TEMPLATE_CUSTOMIZATION_PROMPT,
+)
 from backend.types import UserContext
-import modal
 
 from backend.integrations.github_api import GithubApi
 from backend.integrations.vercel_api import VercelApi
 from backend.integrations.db import Database
-from backend.integrations.llm import generate_project_name
+from backend.integrations.llm import generate_project_name, get_venice_ai_client, send_prompt_to_reasoning_model
 from backend.utils.strings import sanitize_project_name
 
 
-class CreateProjectService:
+class SetupProjectService:
     def __init__(self, project_id: str, job_id: str, data: dict):
         self.project_id = project_id
         self.job_id = job_id
@@ -20,7 +24,7 @@ class CreateProjectService:
 
         self.db = Database()
 
-    def setup_core_infrastructure(self):
+    def run(self):
         """Fast initial setup without final verification"""
         self._log("Starting accelerated core setup")
         self._validate_data()
@@ -38,10 +42,22 @@ class CreateProjectService:
     def _apply_initial_customization(self):
         """Only apply user's initial prompt customization"""
         prompt = self.data["prompt"]
+        context = CodeContextEnhancer().get_relevant_context(prompt)
+
+        # ai! save spec, plan, todo into a markdown file in the repo_dir
+        # commit and push the changes to the repo
+        # then run code service on the todo list
+        # we can run the prompt using send_prompt_to_reasoning_model
+
+        spec = CREATE_SPEC_PROMPT.format(context=context, prompt=prompt)
+        plan = BREAKDOWN_SPEC_INTO_PLAN_PROMPT.format(spec=spec)
+        todo = MAKE_TODO_LIST_PROMPT.format(plan=plan)
+
         self._log(f"Applying initial customization: {prompt[:50]}...")
-        customize_from_user_input_prompt = get_template_customization_prompt(
+        customize_from_user_input_prompt = TEMPLATE_CUSTOMIZATION_PROMPT.format(
             self.project_name, prompt
         )
+
         self._log(
             f"Apply initial customization with prompt: {customize_from_user_input_prompt}"
         )
@@ -94,16 +110,3 @@ class CreateProjectService:
         for key in user_context_keys:
             if not self.data["user_context"].get(key):
                 raise Exception(f"Missing {key} in user context")
-
-
-def get_template_customization_prompt(project_name: str, user_prompt: str) -> str:
-    """Generate initial setup prompt for project customization"""
-    return f"""Create a Farcaster Frame called "{project_name}" 
-
-Focus on:
-1. Updating Frame component in src/components/Frame.tsx
-2. Adding constants to src/lib/constants.ts
-
-Instructions:
-{user_prompt}
-"""

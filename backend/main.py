@@ -53,12 +53,12 @@ def create_project_webhook(data: dict) -> dict:
 
     job_id = db.create_job(project_id=project_id, job_type="setup_project", data=data)
 
-    create_project_data = {
+    setup_project_data = {
         "project_id": project_id,
         "job_id": job_id,
         "data": data,
     }
-    create_project.spawn(create_project_data)
+    setup_project.spawn(setup_project_data)
     return {
         "status": "pending",
         "project_id": project_id,
@@ -148,7 +148,7 @@ def create_project_from_cast(data: dict):
         data=payload,
     )
 
-    create_project.spawn(
+    setup_project.spawn(
         {
             "project_id": project_id,
             "job_id": job_id,
@@ -202,10 +202,10 @@ def create_project_from_cast(data: dict):
     volumes=volumes,
     timeout=config.TIMEOUTS["PROJECT_SETUP"],
     secrets=all_secrets,
-    name=config.MODAL_CREATE_PROJECT_FUNCTION_NAME,
+    name=config.MODAL_SETUP_PROJECT_FUNCTION_NAME,
 )
-def create_project(data: dict) -> dict:
-    from backend.services.create_project_service import CreateProjectService
+def setup_project(data: dict) -> dict:
+    from backend.services.setup_project_service import SetupProjectService
 
     setup_sentry()
 
@@ -213,7 +213,7 @@ def create_project(data: dict) -> dict:
     job_id = data["job_id"]
     user_payload = data["data"]
 
-    CreateProjectService(project_id, job_id, user_payload).setup_core_infrastructure()
+    SetupProjectService(project_id, job_id, user_payload).run()
     return {"status": "core_setup_complete"}
 
 
