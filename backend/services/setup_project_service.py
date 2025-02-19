@@ -1,19 +1,21 @@
-import git
-import os
 from backend.services.code_service import CodeService
 from backend.services.context_enhancer import CodeContextEnhancer
 from backend.services.prompts import (
-    BREAKDOWN_SPEC_INTO_PLAN_PROMPT,
+    CREATE_SPEC_FROM_PLAN_PROMPT,
     CREATE_SPEC_PROMPT,
-    MAKE_TODO_LIST_PROMPT,
-    TEMPLATE_CUSTOMIZATION_PROMPT,
+    CREATE_TODO_LIST_PROMPT,
+    IMPLEMENT_TODO_LIST_PROMPT,
+    RETRY_IMPLEMENT_TODO_LIST_PROMPT,
 )
 from backend.types import UserContext
 
 from backend.integrations.github_api import GithubApi
 from backend.integrations.vercel_api import VercelApi
 from backend.integrations.db import Database
-from backend.integrations.llm import generate_project_name, get_venice_ai_client, send_prompt_to_reasoning_model
+from backend.integrations.llm import (
+    generate_project_name,
+    send_prompt_to_reasoning_model,
+)
 from backend.utils.strings import sanitize_project_name
 
 
@@ -24,7 +26,6 @@ class SetupProjectService:
         self.data = data
         self.user_context: UserContext = data["user_context"]
         self.db = Database()
-        self.github_api = None  # Will be initialized after project name is generated
 
     def run(self):
         """Fast initial setup without final verification"""
@@ -36,7 +37,9 @@ class SetupProjectService:
         self._apply_initial_customization()
         self.db.update_project(
             self.project_id,
-            {"status": "created", "repo_url": f"github.com/{self.repo_name}"},
+            {
+                "status": "created",
+            },
         )
         self.db.update_job_status(self.job_id, "awaiting_deployment")
         self._log("Core infrastructure ready for deployment")
@@ -44,55 +47,44 @@ class SetupProjectService:
     def _apply_initial_customization(self):
         """Only apply user's initial prompt customization"""
         prompt = self.data["prompt"]
-        context = CodeContextEnhancer().get_relevant_context(prompt)
 
-        # Generate spec, plan, and todo
-        spec = CREATE_SPEC_PROMPT.format(context=context, prompt=prompt)
-        plan = BREAKDOWN_SPEC_INTO_PLAN_PROMPT.format(spec=spec)
-        todo = MAKE_TODO_LIST_PROMPT.format(plan=plan)
-
-        # Create markdown content
-        markdown_content = f"""# Project Documentation
-## Specification
-{spec}
-
-## Plan
-{plan}
-
-## Todo List
-{todo}"""
-
-        # Get repository directory
-        repo_dir = self.github_api.get_repo_directory()
-        
-        # Write to markdown file
-        file_path = os.path.join(repo_dir, "documentation.md")
-        with open(file_path, "w") as f:
-            f.write(markdown_content)
-
-        # Commit and push changes
-        try:
-            repo = git.Repo(repo_dir)
-            repo.index.add([file_path])
-            repo.index.commit("Add project documentation")
-            repo.remote().push()
-        except git.exc.GitCommandError as e:
-            self._log(f"Error updating repository: {str(e)}", level="error")
-
-        # Run code service on todo list
-        self._log(f"Applying initial customization: {prompt[:50]}...")
         code_service = CodeService(self.project_id, self.job_id, self.user_context)
-        
-        # Format the todo list for processing
-        todo_prompt = f"Implement the following tasks: {todo}"
-        result = code_service.run(todo_prompt)
-        self._log(f"Customization result: {result}")
+        self._add_brainstorm_docs_to_repo(code_service, prompt)
+
+        self._log("Brainstormed and generated context, starting to write custom code")
+
+        result = code_service.run(IMPLEMENT_TODO_LIST_PROMPT)
+        print("implement todo list response", result)
+        result = code_service.run(RETRY_IMPLEMENT_TODO_LIST_PROMPT)
+        print("retry implement todo list response", result)
+        self._log("Initial customization complete")
 
     def _generate_project_name(self):
         project_name = generate_project_name(self.data["prompt"])
         self.project_name = sanitize_project_name(project_name)
         self._log(message=f"Generated project name: {self.project_name}")
         self.db.update_project(self.project_id, dict(name=project_name))
+
+    def _add_brainstorm_docs_to_repo(self, code_service: CodeService, prompt: str):
+        context = CodeContextEnhancer().get_relevant_context(prompt)
+
+        create_spec = CREATE_SPEC_PROMPT.format(context=context, prompt=prompt)
+        spec_content, spec_reasoning = send_prompt_to_reasoning_model(create_spec)
+        print(f"Received spec content: {spec_content}\nReasoning: {spec_reasoning}")
+        code_service._add_file_to_repo_dir("spec.md", create_spec)
+
+        create_plan = CREATE_SPEC_FROM_PLAN_PROMPT.format(spec=create_spec)
+        plan_content, plan_reasoning = send_prompt_to_reasoning_model(create_plan)
+        print(f"Received plan content: {plan_content}\nReasoning: {plan_reasoning}")
+        code_service._add_file_to_repo_dir("plan.md", plan_content)
+
+        todo = CREATE_TODO_LIST_PROMPT.format(plan=create_plan)
+        todo_content, todo_reasoning = send_prompt_to_reasoning_model(todo)
+        print(f"Received todo content: {todo_content}\nReasoning: {todo_reasoning}")
+        code_service._add_file_to_repo_dir("todo.md", content=todo_content)
+
+        code_service._create_commit("Add spec, plan, and todo list")
+        code_service._sync_git_changes()
 
     def _setup_github_repo(self):
         self._log("Creating GitHub repository")

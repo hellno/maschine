@@ -116,9 +116,8 @@ class CodeService:
             print(f"[code_service] Context enhancement failed: {str(e)}")
         return prompt
 
-    def _add_file_to_repo_dir(self, repo_dir: str, filename: str, content: str) -> None:
-        """Create a context file for Aider in the repo directory."""
-        context_file = os.path.join(repo_dir, filename)
+    def _add_file_to_repo_dir(self, filename: str, content: str) -> None:
+        context_file = os.path.join(self.repo_dir, filename)
         os.makedirs(os.path.dirname(context_file), exist_ok=True)
         with open(context_file, "w") as f:
             f.write(content)
@@ -224,12 +223,6 @@ class CodeService:
     def _create_base_image_with_deps(self, repo_dir: str) -> modal.Image:
         """Create a base image with dependencies installed."""
         print("[code_service] Creating base sandbox for dependency installation")
-
-        self._add_file_to_repo_dir(
-            repo_dir=self.repo_dir,
-            filename=config.AIDER_CONFIG["MODEL_SETTINGS"]["FILENAME"],
-            content=config.AIDER_CONFIG["MODEL_SETTINGS"]["CONTENT"],
-        )
 
         app = modal.App.lookup(config.APP_NAME)
         image = None

@@ -1,6 +1,6 @@
 from supabase import create_client
 import os
-from typing import Optional, List
+from typing import Optional
 import uuid
 from datetime import datetime
 
@@ -139,7 +139,6 @@ class Database:
             }
         ).eq("id", project_id).execute()
 
-    # generic project update method
     def update_project(self, project_id: str, data: dict):
         """Update project with given data"""
         print(f"updating project {project_id} with data: {data}")

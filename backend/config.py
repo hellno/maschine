@@ -35,30 +35,13 @@ CODE_CONTEXT = {
 
 AIDER_CONFIG = {
     "MODEL": {
-        "model": "r1",
+        "model": "openai/deepseek-r1-671b",  # venice.ai
         "editor_model": "sonnet",
+        # "model": "r1", # official deepseek
         # "model": "sonnet",
         # "model": "openai/deepseek-ai/DeepSeek-R1",  # together.ai via openrouter in env vars
     },
     "CODER": {"verbose": False, "cache_prompts": True},
-    "MODEL_SETTINGS": {
-        "FILENAME": ".aider.model.settings.yml",
-        "CONTENT": """- name: openai/deepseek-r1-llama-70b
-  edit_format: diff
-  weak_model_name: null
-  use_repo_map: true
-  send_undo_reply: false
-  lazy: false
-  reminder: sys
-  examples_as_sys_msg: true
-  cache_control: false
-  caches_by_default: true
-  use_system_prompt: true
-  use_temperature: true
-  streaming: true
-  remove_reasoning: think
-""",
-    },
 }
 
 FRONTEND_URL = "https://farcasterframeception.vercel.app"
