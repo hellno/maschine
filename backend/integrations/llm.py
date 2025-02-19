@@ -27,7 +27,7 @@ def get_venice_ai_client() -> OpenAI:
 
 def send_prompt_to_reasoning_model(prompt: str) -> Tuple[str, str]:
     client = get_venice_ai_client()
-    response = client.completions.create(
+    response = client.chat.completions.create(
         model="deepseek-r1-671b",
         messages=[
             {"role": "user", "content": prompt},
@@ -78,9 +78,9 @@ Your queries should:
 If no clear API-related details are present, do not generate any queries.
 """
 
-
+# ai! add simple timing measurment to this function
 def generate_search_queries_from_user_input(
-    user_input: str, num_queries: int = 3
+    user_input: str, num_queries: int = 2
 ) -> list[str]:
     """Generate expanded technical queries for documentation search."""
     print(f"Generating queries from prompt: {user_input}")
@@ -90,7 +90,7 @@ def generate_search_queries_from_user_input(
         system_prompt = QUERY_GEN_STR.format(num_queries=num_queries)
 
         response = client.chat.completions.create(
-            model="llama-3.3-70b",
+            model="llama-3.1-405b",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {
