@@ -48,7 +48,6 @@ class SetupProjectService:
         # commit and push the changes to the repo
         # then run code service on the todo list
         # we can run the prompt using send_prompt_to_reasoning_model
-
         spec = CREATE_SPEC_PROMPT.format(context=context, prompt=prompt)
         plan = BREAKDOWN_SPEC_INTO_PLAN_PROMPT.format(spec=spec)
         todo = MAKE_TODO_LIST_PROMPT.format(plan=plan)
