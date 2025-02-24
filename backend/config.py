@@ -10,6 +10,7 @@ APP_NAME = "frameception"
 MODAL_UPDATE_CODE_FUNCTION_NAME = "update_code"
 MODAL_SETUP_PROJECT_FUNCTION_NAME = "setup_project"
 MODAL_DEPLOY_PROJECT_FUNCTION_NAME = "deploy_project"
+MODAL_POLL_BUILD_FUNCTION_NAME = "poll_build_status"
 
 TIMEOUTS = {
     "CODE_UPDATE": 1200,  # 20 mins
@@ -31,7 +32,7 @@ PATHS = {
 
 CODE_CONTEXT = {
     "ENABLED": True,
-    "MIN_RAG_SCORE": 0.45,
+    "MIN_RAG_SCORE": 0.49,
 }
 
 AIDER_CONFIG = {

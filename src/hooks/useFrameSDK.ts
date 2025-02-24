@@ -6,20 +6,32 @@ export function useFrameSDK() {
   const [isSDKLoaded, setIsSDKLoaded] = useState(false);
   const [context, setContext] = useState<FrameContext>();
   const [isFramePinned, setIsFramePinned] = useState(false);
-  const [notificationDetails, setNotificationDetails] = useState<FrameNotificationDetails | null>(null);
+  const [notificationDetails, setNotificationDetails] =
+    useState<FrameNotificationDetails | null>(null);
   const [lastEvent, setLastEvent] = useState("");
   const [pinFrameResponse, setPinFrameResponse] = useState("");
 
   useEffect(() => {
     const load = async () => {
-      const frameContext = await sdk.context;
+      const frameContext = {
+        client: {
+          added: true,
+        },
+        user: {
+          fid: 13596,
+          username: "hellno.eth",
+        },
+      };
+      // const frameContext = await sdk.context;
       if (!frameContext) return;
 
       setContext(frameContext as unknown as FrameContext);
       setIsFramePinned(frameContext.client.added);
 
       sdk.on("frameAdded", ({ notificationDetails }) => {
-        setLastEvent(`frameAdded${notificationDetails ? ", notifications enabled" : ""}`);
+        setLastEvent(
+          `frameAdded${notificationDetails ? ", notifications enabled" : ""}`,
+        );
         setIsFramePinned(true);
         if (notificationDetails) setNotificationDetails(notificationDetails);
       });
@@ -70,14 +82,13 @@ export function useFrameSDK() {
         setPinFrameResponse(
           result.notificationDetails
             ? `Added, got notificaton token ${result.notificationDetails.token} and url ${result.notificationDetails.url}`
-            : "Added, got no notification details"
+            : "Added, got no notification details",
         );
       }
     } catch (error) {
       setPinFrameResponse(`Error: ${error}`);
     }
   }, []);
-
 
   return {
     context,
@@ -86,6 +97,6 @@ export function useFrameSDK() {
     isFramePinned,
     notificationDetails,
     lastEvent,
-    sdk
+    sdk,
   };
 }

@@ -42,6 +42,7 @@ base_image = (
         "pnpm add -g node-gyp",
         "aider --install-main-branch --yes",
     )
+    .add_local_python_source("backend")
 )
 
 app = modal.App(name=config.APP_NAME, image=base_image)

@@ -1,78 +1,151 @@
-CREATE_SPEC_PROMPT = """Convert raw user description and requirements into an implementation-ready specification.
+CLARIFY_INTENT_PROMPT = """
+## Extract User Intent
+Distill the core functionality request into clear technical requirements.
 
-## API Context
-{context}
+### Instructions
+1. Identify the main crypto/web3 feature requested
+2. Extract essential Frame UI requirements
+3. Define the core user flow in 3-5 steps
 
-## User Requirements
+### Output
+- Primary Function: [One sentence]
+- Key Requirements: [3-5 bullet points]
+- User Flow: [Step-by-step journey]
+- Technical Constraints: [Frame-specific limitations]
+
+### User Request
 {prompt}
-
-## Output Format
-1. Markdown document with these sections:
-   - Functional User Requirements
-   - Architecture Diagram
-   - Data Flow Specification
-   - Error Handling Strategies
-2. Technical terms clearly defined"""
-
-CREATE_SPEC_FROM_PLAN_PROMPT = """Implementation Plan Breakdown
-1. Analyze provided specification
-2. Break into sequential implementation steps
-3. Validate step sizing (2-4 file changes per step)
-
-## Prompt Generation Rules
-- One discrete task per prompt
-- Reference previous implementations
-- Specify exact files to modify
-- Include integration checks
-
-## Step Format
-### Step [N]: [Action-oriented Title]
-```text
-1. Primary objective
-2. Required files
-3. Implementation details
-``` 
-
-{spec}"""
-
-CREATE_TODO_LIST_PROMPT = """## Checklist Requirements
-Generate prioritized implementation tasks in markdown format
-
-### Format Rules
-- Categories: ### Core, ### API, ### UI
-- Tasks start with [ ] 
-- Ordered by dependencies
-- Max 1hr per task
-- Includes validation criteria
-
-{plan}"""
-
-IMPLEMENT_TODO_LIST_PROMPT = """## Current Todo State
-{todo}
-
-## Implementation Rules
-1. Complete highest priority unchecked task
-2. Verify against validation criteria
-3. Mark [x] when done
-4. Write production-grade code
-5. Maintain existing functionality
-
-## Required Outputs
-- Updated todo.md
-- Implement changes
 """
 
-RETRY_IMPLEMENT_TODO_LIST_PROMPT = """## Validation Checks
-1. Verify todo.md completion
-2. Confirm requirement matching
-3. Test error handling
-4. Validate integrations
+FEASIBILITY_CHECK_PROMPT = """
+## Rapid Feasibility Check
+Determine if this can be built within Frame limitations.
 
-## Correction Protocol
-1. Fix implementation gaps
-2. Mark completed tasks
+### Frame Constraints
+- Limited to 4 button actions
+- No persistent state between frames
+- Limited UI components
+- Image-based UI rendering
 
-## Output Requirements
-- Revised todo.md
-- Implement changes
+### Requirements
+{requirements}
+
+### Output
+- Feasibility: [Yes/No/Partial]
+- Critical Challenges: [1-2 bullet points]
+- Suggested Approach: [1-2 sentences]
+"""
+
+CREATE_SPEC_PROMPT = """
+## Minimal Implementation Spec
+Create a focused spec addressing the core user need.
+We have an existing Farcaster miniapp (Frame v2) template to work with.
+We need to customize the template in form and function to meet the user requirements.
+
+### Output Format
+1. Core Functionality
+   - Main user flow
+   - Required API endpoints
+   - Key data structures
+
+2. Implementation Approach
+   - Frame structure (screens/actions)
+   - External API integration points
+   - State management approach
+
+3. Technical Considerations
+   - API authentication needs
+   - Critical error scenarios
+
+### API Context
+{context}
+
+### User Prompt
+{prompt}
+"""
+
+CREATE_TASK_PLAN_PROMPT = """
+## Implementation Tasks
+Break down the spec into ordered coding tasks.
+
+### Instructions
+Create a stepped implementation plan where:
+1. Each step builds on previous work
+2. Core functionality comes first
+3. Tasks are small enough to implement in 30-45 mins
+4. Focus on making each step functional, not perfect
+
+### Output Format
+### Step 1: [Action-focused title]
+```text
+- Build: [What to implement]
+- Outcome: [How to verify it works]
+```
+
+### Step 2: [Action-focused title]
+```text
+- Build: [What to implement]
+- Outcome: [How to verify it works]
+
+### Specification
+{spec}
+"""
+
+CREATE_TODO_LIST_PROMPT = """## Coding Task List
+Generate a prioritized task list focusing on rapid implementation.
+
+### Instructions
+Create a task list that:
+1. Starts with the template setup and customizing the template
+2. Prioritizes visible user-facing features
+3. Identifies dependencies clearly
+
+### Output Format
+#### Setup
+- [ ] Task 1: [Brief action description]
+
+#### Core Features
+- [ ] Task 2: [Brief action description]
+  - Depends on: [Previous task number]
+
+#### API Integration
+- [ ] Task 3: [Brief action description]
+  - Depends on: [Previous task number]
+
+#### UI/UX
+- [ ] Task 4: [Brief action description]
+  - Depends on: [Previous task number]
+
+### Implementation Plan
+{plan}
+"""
+
+IMPLEMENT_TODO_LIST_PROMPT = """## Implement Current Task
+Code the next highest priority task from the todo list.
+
+### Instructions
+1. Find the highest priority uncompleted task
+2. Implement focused, working code (not perfect)
+3. Add brief comments on complex logic
+4. Verify the implementation meets the task requirement
+"""
+
+RETRY_IMPLEMENT_TODO_LIST_PROMPT = """## Fix Implementation Issues
+Address specific problems with the current implementation and get it working.
+
+### Instructions
+1. Focus on critical problems first - get something working
+2. Prioritize fixing:
+   - Broken user flows
+   - Frame-specific rendering issues
+   - API integration failures
+   - State management problems
+3. Make minimal changes needed to fix the issue
+4. Update the todo list to reflect completed work
+
+### Frame-Specific Checks
+- Button actions working correctly
+- Images rendering properly
+- State passing between frames
+- Input validation for crypto values
 """

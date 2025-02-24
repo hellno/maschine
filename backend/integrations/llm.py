@@ -83,10 +83,12 @@ def generate_project_name(prompt: str) -> str:
 
 
 QUERY_GEN_STR = """\
-You are a technical query refinement assistant. Transform the following user project description into up to {num_queries} concise, highly technical search queries — one per line—that will help retrieve relevant API documentation. 
+You are a technical query refinement assistant. 
+Transform the following user project description into up to {num_queries} concise, highly technical search queries — one per line — that will help retrieve relevant API documentation. 
 Your queries should:
-• Identify specific API endpoints, function or method names, or SDK operations implied by the description.
 • Use precise, domain-specific terminology.
+• Don't hallucinate or generate false information.
+• be clear and concise for humans, no API calls or code snippets.
 
 If no clear API-related details are present, do not generate any queries.
 """

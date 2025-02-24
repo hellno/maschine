@@ -2,48 +2,48 @@ import { Project } from "../types";
 
 // aggregation of project status across different services: our backend and vercel
 export type ProjectStatus = {
-  state: 'created' | 'deploying' | 'deployed' | 'failed' | 'error' | 'unknown';
+  state: "created" | "deploying" | "deployed" | "failed" | "error" | "unknown";
   message: string;
   error?: string;
 };
 
 export enum VercelBuildStatus {
-  READY = 'READY',
-  BUILDING = 'BUILDING',
-  INITIALIZING = 'INITIALIZING',
-  ERROR = 'ERROR',
-  QUEUED = 'QUEUED',
+  READY = "READY",
+  BUILDING = "BUILDING",
+  INITIALIZING = "INITIALIZING",
+  ERROR = "ERROR",
+  QUEUED = "QUEUED",
 }
 
 export function getMergedProjectStatus(project: Project | null): ProjectStatus {
   if (!project) {
-    return { state: 'error', message: 'Project not found' };
+    return { state: "error", message: "Project not found" };
   }
 
   // First handle raw DB states
   switch (project.status) {
-    case 'created':
-      return { state: 'created', message: 'Deploy to share with others' };
-    case 'failed':
+    case "created":
+      return { state: "created", message: "Deploy to share" };
+    case "failed":
       return {
-        state: 'failed',
-        message: 'Deployment failed',
-        error: 'Unknown error occurred'
+        state: "failed",
+        message: "Deployment failed",
+        error: "Unknown error occurred",
       };
-    case 'error':
+    case "error":
       return {
-        state: 'error',
-        message: 'Project error',
-        error: 'Unknown error'
+        state: "error",
+        message: "Project error",
+        error: "Unknown error",
       };
-    case 'unknown':
-      return { state: 'unknown', message: 'Unknown project state' };
-    case 'deploying':
-      return { state: 'deploying', message: 'Deploying...' };
-    case 'deployed':
-      return { state: 'deployed', message: 'Successfully deployed' };
+    case "unknown":
+      return { state: "unknown", message: "Unknown project state" };
+    case "deploying":
+      return { state: "deploying", message: "Deploying..." };
+    case "deployed":
+      return { state: "deployed", message: "Successfully deployed" };
     default:
-      return { state: 'unknown', message: 'Unknown project state' };
+      return { state: "unknown", message: "Unknown project state" };
   }
 
   // // Then handle deploying state with Vercel status

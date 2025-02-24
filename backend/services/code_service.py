@@ -24,11 +24,10 @@ DEFAULT_PROJECT_FILES = [
     "src/app/opengraph-image.tsx",
 ]
 
-DOC_FILES = ["todo.md"]
-
 READONLY_FILES = [
-    "plan.md",
-    "spec.md",
+    # "plan.md",
+    # "spec.md",
+    "todo.md",
 ]
 
 
@@ -47,7 +46,7 @@ class CodeService:
 
         self.sandbox = None
         self.repo_dir = None
-        self.db = None
+        self.db: Optional[Database] = None
         self.is_setup = False
         self.base_image_with_deps = None
 
@@ -55,6 +54,9 @@ class CodeService:
 
     def run(self, prompt: str, auto_enhance_context: bool = True) -> dict:
         """Run the Aider coder with the given prompt."""
+        if not self.db:
+            raise ValueError("Database not initialized")
+
         try:
             coder = self._create_aider_coder()
 
@@ -89,7 +91,7 @@ class CodeService:
 
             self._sync_git_changes()
             self.db.update_job_status(self.job_id, "completed")
-            return {"status": "success", "result": aider_result}
+            return {"status": "success", "result": aider_result, "build_logs": logs}
 
         except Exception as e:
             print("exception in run", e)
@@ -152,20 +154,16 @@ class CodeService:
 
             # Get commit before pushing
             commit_hash = self._get_latest_commit_sha()
-            
+
             # Push changes
             repo.git.push("origin", "main")
-            
+
             # Create build record after successful push
             build_id = self.db.create_build(
-                self.project_id,
-                commit_hash,
-                status="queued"
+                self.project_id, commit_hash, status="submitted"
             )
-            
-            # Initialize Vercel tracking
-            vercel_service = VercelBuildService(self.project_id)
-            self._update_build_from_vercel(vercel_service, build_id, commit_hash)
+
+            self._start_build_polling(build_id, commit_hash)
         except git.GitCommandError as e:
             print(f"[code_service] sync git changes failed: {str(e)}")
 
@@ -188,15 +186,15 @@ class CodeService:
             self._create_sandbox(repo_dir=self.repo_dir)
 
             logs = []
-            print("[build] Current git status:")
             git_status = self.sandbox.exec("git", "status")
             status_logs, _ = self.parse_sandbox_process(git_status)
             logs.extend(status_logs)
+            print("[build] Current git status:", status_logs)
 
-            print("[build] Latest commit:")
             git_log = self.sandbox.exec("git", "log", "-1", "--oneline")
             log_lines, _ = self.parse_sandbox_process(git_log)
             logs.extend(log_lines)
+            print("[build] Latest commit:", log_lines)
 
             install_process = self.sandbox.exec("pnpm", "install")
             install_logs, install_code = self.parse_sandbox_process(install_process)
@@ -351,14 +349,7 @@ class CodeService:
     def _create_aider_coder(self) -> Coder:
         """Create and configure the Aider coder instance."""
         fnames = [os.path.join(self.repo_dir, f) for f in DEFAULT_PROJECT_FILES]
-        llm_docs_dir = os.path.join(self.repo_dir, "llm_docs")
-        read_only_fnames = []
-        if os.path.exists(llm_docs_dir):
-            read_only_fnames = [
-                os.path.join(llm_docs_dir, f)
-                for f in os.listdir(llm_docs_dir)
-                if os.path.isfile(os.path.join(llm_docs_dir, f))
-            ]
+        read_only_fnames = READONLY_FILES
 
         io = InputOutput(yes=True, root=self.repo_dir)
         model = Model(**config.AIDER_CONFIG["MODEL"])
@@ -374,39 +365,28 @@ class CodeService:
         repo = git.Repo(path=self.repo_dir)
         return repo.head.commit.hexsha
 
-    def _update_build_from_vercel(self, vercel_service: VercelBuildService, build_id: str, commit_hash: str):
-        """Check Vercel status and update build record"""
+    def _start_build_polling(self, build_id: str, commit_hash: str):
+        """Start asynchronous polling for build status"""
         try:
-            build_status = vercel_service.get_vercel_build_status(commit_hash)
-            
-            if "error" in build_status:
-                self.db.update_build_status(build_id, "failed", build_status["error"])
-                return
-
-            # Map Vercel status to our simplified states
-            status_mapping = {
-                "queued": "queued",
-                "building": "building", 
-                "success": "success",
-                "error": "failed"
-            }
-            
-            new_status = status_mapping.get(build_status["status"], "unknown")
-            self.db.update_build_status(build_id, new_status)
+            print(f"[code_service] Starting build polling for build {build_id}")
+            # Start an asynchronous function to poll the build status
+            poll_build_status = modal.Function.from_name(config.APP_NAME, config.MODAL_POLL_BUILD_FUNCTION_NAME)
+            poll_build_status.spawn(project_id=self.project_id, commit_hash=commit_hash)
+            print(f"[code_service] Build polling started for {build_id} with commit {commit_hash}")
 
         except Exception as e:
-            error_msg = f"Vercel status check failed: {str(e)}"
-            self.db.update_build_status(build_id, "failed", error_msg)
-
+            error_msg = f"Failed to start build polling: {str(e)}"
+            print(f"[code_service] {error_msg}")
+            self.db.add_log(self.job_id, "backend", error_msg)
 
 def get_error_fix_prompt_from_logs(logs: str) -> str:
     """Extract a prompt from build logs to fix errors."""
     return f"""
     The previous changes caused build errors. Please fix them.
     Here are the build logs showing the errors:
-    
+
     {logs}
-    
+
     Please analyze these errors and make the necessary corrections to fix the build.
     """
 

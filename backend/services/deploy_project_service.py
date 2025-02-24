@@ -2,8 +2,10 @@ import os
 import time
 import requests
 import json
+from datetime import datetime
 from backend.integrations.db import Database
 from backend.services.code_service import CodeService
+from backend.services.vercel_build_service import VercelBuildService
 from backend.utils.farcaster import generate_domain_association
 from backend.types import UserContext
 
@@ -18,6 +20,7 @@ class DeployProjectService:
         self.db = Database()
         self.project = self.db.get_project(project_id)
         self.code_service = CodeService(project_id, job_id, user_context)
+        self.vercel_service = VercelBuildService(project_id)
 
     def run(self):
         """Execute final deployment steps"""
@@ -91,61 +94,15 @@ class DeployProjectService:
         self.code_service._sync_git_changes()
 
     def _wait_for_vercel_build(self):
-        """Wait for Vercel build to complete using API polling"""
+        """Wait for Vercel build to complete using service"""
         latest_commit_sha = self.code_service._get_latest_commit_sha()
-
         self._log(f"Waiting for Vercel build completion for {latest_commit_sha}")
-        vercel_token = os.getenv("VERCEL_TOKEN")
-        team_id = os.getenv("VERCEL_TEAM_ID")
-        project_id = self.project.get("vercel_project_id")
-        max_wait_seconds = 600  # 10 minutes
-        start_time = time.time()
 
-        if not all([vercel_token, team_id, project_id]):
-            raise ValueError("Missing required Vercel configuration")
+        build_status = self.vercel_service.poll_build_status(commit_hash=latest_commit_sha)
 
-        while time.time() - start_time < max_wait_seconds:
-            try:
-                # Get latest deployment
-                response = requests.get(
-                    "https://api.vercel.com/v6/deployments",
-                    params={
-                        "projectId": project_id,
-                        "teamId": team_id,
-                        "limit": 1,
-                        "meta-githubCommitSha": latest_commit_sha,
-                    },
-                    headers={
-                        "Authorization": f"Bearer {vercel_token}",
-                    },
-                )
-                response.raise_for_status()
-
-                deployments = response.json().get("deployments", [])
-                if not deployments:
-                    self._log("No deployments found yet")
-                    time.sleep(5)
-                    continue
-
-                latest_deployment = deployments[0]
-                status = latest_deployment.get("readyState")
-
-                if status == "READY":
-                    self._log("Vercel deployment completed successfully")
-                    return
-                elif status == "ERROR":
-                    error_message = latest_deployment.get(
-                        "errorMessage", "Unknown error"
-                    )
-                    raise Exception(f"Vercel deployment failed: {error_message}")
-                else:
-                    self._log(f"Build in progress (status: {status}), waiting...")
-                    time.sleep(10)
-
-            except requests.exceptions.RequestException as e:
-                raise Exception(f"Vercel API error: {str(e)}")
-
-        raise TimeoutError("Vercel build did not complete within expected timeframe")
+        if build_status["status"] != "success":
+            error = build_status.get("error", "Unknown error")
+            raise Exception(f"Vercel build failed: {error}")
 
     def _setup_domain_association(self):
         """setup domain association for farcaster frame v2 to reflect user connection to new vercel domain"""

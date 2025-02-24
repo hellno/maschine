@@ -19,7 +19,7 @@ const CustomSidebarTrigger = () => {
       data-sidebar="trigger"
       variant="ghost"
       size="icon"
-      className="h-7 w-7 -ml-1"
+      className="px-2 -ml-1"
       onClick={() => toggleSidebar()}
     >
       <svg
@@ -65,13 +65,15 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
               <Separator orientation="vertical" className="mr-2 h-4" />
               <div className="flex justify-between items-center min-w-full">
                 <span className="font-normal text-foreground">Maschine</span>
-                <div className="flex items-center gap-2 max-w-[calc(50%)]">
+                <div className="flex items-center gap-2 max-w-[calc(40%)] mr-2">
                   <Avatar className="h-8 w-8 rounded-lg">
                     <AvatarImage
                       src={context?.user?.pfpUrl}
                       alt={context?.user?.username}
                     />
-                    <AvatarFallback className="rounded-lg">DR</AvatarFallback>
+                    <AvatarFallback>
+                      {context?.user?.username?.substring(0, 2) || "m"}
+                    </AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-semibold">

@@ -28,7 +28,6 @@ model = OpenAI(
 )
 
 Settings.embed_model = embed_model
-Settings.model = model
 
 PARENT_UPDATE_DOC = "shared.md"
 CONTEXT_DOCS_PATH = "backend/llm_context/docs"
@@ -59,8 +58,12 @@ class CodeContextEnhancer:
                         filename_to_context[filename] = node.text
 
             unique_texts = list(set(filename_to_context.values()))
+            if not unique_texts:
+                print("No relevant context found.")
+                return None
+
             print(f"context pieces: {len(unique_texts)}")
-            context = "\n\n".join(unique_texts) if unique_texts else None
+            context = "\n\n".join(unique_texts)
             print("context length:", len(context))
             return context
         except Exception as e:

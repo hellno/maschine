@@ -1,7 +1,7 @@
 from backend.services.code_service import CodeService
 from backend.services.context_enhancer import CodeContextEnhancer
 from backend.services.prompts import (
-    CREATE_SPEC_FROM_PLAN_PROMPT,
+    CREATE_TASK_PLAN_PROMPT,
     CREATE_SPEC_PROMPT,
     CREATE_TODO_LIST_PROMPT,
     IMPLEMENT_TODO_LIST_PROMPT,
@@ -53,10 +53,14 @@ class SetupProjectService:
 
         self._log("Brainstormed and generated context, starting to write custom code")
 
-        result = code_service.run(IMPLEMENT_TODO_LIST_PROMPT)
-        print("implement todo list response", result)
-        result = code_service.run(RETRY_IMPLEMENT_TODO_LIST_PROMPT)
-        print("retry implement todo list response", result)
+        result = code_service.run(
+            IMPLEMENT_TODO_LIST_PROMPT, auto_enhance_context=False
+        )
+        print(f"implement todo list response: {result}")
+        result = code_service.run(
+            RETRY_IMPLEMENT_TODO_LIST_PROMPT, auto_enhance_context=False
+        )
+        print(f"retry implement todo list response: {result}")
         self._log("Initial customization complete")
 
     def _generate_project_name(self):
@@ -66,21 +70,21 @@ class SetupProjectService:
         self.db.update_project(self.project_id, dict(name=project_name))
 
     def _add_brainstorm_docs_to_repo(self, code_service: CodeService, prompt: str):
-        print('Adding brainstormed docs to repo')
+        print("Adding brainstormed docs to repo")
         context = CodeContextEnhancer().get_relevant_context(prompt)
-        
-        print('got context, now sending prompt to reasoning model')
+
+        print("got context, now sending prompt to reasoning model")
         create_spec = CREATE_SPEC_PROMPT.format(context=context, prompt=prompt)
         spec_content, spec_reasoning = send_prompt_to_reasoning_model(create_spec)
         print(f"Received spec content: {spec_content}\nReasoning: {spec_reasoning}")
         code_service._add_file_to_repo_dir("spec.md", create_spec)
 
-        create_plan = CREATE_SPEC_FROM_PLAN_PROMPT.format(spec=create_spec)
+        create_plan = CREATE_TASK_PLAN_PROMPT.format(spec=spec_content)
         plan_content, plan_reasoning = send_prompt_to_reasoning_model(create_plan)
         print(f"Received plan content: {plan_content}\nReasoning: {plan_reasoning}")
         code_service._add_file_to_repo_dir("plan.md", plan_content)
 
-        todo = CREATE_TODO_LIST_PROMPT.format(plan=create_plan)
+        todo = CREATE_TODO_LIST_PROMPT.format(plan=plan_content)
         todo_content, todo_reasoning = send_prompt_to_reasoning_model(todo)
         print(f"Received todo content: {todo_content}\nReasoning: {todo_reasoning}")
         code_service._add_file_to_repo_dir("todo.md", content=todo_content)

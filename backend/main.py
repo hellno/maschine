@@ -1,7 +1,7 @@
 import time
+from datetime import datetime
 
 from backend.integrations.openrank import get_openrank_score_for_fid
-from backend.services.build_poller import BuildPoller
 from backend.types import UserContext
 from backend.utils.sentry import setup_sentry
 import modal
@@ -9,6 +9,7 @@ import modal
 from backend.modal import app, volumes, all_secrets, db_secrets
 from backend import config
 from backend.integrations.db import Database
+from typing import Optional
 
 
 @app.function(secrets=[modal.Secret.from_name("llm-api-keys")])
@@ -305,7 +306,7 @@ def deploy_project(data: dict) -> dict:
     secrets=all_secrets,
     name=config.MODAL_UPDATE_CODE_FUNCTION_NAME,
 )
-def update_code(data: dict) -> dict:
+def update_code(data: dict):
     from backend.services.code_service import CodeService
 
     setup_sentry()
@@ -321,12 +322,27 @@ def update_code(data: dict) -> dict:
     return "Code update completed"
 
 
-@app.function(secrets=all_secrets)
-@modal.web_endpoint(method="GET", label="poll-build-status")
-def poll_build_status(project_id: str, build_id: str) -> dict:
+@app.function(secrets=all_secrets, name=config.MODAL_POLL_BUILD_FUNCTION_NAME, timeout=600)
+def poll_build_status(project_id: str, build_id: Optional[str] = None, commit_hash: Optional[str] = None):
+    """Function to poll build status (for spawning)"""
+    try:
+        print(f"Polling build status for project {project_id} and build {build_id}")
+        from backend.services.vercel_build_service import VercelBuildService
+        vercel_service = VercelBuildService(project_id)
+        result = vercel_service.poll_build_status(build_id=build_id, commit_hash=commit_hash)
+        print('vercel build service polling result: ', result)
+        return {"status": "success", "result": result}
+    except Exception as e:
+        print(f"Error polling build status: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.function()
+@modal.web_endpoint(method="GET", label="poll-build-status-webhook")
+def poll_build_status_webhook(project_id: str, build_id: str):
     """Endpoint to poll build status"""
     try:
-        poller = BuildPoller(project_id, build_id)
-        return poller.start_polling()
+        poll_build_status.spawn(project_id, build_id)
+        datetime_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        return {"status": "success", "message": "Started polling build status", "datetime": datetime_str}
     except Exception as e:
         return {"status": "error", "message": str(e)}, 500
