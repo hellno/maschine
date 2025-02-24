@@ -183,3 +183,12 @@ class Database:
     def get_builds_by_project(self, project_id: str):
         """Get all builds for a project ordered by creation time (newest first)"""
         return self.client.table("builds").select("*").eq("project_id", project_id).order("created_at", desc=True).execute().data
+
+    def get_build_by_commit(self, project_id: str, commit_hash: str):
+        """Get build record by commit hash"""
+        return self.client.table("builds") \
+            .select("*") \
+            .eq("project_id", project_id) \
+            .eq("commit_hash", commit_hash) \
+            .maybe_single() \
+            .execute()

@@ -16,6 +16,7 @@ import tempfile
 
 from backend.types import UserContext
 from backend.services.context_enhancer import CodeContextEnhancer
+from backend.services.vercel_build_service import VercelBuildService
 
 DEFAULT_PROJECT_FILES = [
     "src/components/Frame.tsx",
@@ -149,15 +150,22 @@ class CodeService:
                 print("[code_service] Committing changes to git")
                 self._create_commit("automatic changes")
 
-            # commits_behind, commits_ahead = repo.git.rev_list(
-            #     "--left-right", "--count", "origin/main...main"
-            # ).split()
-            # print(
-            #     f"[code_service] Commits behind: {commits_behind}, ahead: {commits_ahead}"
-            # )
-            # if int(commits_ahead) > 0:
-            #     print(f"[code_service] Pushing {commits_ahead} pending commits...")
+            # Get commit before pushing
+            commit_hash = self._get_latest_commit_sha()
+            
+            # Push changes
             repo.git.push("origin", "main")
+            
+            # Create build record after successful push
+            build_id = self.db.create_build(
+                self.project_id,
+                commit_hash,
+                status="queued"
+            )
+            
+            # Initialize Vercel tracking
+            vercel_service = VercelBuildService(self.project_id)
+            self._update_build_from_vercel(vercel_service, build_id, commit_hash)
         except git.GitCommandError as e:
             print(f"[code_service] sync git changes failed: {str(e)}")
 
@@ -365,6 +373,30 @@ class CodeService:
     def _get_latest_commit_sha(self) -> str:
         repo = git.Repo(path=self.repo_dir)
         return repo.head.commit.hexsha
+
+    def _update_build_from_vercel(self, vercel_service: VercelBuildService, build_id: str, commit_hash: str):
+        """Check Vercel status and update build record"""
+        try:
+            build_status = vercel_service.get_vercel_build_status(commit_hash)
+            
+            if "error" in build_status:
+                self.db.update_build_status(build_id, "failed", build_status["error"])
+                return
+
+            # Map Vercel status to our simplified states
+            status_mapping = {
+                "queued": "queued",
+                "building": "building", 
+                "success": "success",
+                "error": "failed"
+            }
+            
+            new_status = status_mapping.get(build_status["status"], "unknown")
+            self.db.update_build_status(build_id, new_status)
+
+        except Exception as e:
+            error_msg = f"Vercel status check failed: {str(e)}"
+            self.db.update_build_status(build_id, "failed", error_msg)
 
 
 def get_error_fix_prompt_from_logs(logs: str) -> str:
