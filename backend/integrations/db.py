@@ -143,3 +143,43 @@ class Database:
         """Update project with given data"""
         print(f"updating project {project_id} with data: {data}")
         self.client.table("projects").update(data).eq("id", project_id).execute()
+
+    def create_build(self, project_id: str, commit_hash: str, status: str = "pending", data: dict = {}) -> str:
+        """Create a new build record"""
+        build_id = str(uuid.uuid4())
+        print(f"Creating build: project={project_id}, commit={commit_hash}, status={status}")
+        self.client.table("builds").insert({
+            "id": build_id,
+            "created_at": datetime.utcnow().isoformat(),
+            "project_id": project_id,
+            "commit_hash": commit_hash,
+            "status": status,
+            "data": data
+        }).execute()
+        return build_id
+
+    def update_build_status(self, build_id: str, status: str, error: Optional[str] = None):
+        """Update build status atomically"""
+        print(f"Updating build {build_id}: status={status}, error={'None' if not error else error}")
+        update_data = {"status": status}
+
+        if error:
+            existing_data = self.client.table("builds").select("data").eq("id", build_id).single().execute().data.get("data", {})
+            update_data["data"] = {**existing_data, "error": error}
+
+        self.client.table("builds").update(update_data).eq("id", build_id).execute()
+
+    def add_build_log(self, build_id: str, source: str, text: str):
+        """Add a build log entry"""
+        print(f"[Build {build_id}][{source}] {text}")
+        self.client.table("build_logs").insert({
+            "id": str(uuid.uuid4()),
+            "created_at": datetime.utcnow().isoformat(),
+            "build_id": build_id,
+            "source": source,
+            "text": text,
+        }).execute()
+
+    def get_builds_by_project(self, project_id: str):
+        """Get all builds for a project ordered by creation time (newest first)"""
+        return self.client.table("builds").select("*").eq("project_id", project_id).order("created_at", desc=True).execute().data
