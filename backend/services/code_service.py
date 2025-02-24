@@ -52,13 +52,15 @@ class CodeService:
 
         self._setup()
 
-    def run(self, prompt: str):
+    def run(self, prompt: str, auto_enhance_context: bool = True) -> dict:
+        """Run the Aider coder with the given prompt."""
         try:
             coder = self._create_aider_coder()
 
             print(f"[code_service] Running Aider with prompt: {prompt}")
             self.db.update_job_status(self.job_id, "running")
-            # prompt = self._enhance_prompt_with_context(prompt)
+            if auto_enhance_context:
+                prompt = self._enhance_prompt_with_context(prompt)
             aider_result = coder.run(prompt)
             print(f"[code_service] Aider result (truncated): {aider_result[:250]}")
             _handle_pnpm_commands(aider_result, self.sandbox)
@@ -238,17 +240,6 @@ class CodeService:
                 timeout=config.TIMEOUTS["BUILD"],
             )
 
-            def check_files(path):
-                for root, _, files in os.walk(path):
-                    for file in files:
-                        fp = os.path.join(root, file)
-                        try:
-                            with open(fp, encoding="utf-8") as f:
-                                f.read()
-                        except UnicodeDecodeError as err:
-                            print(f"Error in {fp}: {err}")
-
-            check_files(repo_dir)
             print("[code_service] Installing dependencies in base sandbox")
             process = base_sandbox.exec(
                 "pnpm",
