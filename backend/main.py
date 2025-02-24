@@ -1,6 +1,7 @@
 import time
 
 from backend.integrations.openrank import get_openrank_score_for_fid
+from backend.services.build_poller import BuildPoller
 from backend.types import UserContext
 from backend.utils.sentry import setup_sentry
 import modal
@@ -318,3 +319,14 @@ def update_code(data: dict) -> dict:
     code_service.run(prompt)
 
     return "Code update completed"
+
+
+@app.function(secrets=all_secrets)
+@modal.web_endpoint(method="GET", label="poll-build-status")
+def poll_build_status(project_id: str, build_id: str) -> dict:
+    """Endpoint to poll build status"""
+    try:
+        poller = BuildPoller(project_id, build_id)
+        return poller.start_polling()
+    except Exception as e:
+        return {"status": "error", "message": str(e)}, 500
