@@ -1,6 +1,7 @@
 import os
 import requests
 from typing import Optional, Dict
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 from backend.integrations.db import Database
 
 
@@ -71,4 +72,29 @@ class VercelBuildService:
             "url": deployment.get("url"),
             "created_at": deployment.get("createdAt"),
             "logs_url": f"https://api.vercel.com/v2/deployments/{deployment['uid']}/events",
+            "deployment_id": deployment.get("uid")
         }
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_fixed(2),
+        retry=retry_if_exception_type(requests.exceptions.RequestException),
+        reraise=True
+    )
+    def get_deployment_by_id(self, deployment_id: str) -> Dict:
+        """Get deployment details directly by Vercel ID with retries"""
+        headers = {"Authorization": f"Bearer {self.vercel_token}"}
+        params = {"teamId": self.team_id}
+        
+        try:
+            response = requests.get(
+                f"https://api.vercel.com/v13/deployments/{deployment_id}",
+                headers=headers,
+                params=params
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                return {"error": "Deployment not found"}
+            raise
