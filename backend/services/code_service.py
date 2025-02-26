@@ -370,8 +370,8 @@ class CodeService:
         try:
             print(f"[code_service] Starting build polling for build {build_id}")
             # Start an asynchronous function to poll the build status
-            poll_build_status = modal.Function.from_name(config.APP_NAME, config.MODAL_POLL_BUILD_FUNCTION_NAME)
-            poll_build_status.spawn(project_id=self.project_id, commit_hash=commit_hash)
+            poll_build_status_spawn = modal.Function.from_name(config.APP_NAME, f"{config.MODAL_POLL_BUILD_FUNCTION_NAME}_spawn")
+            poll_build_status_spawn.spawn(project_id=self.project_id, build_id=build_id, commit_hash=commit_hash)
             print(f"[code_service] Build polling started for {build_id} with commit {commit_hash}")
 
         except Exception as e:

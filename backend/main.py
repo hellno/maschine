@@ -341,7 +341,7 @@ def poll_build_status(project_id: str, build_id: Optional[str] = None, commit_ha
 def poll_build_status_webhook(project_id: str, build_id: str):
     """Endpoint to poll build status"""
     try:
-        poll_build_status.spawn(project_id, build_id)
+        poll_build_status_spawn.spawn(project_id, build_id)
         datetime_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return {"status": "success", "message": "Started polling build status", "datetime": datetime_str}
     except Exception as e:
