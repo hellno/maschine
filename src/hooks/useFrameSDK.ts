@@ -13,16 +13,16 @@ export function useFrameSDK() {
 
   useEffect(() => {
     const load = async () => {
-      const frameContext = {
-        client: {
-          added: true,
-        },
-        user: {
-          fid: 13596,
-          username: "hellno.eth",
-        },
-      };
-      // const frameContext = await sdk.context;
+      // const frameContext = {
+      //   client: {
+      //     added: true,
+      //   },
+      //   user: {
+      //     fid: 13596,
+      //     username: "hellno.eth",
+      //   },
+      // };
+      const frameContext = await sdk.context;
       if (!frameContext) return;
 
       setContext(frameContext as unknown as FrameContext);
