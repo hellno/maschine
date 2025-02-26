@@ -1,6 +1,7 @@
 import os
 import time
 import requests
+from datetime import datetime
 from typing import Optional, Dict, Literal
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 from backend.integrations.db import Database
@@ -81,25 +82,39 @@ class VercelBuildService:
             return {"status": "error", "error": str(e)}
 
     def _parse_deployment(self, deployment: Dict) -> Dict:
-        # ai!
-        # getting this error when trying to write the parsed values to DB:
-        # Error polling build status: {'code': '22008', 'details': None, 'hint': 'Perhaps you need a different "datestyle" setting.', 'message': 'date/time field value out of range: "1740567255067"'}
-        if "readyState" in deployment:
-            return {
-                "status": status_map.get(deployment.get("readyState", "").upper(), "unknown"),
-                "vercel_build_id": deployment.get("uid"),
-                "finished_at": deployment.get("ready"),
-                "data": deployment
-            }
-
-        # Handle v6 deployment format
-        print(f'parsing v6 deployment data: {deployment}')
-        return {
-            "status": status_map.get(deployment.get("state", "").upper(), "unknown"),
+        """Parse Vercel deployment data into our format, converting timestamps to ISO format"""
+        result = {
             "vercel_build_id": deployment.get("uid"),
-            "finished_at": deployment.get("ready"),
             "data": deployment
         }
+        
+        # Handle readyState format (v13 API)
+        if "readyState" in deployment:
+            result["status"] = status_map.get(deployment.get("readyState", "").upper(), "unknown")
+        # Handle state format (v6 API)
+        else:
+            print(f'parsing v6 deployment data: {deployment}')
+            result["status"] = status_map.get(deployment.get("state", "").upper(), "unknown")
+        
+        # Handle timestamp conversion (from ms to ISO format)
+        ready_timestamp = deployment.get("ready")
+        if ready_timestamp:
+            try:
+                # Convert ms timestamp to ISO format
+                if isinstance(ready_timestamp, (int, float)) or (isinstance(ready_timestamp, str) and ready_timestamp.isdigit()):
+                    # Convert milliseconds to seconds
+                    timestamp_seconds = int(float(ready_timestamp)) / 1000.0
+                    # Convert to ISO format
+                    iso_date = datetime.fromtimestamp(timestamp_seconds).isoformat()
+                    result["finished_at"] = iso_date
+                else:
+                    # If it's already a formatted date string, keep it
+                    result["finished_at"] = ready_timestamp
+            except Exception as e:
+                print(f"Error converting timestamp {ready_timestamp}: {e}")
+                # Don't include the timestamp if we can't convert it
+        
+        return result
 
     def get_vercel_build_by_vercel_build_id(self, vercel_build_id: str) -> Dict:
         """Get deployment details directly by Vercel ID with retries
