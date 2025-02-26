@@ -322,6 +322,20 @@ def update_code(data: dict):
     return "Code update completed"
 
 
+@app.function(secrets=all_secrets, name=f"{config.MODAL_POLL_BUILD_FUNCTION_NAME}_spawn", timeout=600)
+def poll_build_status_spawn(project_id: str, build_id: Optional[str] = None, commit_hash: Optional[str] = None):
+    """Function to poll build status (for spawning)"""
+    try:
+        print(f"Polling build status for project {project_id} and build {build_id}")
+        from backend.services.vercel_build_service import VercelBuildService
+        vercel_service = VercelBuildService(project_id)
+        result = vercel_service.poll_build_status(build_id=build_id, commit_hash=commit_hash)
+        print('vercel build service polling result: ', result)
+        return {"status": "success", "result": result}
+    except Exception as e:
+        print(f"Error polling build status: {e}")
+        return {"status": "error", "message": str(e)}
+
 @app.function(secrets=all_secrets, name=config.MODAL_POLL_BUILD_FUNCTION_NAME, timeout=600)
 def poll_build_status(project_id: str, build_id: Optional[str] = None, commit_hash: Optional[str] = None):
     """Function to poll build status (for spawning)"""
