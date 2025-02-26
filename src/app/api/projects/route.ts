@@ -47,7 +47,34 @@ export async function GET(request: Request) {
       );
     }
 
-    return NextResponse.json({ projects: projects || [] });
+    // Enhance projects with latest_build and latest_job
+    const enhancedProjects = projects?.map((project) => {
+      const sortedJobs = project.jobs?.sort(
+        (
+          a: { created_at: string | number | Date },
+          b: { created_at: string | number | Date },
+        ) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
+      const latestJob = sortedJobs?.length > 0 ? sortedJobs[0] : null;
+
+      const sortedBuilds = project.builds?.sort(
+        (
+          a: { created_at: string | number | Date },
+          b: { created_at: string | number | Date },
+        ) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
+      const latestBuild = sortedBuilds?.length > 0 ? sortedBuilds[0] : null;
+
+      return {
+        ...project,
+        latestJob: latestJob,
+        latestBuild: latestBuild,
+      };
+    });
+
+    return NextResponse.json({ projects: enhancedProjects || [] });
   } catch (error) {
     console.error("Error fetching projects:", error);
     return NextResponse.json(

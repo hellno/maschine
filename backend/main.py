@@ -261,7 +261,7 @@ def deploy_project_webhook(data: dict) -> dict:
 
     db = Database()
     job_id = db.create_job(
-        project_id=data["project_id"], job_type="final_deploy", data=data
+        project_id=data["project_id"], job_type="deploy_project", data=data
     )
 
     deploy_project.spawn(

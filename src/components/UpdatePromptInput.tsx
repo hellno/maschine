@@ -13,7 +13,6 @@ import {
   SheetTrigger,
 } from "./ui/sheet";
 import LogViewer from "./LogViewer";
-import { VercelBuildStatus } from "~/lib/types/project-status";
 
 interface UpdatePromptInputProps {
   project: Project;
@@ -24,7 +23,6 @@ interface UpdatePromptInputProps {
   handleSubmitUpdate: () => void;
   userContext?: UserContext;
   onHandleTryAutofix: () => void;
-  vercelBuildStatus?: VercelBuildStatus;
 }
 
 function UpdatePromptInput({
@@ -36,12 +34,10 @@ function UpdatePromptInput({
   handleSubmitUpdate,
   userContext,
   onHandleTryAutofix,
-  vercelBuildStatus,
 }: UpdatePromptInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [charCount, setCharCount] = useState(0);
 
-  // Auto-resize textarea
   useEffect(() => {
     const textarea = textareaRef.current;
     if (textarea) {
@@ -50,18 +46,18 @@ function UpdatePromptInput({
     }
     setCharCount(updatePrompt.length);
   }, [updatePrompt]);
-  const jobs =
-    project.jobs
-      ?.filter(
-        (job) => job.type === "update_code" || job.type === "setup_project",
-      )
-      .sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-      ) || [];
 
-  const hasAnyJobsPending = jobs.some((job) => job.status === "pending");
-  const hasBuildErrors = vercelBuildStatus === "ERROR";
+  const { latestJob, latestBuild } = project;
+  const hasAnyJobsPending =
+    isSubmitting ||
+    latestJob?.status === "pending" ||
+    latestJob?.status === "running" ||
+    latestBuild?.status === "submitted" ||
+    latestBuild?.status === "building" ||
+    latestBuild?.status === "queued";
+
+  const hasBuildErrors =
+    latestJob?.status === "failed" || latestBuild?.status === "error";
 
   const buildErrorLog = logs
     .filter((log) => log.source === "vercel" && log.data)
@@ -74,7 +70,7 @@ function UpdatePromptInput({
     <div className="space-y-4 max-w-full">
       {hasAnyJobsPending && (
         <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-lg text-sm text-amber-800 dark:text-amber-300">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-500 dark:border-amber-400"></div>
             <span>
               Maschine is working on your project.

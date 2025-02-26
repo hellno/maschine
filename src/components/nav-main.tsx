@@ -32,23 +32,15 @@ type NavItem = {
 };
 
 export function NavMain({ items }: { items: NavItem[] }) {
-  const { toggleSidebar } = useSidebar();
+  const { isMobile, toggleSidebar } = useSidebar();
   const renderMainItemButton = (item: NavItem) => (
     <Link href={item.url} passHref>
-      <SidebarMenuButton
-        className="text-xl"
-        tooltip={item.title}
-        onClick={
-          item.url
-            ? () => {
-                toggleSidebar();
-              }
-            : undefined
-        }
-      >
-        {item.icon && <item.icon />}
-        <span>{item.title}</span>
-        <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+      <SidebarMenuButton className="text-xl" tooltip={item.title}>
+        <Link href={item.url} onClick={() => isMobile && toggleSidebar()}>
+          {item.icon && <item.icon />}
+          <span>{item.title}</span>
+          <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+        </Link>
       </SidebarMenuButton>
     </Link>
   );
@@ -73,11 +65,12 @@ export function NavMain({ items }: { items: NavItem[] }) {
                   <SidebarMenuSub>
                     {item.items?.map((subItem) => (
                       <SidebarMenuSubItem key={subItem.title}>
-                        <Link href={subItem.url}>
+                        <Link
+                          href={subItem.url}
+                          onClick={() => isMobile && toggleSidebar()}
+                        >
                           <SidebarMenuSubButton asChild className="text-lg">
-                            {/* <a href={subItem.url}> */}
                             <span>{subItem.title}</span>
-                            {/* </a> */}
                           </SidebarMenuSubButton>
                         </Link>
                       </SidebarMenuSubItem>

@@ -6,7 +6,7 @@ import {
   CardFooter,
 } from "./ui/card";
 import { Button } from "./ui/button";
-import { Share, ExternalLink } from "lucide-react";
+import { Share, ExternalLink, Hammer } from "lucide-react";
 import sdk from "@farcaster/frame-sdk";
 import { cn } from "~/lib/utils";
 import { Project } from "~/lib/types";
@@ -14,13 +14,11 @@ import Link from "next/link";
 
 interface ProjectOverviewCardProps {
   project: Project;
-  onClick?: () => void;
   selected?: boolean;
 }
 
 export function ProjectOverviewCard({
   project,
-  onClick,
   selected = false,
 }: ProjectOverviewCardProps) {
   const name =
@@ -34,21 +32,11 @@ export function ProjectOverviewCard({
   const handleShare = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (frontendUrl) {
-      const shareText = `Check out my frame "${name}" built with frameception`;
+      const shareText = `Check out my frame "${name}" built with @maschine`;
       const shareUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(
-        shareText
+        shareText,
       )}&embeds[]=${encodeURIComponent(frontendUrl)}`;
       sdk.actions.openUrl(shareUrl);
-    }
-  };
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handleOpenFrame = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (frontendUrl) {
-      sdk.actions.openUrl(
-        `https://warpcast.com/~/frames/launch?domain=${frontendUrl}`
-      );
     }
   };
 
@@ -56,9 +44,8 @@ export function ProjectOverviewCard({
     <Card
       className={cn(
         "transition-colors cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50",
-        selected && "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+        selected && "border-blue-500 bg-blue-50 dark:bg-blue-900/20",
       )}
-      onClick={onClick}
     >
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start">
@@ -72,28 +59,25 @@ export function ProjectOverviewCard({
       </CardHeader>
       <CardFooter className="pt-2">
         <div className="gap-2 w-full grid grid-cols-2">
+          <Link href={`/projects/${project.id}`} className="w-full flex-1">
+            <Button variant="secondary" size="sm" className="w-full">
+              <Hammer className="w-4 h-4 mr-2" />
+              Edit
+            </Button>
+          </Link>
+          {project.status === "deployed" && (
+            <Button size="sm" onClick={handleShare} className="flex-1">
+              <Share className="w-4 h-4 mr-2" />
+              Share
+            </Button>
+          )}
           {frontendUrl && (
-            <>
-              <Button size="sm" onClick={handleShare} className="flex-1">
-                <Share className="w-4 h-4 mr-2" />
-                Share
-              </Button>
-              {/* <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleOpenFrame}
-                className="flex-1"
-              >
+            <Link href={frontendUrl} className="flex-1 w-full">
+              <Button variant="outline" size="sm" className="flex-1 w-full">
                 <ExternalLink className="w-4 h-4 mr-2" />
-                Open
-              </Button> */}
-              <Link href={frontendUrl} className="flex-1 w-full">
-                <Button variant="outline" size="sm" className="flex-1 w-full">
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  Open
-                </Button>
-              </Link>
-            </>
+                Open Frame
+              </Button>
+            </Link>
           )}
         </div>
       </CardFooter>

@@ -51,7 +51,15 @@ class CodeContextEnhancer:
             filename_to_context = dict()
             for q in queries:
                 response = self.query_engine.query(q)
-                print(f"Search query: {q}, Nodes: {response.source_nodes}")
+                nodes = [
+                    {
+                        'file_name': node.metadata.get('file_name'),
+                        'file_size': node.metadata.get('file_size'),
+                        'score': node.score
+                    }
+                    for node in response.source_nodes
+                ]
+                print(f"Search query: {q}, Nodes: {nodes}")
                 for node in response.source_nodes:
                     if node.score > CODE_CONTEXT["MIN_RAG_SCORE"]:
                         filename = node.metadata.get("file_name")

@@ -2,14 +2,14 @@
 import { z } from "zod";
 
 export interface TemplateCustomizationRequest {
-  prompt: string
-  userContext: FrameContext
+  prompt: string;
+  userContext: FrameContext;
 }
 
 export interface TemplateCustomizationResponse {
-  success: boolean
-  result?: string
-  error?: string
+  success: boolean;
+  result?: string;
+  error?: string;
 }
 
 export interface Project {
@@ -22,15 +22,34 @@ export interface Project {
   fid_owner: number;
   vercel_project_id?: string;
   jobs?: Job[];
+  builds?: Build[];
+  latestBuild?: Build;
+  latestJob?: Job;
 }
 
 export interface Job {
   id: string;
   type: string;
-  status: "pending" | "completed" | "failed";
+  status: "pending" | "completed" | "failed" | "running";
   created_at: string;
   data: any;
   logs?: Log[];
+}
+
+export interface Build {
+  id: string;
+  created_at: string;
+  finished_at: string;
+  status: "submitted" | "building" | "success" | "error" | "queued";
+  project_id: string;
+  commit_hash: string;
+  vercel_build_id?: string;
+  data: {
+    meta?: {
+      githubCommitMessage?: string;
+    };
+    [key: string]: any;
+  };
 }
 
 interface VercelLogPayload {
@@ -47,9 +66,9 @@ interface VercelLogPayload {
 }
 
 export interface VercelLogData {
-  source: 'vercel';
+  source: "vercel";
   text: string;
-  type: 'stdout' | 'stderr';
+  type: "stdout" | "stderr";
   payload: VercelLogPayload;
 }
 
@@ -63,8 +82,6 @@ export interface Log {
     [key: string]: any;
   };
 }
-
-
 
 // --- copied from frames sdk which cannot be imported for some reason
 
@@ -104,7 +121,10 @@ export type FrameLocationContextNotification = {
 export type FrameLocationContextLauncher = {
   type: "launcher";
 };
-export type FrameLocationContext = FrameLocationContextCastEmbed | FrameLocationContextNotification | FrameLocationContextLauncher;
+export type FrameLocationContext =
+  | FrameLocationContextCastEmbed
+  | FrameLocationContextNotification
+  | FrameLocationContextLauncher;
 export type SafeAreaInsets = {
   top: number;
   bottom: number;
@@ -131,14 +151,22 @@ export type FrameContext = {
   };
 };
 
-export declare const notificationDetailsSchema: z.ZodObject<{
-  url: z.ZodString;
-  token: z.ZodString;
-}, "strip", z.ZodTypeAny, {
-  url: string;
-  token: string;
-}, {
-  url: string;
-  token: string;
-}>;
-export type FrameNotificationDetails = z.infer<typeof notificationDetailsSchema>;
+export declare const notificationDetailsSchema: z.ZodObject<
+  {
+    url: z.ZodString;
+    token: z.ZodString;
+  },
+  "strip",
+  z.ZodTypeAny,
+  {
+    url: string;
+    token: string;
+  },
+  {
+    url: string;
+    token: string;
+  }
+>;
+export type FrameNotificationDetails = z.infer<
+  typeof notificationDetailsSchema
+>;

@@ -16,7 +16,6 @@ import tempfile
 
 from backend.types import UserContext
 from backend.services.context_enhancer import CodeContextEnhancer
-from backend.services.vercel_build_service import VercelBuildService
 
 DEFAULT_PROJECT_FILES = [
     "src/components/Frame.tsx",
@@ -258,12 +257,12 @@ class CodeService:
             install_logs, exit_code = self.parse_sandbox_process(
                 process, prefix="base install"
             )
-            print(
-                "[code_service] Base install logs:",
-                "\n".join(install_logs),
-                "exit code",
-                exit_code,
-            )
+            # print(
+            #     "[code_service] Base install logs:",
+            #     "\n".join(install_logs),
+            #     "exit code",
+            #     exit_code,
+            # )
             print("[code_service] base install process completed")
 
             if exit_code != 0:

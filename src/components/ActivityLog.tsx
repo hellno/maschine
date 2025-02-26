@@ -42,7 +42,7 @@ function ActivityLogCard({ logs }: { logs: Log[] }) {
           <CardTitle>
             <CollapsibleTrigger className="flex items-center justify-between min-w-full">
               Activity Log
-              <Button variant="outline" size="sm" className="">
+              <Button variant="ghost" size="sm">
                 {isOpen ? (
                   <>
                     <Minimize2 className="h-4 w-4" />

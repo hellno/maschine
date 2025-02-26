@@ -1,12 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { ProjectStatusIndicator } from "./ProjectStatusIndicator";
-import {
-  getMergedProjectStatus,
-  ProjectStatus,
-  VercelBuildStatus,
-} from "~/lib/types/project-status";
 import {
   GitBranch,
   Share,
@@ -59,12 +53,10 @@ interface ProjectDetailViewProps {
 
 function ProjectInfoCard({
   project,
-  projectStatus,
   onHandleDeploy,
   isSubmitting,
 }: {
   project: Project;
-  projectStatus: ProjectStatus;
   onHandleDeploy: () => void;
   isSubmitting: boolean;
 }) {
@@ -93,11 +85,12 @@ function ProjectInfoCard({
   const getLastUpdateTime = () => {
     const jobs = project.jobs || [];
     if (jobs.length === 0) return null;
-    
+
     const sortedJobs = [...jobs].sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
     );
-    
+
     return new Date(sortedJobs[0].created_at);
   };
 
@@ -106,47 +99,58 @@ function ProjectInfoCard({
   return (
     <div className={styles.card}>
       <div className="p-5 space-y-5">
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 line-clamp-1">
+        <div className="flex items-start">
+          <div className="w-full">
+            <div className="flex items-center justify-between w-full">
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 line-clamp-1">
                 {project.name}
-              </h1>
-              {projectStatus.state === "deployed" && (
-                <div className="px-2 py-1 text-xs font-medium rounded-full bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+              </div>
+              {project.status === "deployed" && (
+                <div className="px-4 py-2 text-md font-medium rounded-full bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400">
                   Live
                 </div>
               )}
             </div>
             <div className="mt-1 space-y-1">
               <p className="text-xs text-gray-500">
-                Created {new Date(project.created_at).toLocaleString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric'
+                Created{" "}
+                {new Date(project.created_at).toLocaleString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
                 })}
               </p>
               {lastUpdateTime && (
                 <p className="text-xs text-gray-500">
-                  Last updated {lastUpdateTime.toLocaleString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
+                  Last updated{" "}
+                  {lastUpdateTime.toLocaleString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
                   })}
                 </p>
               )}
             </div>
           </div>
-          <ProjectStatusIndicator status={projectStatus} />
         </div>
 
         <div className="flex items-center gap-3">
-          {projectStatus.state === "created" && (
+          {project.status === "deployed" ? (
+            <Button
+              variant="default"
+              onClick={handleShare}
+              disabled={isSubmitting}
+              className="transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+            >
+              <Share className="w-4 h-4 mr-2" />
+              Share on Warpcast
+            </Button>
+          ) : (
             <Button
               onClick={onHandleDeploy}
-              className="flex-1 h-10 transition-all hover:bg-blue-700 focus:ring-2 focus:ring-blue-300"
+              className="flex-1 h-10"
               variant="default"
               disabled={isSubmitting}
             >
@@ -154,13 +158,9 @@ function ProjectInfoCard({
               Deploy
             </Button>
           )}
-
           {project.frontend_url && (
             <Link href={project.frontend_url} className="flex-1">
-              <Button 
-                variant="outline" 
-                className="w-full h-10 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
-              >
+              <Button variant="outline" className="w-full h-10">
                 <ExternalLink className="w-4 h-4 mr-2" />
                 Open Frame
               </Button>
@@ -169,10 +169,10 @@ function ProjectInfoCard({
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="icon"
-                className="h-10 w-10 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+                className="h-10 w-10 transition-colors hover:bg-slate-300 dark:hover:bg-gray-700"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -193,28 +193,24 @@ function ProjectInfoCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              {projectStatus.state === "deployed" && project.frontend_url && (
-                <>
-                  <DropdownMenuItem 
-                    onClick={handleShare}
-                    className="transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
-                  >
-                    <Share className="w-4 h-4 mr-2" />
-                    Share on Warpcast
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={handleCopyUrl}
-                    className="transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
-                  >
-                    <Copy className="w-4 h-4 mr-2" />
-                    Copy URL
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                </>
-              )}
+              <DropdownMenuItem
+                onClick={handleShare}
+                className="transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                <Share className="w-4 h-4 mr-2" />
+                Share on Warpcast
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleCopyUrl}
+                className="transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                Copy URL
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               {project.repo_url && (
                 <DropdownMenuItem asChild>
-                  <Link 
+                  <Link
                     href={project.repo_url}
                     className="transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center"
                   >
@@ -226,11 +222,6 @@ function ProjectInfoCard({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        {projectStatus.error && (
-          <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-600 dark:text-red-400 text-sm">
-            {projectStatus.error}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -244,11 +235,6 @@ function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
   const [error, setError] = useState<string | null>(null);
   const [updatePrompt, setUpdatePrompt] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [deploymentStatus, setDeploymentStatus] = useState<string | null>(null);
-  const [vercelBuildStatus, setVercelBuildStatus] =
-    useState<VercelBuildStatus>();
-
-  const projectStatus = getMergedProjectStatus(project);
 
   const fetchProject = useCallback(async () => {
     if (!projectId) return;
@@ -290,34 +276,6 @@ function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
     }
   }, [projectId]);
 
-  const fetchVercelStatus = useCallback(async () => {
-    if (!project?.vercel_project_id) return;
-    try {
-      const response = await fetch(`/api/vercel-status/${project.id}`);
-      if (!response.ok) throw new Error("Failed to fetch Vercel status");
-      const data = await response.json();
-      setDeploymentStatus(data.status);
-      setVercelBuildStatus(data.status);
-
-      // If status changed, add log entry
-      if (data.status !== deploymentStatus) {
-        setLogs((prev) => [
-          {
-            id: crypto.randomUUID(),
-            created_at: new Date().toISOString(),
-            source: "vercel",
-            text: `Deployment status: ${data.status}`,
-            data,
-          },
-          ...prev,
-        ]);
-      }
-    } catch (err) {
-      console.error("Error fetching Vercel status:", err);
-    }
-  }, [project?.vercel_project_id, project?.id, deploymentStatus]);
-
-  // Consolidated polling approach
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
 
@@ -325,14 +283,13 @@ function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
       fetchProject(); // initial fetch
       interval = setInterval(() => {
         fetchProject();
-        fetchVercelStatus();
-      }, 5000);
+      }, 2500);
     }
 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [projectId, fetchProject, fetchVercelStatus]);
+  }, [projectId, fetchProject]);
 
   const handleSubmitUpdate = async () => {
     if (!updatePrompt.trim()) return;
@@ -460,27 +417,26 @@ function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
     <div className="w-full mx-auto space-y-6 mb-6 px-4 max-w-[100vw-2rem] lg:max-w-4xl xl:max-w-5xl">
       <ProjectInfoCard
         project={project}
-        projectStatus={projectStatus}
         onHandleDeploy={onHandleDeploy}
         isSubmitting={isSubmitting}
       />
 
       <Tabs defaultValue="edit" className="w-full">
         <TabsList className="w-full bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
-          <TabsTrigger 
-            value="edit" 
+          <TabsTrigger
+            value="edit"
             className="flex-1 data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:shadow-sm"
           >
             Edit
           </TabsTrigger>
-          <TabsTrigger 
-            value="preview" 
+          <TabsTrigger
+            value="preview"
             className="flex-1 data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:shadow-sm"
           >
             Preview
           </TabsTrigger>
-          <TabsTrigger 
-            value="conversation" 
+          <TabsTrigger
+            value="conversation"
             className="flex-1 data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:shadow-sm"
           >
             Conversation
@@ -497,7 +453,6 @@ function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
             handleSubmitUpdate={handleSubmitUpdate}
             userContext={userContext}
             onHandleTryAutofix={onHandleTryAutofix}
-            vercelBuildStatus={vercelBuildStatus}
           />
         </TabsContent>
 

@@ -62,7 +62,7 @@ const FramePreviewCard = ({ project }: FramePreviewCardProps) => {
                   key={refreshKey}
                   src={project.frontend_url}
                   className="w-full h-full border-0"
-                  sandbox="allow-scripts allow-same-origin"
+                  sandbox="allow-scripts allow-same-origin allow-forms"
                   loading="lazy"
                   title="Frame Preview"
                 />
