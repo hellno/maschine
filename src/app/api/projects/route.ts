@@ -66,11 +66,18 @@ export async function GET(request: Request) {
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
       );
       const latestBuild = sortedBuilds?.length > 0 ? sortedBuilds[0] : null;
+      const hasAnyJobsPending =
+        latestJob?.status === "pending" ||
+        latestJob?.status === "running" ||
+        latestBuild?.status === "submitted" ||
+        latestBuild?.status === "building" ||
+        latestBuild?.status === "queued";
 
       return {
         ...project,
-        latestJob: latestJob,
-        latestBuild: latestBuild,
+        latestJob,
+        latestBuild,
+        hasAnyJobsPending,
       };
     });
 

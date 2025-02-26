@@ -105,7 +105,7 @@ function ProjectInfoCard({
               <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 line-clamp-1">
                 {project.name}
               </div>
-              {project.status === "deployed" && (
+              {project?.latestBuild?.status && (
                 <div className="px-4 py-2 text-md font-medium rounded-full bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400">
                   Live
                 </div>
@@ -137,15 +137,14 @@ function ProjectInfoCard({
         </div>
 
         <div className="flex items-center gap-3">
-          {project.status === "deployed" ? (
+          {project?.latestBuild?.status === "success" ? (
             <Button
               variant="default"
               onClick={handleShare}
               disabled={isSubmitting}
-              className="transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
             >
               <Share className="w-4 h-4 mr-2" />
-              Share on Warpcast
+              Share
             </Button>
           ) : (
             <Button
@@ -169,11 +168,7 @@ function ProjectInfoCard({
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-10 w-10 transition-colors hover:bg-slate-300 dark:hover:bg-gray-700"
-              >
+              <Button variant="outline" size="icon" className="h-10 w-10">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="24"
@@ -198,7 +193,7 @@ function ProjectInfoCard({
                 className="transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
               >
                 <Share className="w-4 h-4 mr-2" />
-                Share on Warpcast
+                Share
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={handleCopyUrl}
@@ -211,7 +206,7 @@ function ProjectInfoCard({
               {project.repo_url && (
                 <DropdownMenuItem asChild>
                   <Link
-                    href={project.repo_url}
+                    href={`https://${project.repo_url}`}
                     className="transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center"
                   >
                     <GitBranch className="w-4 h-4 mr-2" />

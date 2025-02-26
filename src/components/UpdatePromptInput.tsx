@@ -47,14 +47,7 @@ function UpdatePromptInput({
     setCharCount(updatePrompt.length);
   }, [updatePrompt]);
 
-  const { latestJob, latestBuild } = project;
-  const hasAnyJobsPending =
-    isSubmitting ||
-    latestJob?.status === "pending" ||
-    latestJob?.status === "running" ||
-    latestBuild?.status === "submitted" ||
-    latestBuild?.status === "building" ||
-    latestBuild?.status === "queued";
+  const { hasAnyJobsPending, latestJob, latestBuild } = project;
 
   const hasBuildErrors =
     latestJob?.status === "failed" || latestBuild?.status === "error";
@@ -68,17 +61,17 @@ function UpdatePromptInput({
 
   return (
     <div className="space-y-4 max-w-full">
-      {hasAnyJobsPending && (
-        <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-lg text-sm text-amber-800 dark:text-amber-300">
-          <div className="flex items-center gap-4">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-500 dark:border-amber-400"></div>
-            <span>
-              Maschine is working on your project.
-              <br /> Please wait for it to finish.
-            </span>
-          </div>
-        </div>
-      )}
+      {(hasAnyJobsPending || isSubmitting) && (
+          <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-lg text-sm text-amber-800 dark:text-amber-300">
+            <div className="flex items-center gap-4">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-500 dark:border-amber-400"></div>
+              <span>
+                Maschine is working on your project.
+                <br /> Please wait for it to finish.
+              </span>
+            </div>
+          </div>,
+        )}
       {!hasAnyJobsPending && (
         <>
           <div className="relative">
@@ -89,7 +82,7 @@ function UpdatePromptInput({
               onChange={(e) => setUpdatePrompt(e.target.value)}
               placeholder="Describe your changes in detail. For example: 'Add a button that changes color when clicked' or 'Create a form with name and email fields'..."
               className="w-full p-4 bg-background text-foreground border-2 border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500 break-words overflow-wrap-anywhere shadow-sm placeholder:text-muted-foreground"
-              disabled={isSubmitting || hasAnyJobsPending}
+              disabled={hasAnyJobsPending || isSubmitting}
             />
             <div className="flex justify-between items-center mt-2 text-xs text-muted-foreground">
               <div className="flex items-center">
@@ -105,12 +98,7 @@ function UpdatePromptInput({
           </div>
           <Button
             onClick={handleSubmitUpdate}
-            disabled={
-              !updatePrompt.trim() ||
-              isSubmitting ||
-              !userContext ||
-              hasAnyJobsPending
-            }
+            disabled={!updatePrompt.trim() || !userContext || hasAnyJobsPending || isSubmitting}
             className="w-full flex items-center justify-center gap-2 py-5 text-base transition-all focus:ring-4 focus:ring-slate-300"
             size="lg"
           >
@@ -132,7 +120,7 @@ function UpdatePromptInput({
         <div className="grid grid-cols-2 gap-4">
           <Button
             onClick={onHandleTryAutofix}
-            disabled={isSubmitting || hasAnyJobsPending}
+            disabled={hasAnyJobsPending}
             className="w-full"
           >
             Try Autofix
