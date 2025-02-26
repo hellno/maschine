@@ -25,6 +25,7 @@ export interface Project {
   builds?: Build[];
   latestBuild?: Build;
   latestJob?: Job;
+  hasAnyJobsPending: boolean;
 }
 
 export interface Job {

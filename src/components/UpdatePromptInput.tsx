@@ -61,17 +61,17 @@ function UpdatePromptInput({
 
   return (
     <div className="space-y-4 max-w-full">
-      {(hasAnyJobsPending || isSubmitting) && (
-          <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-lg text-sm text-amber-800 dark:text-amber-300">
-            <div className="flex items-center gap-4">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-500 dark:border-amber-400"></div>
-              <span>
-                Maschine is working on your project.
-                <br /> Please wait for it to finish.
-              </span>
-            </div>
-          </div>,
-        )}
+      {(isSubmitting || hasAnyJobsPending) && (
+        <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-lg text-sm text-amber-800 dark:text-amber-300">
+          <div className="flex items-center gap-4">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-500 dark:border-amber-400"></div>
+            <span>
+              Maschine is working on your project.
+              <br /> Please wait for it to finish.
+            </span>
+          </div>
+        </div>
+      )}
       {!hasAnyJobsPending && (
         <>
           <div className="relative">
@@ -98,7 +98,12 @@ function UpdatePromptInput({
           </div>
           <Button
             onClick={handleSubmitUpdate}
-            disabled={!updatePrompt.trim() || !userContext || hasAnyJobsPending || isSubmitting}
+            disabled={
+              !updatePrompt.trim() ||
+              !userContext ||
+              hasAnyJobsPending ||
+              isSubmitting
+            }
             className="w-full flex items-center justify-center gap-2 py-5 text-base transition-all focus:ring-4 focus:ring-slate-300"
             size="lg"
           >
