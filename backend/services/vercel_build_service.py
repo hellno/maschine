@@ -37,8 +37,8 @@ class VercelBuildService:
         """
         Fetch Vercel build status for a specific commit
         Returns: {
+            "id": str,
             "status": BuildStatus,
-            "build_id": str,
             "url": str,
             "created_at": str
             "finished_at": str,
@@ -81,13 +81,14 @@ class VercelBuildService:
             return {"status": "error", "error": str(e)}
 
     def _parse_deployment(self, deployment: Dict) -> Dict:
+        # ai!
+        # getting this error when trying to write the parsed values to DB:
+        # Error polling build status: {'code': '22008', 'details': None, 'hint': 'Perhaps you need a different "datestyle" setting.', 'message': 'date/time field value out of range: "1740567255067"'}
         if "readyState" in deployment:
-            print(f'parsing v13 deployment data: {deployment}')
             return {
                 "status": status_map.get(deployment.get("readyState", "").upper(), "unknown"),
-                "build_id": deployment.get("uid"),
+                "vercel_build_id": deployment.get("uid"),
                 "finished_at": deployment.get("ready"),
-                "url": deployment.get("url"),
                 "data": deployment
             }
 
@@ -95,8 +96,8 @@ class VercelBuildService:
         print(f'parsing v6 deployment data: {deployment}')
         return {
             "status": status_map.get(deployment.get("state", "").upper(), "unknown"),
-            "build_id": deployment.get("uid"),
-            "url": deployment.get("url"),
+            "vercel_build_id": deployment.get("uid"),
+            "finished_at": deployment.get("ready"),
             "data": deployment
         }
 
