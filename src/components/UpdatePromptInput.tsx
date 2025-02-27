@@ -66,8 +66,8 @@ function UpdatePromptInput({
           <div className="flex items-center gap-4">
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-500 dark:border-amber-400"></div>
             <span>
-              Maschine is working on your project.
-              <br /> Please wait for it to finish.
+              Maschine is working on your project. We will notify you when
+              it&apos;s done. Thanks for building with Maschine!
             </span>
           </div>
         </div>

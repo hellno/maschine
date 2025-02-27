@@ -2,7 +2,7 @@
 
 import { Card, CardContent } from "~/components/ui/card";
 
-import { AlertCircle, Loader2, ListPlus } from "lucide-react";
+import { AlertCircle, Loader2, ListPlus, CircleCheckBig } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { useFrameSDK } from "~/hooks/useFrameSDK";
@@ -44,7 +44,7 @@ const Page = () => {
   >("enteringPrompt");
   const [creationError, setCreationError] = useState<string | null>(null);
   const [newProjectId, setNewProjectId] = useState<string | null>(null);
-  const wordCount = inputValue.trim().split(" ").length - 1 || 0;
+  const wordCount = inputValue ? inputValue.trim().split(" ").length : 0;
 
   const handleCreateProject = useCallback(async () => {
     try {
@@ -93,27 +93,51 @@ const Page = () => {
       <Card className="border-0 shadow-lg">
         <CardContent className="pt-6">
           <div className="space-y-6">
-            <div className="relative">
+            <div className="relative space-y-4">
               <div className="flex justify-between items-center mb-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Describe your frame
+                <label className="block text-xl font-medium text-gray-700 dark:text-gray-300">
+                  What can I help you build?
                 </label>
-                <span className="text-sm text-gray-500">
-                  {wordCount}/{MIN_WORD_COUNT}
-                </span>
               </div>
               <textarea
                 rows={5}
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 placeholder="Create a quiz game about crypto trends with 5 multiple choice questions"
-                className="w-full p-4 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+                className="w-full p-4 border rounded-xl dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
               />
-              <p className="text-sm text-gray-500 mt-2 text-left">
-                Describe your frame in at least {MIN_WORD_COUNT} words. The more
-                detail you provide, the better the frame will be. You can keep
-                chatting with the AI later to improve your frame.
-              </p>
+
+              <Button
+                size="lg"
+                className="w-full py-4 text-xl font-semibold"
+                onClick={handleCreateProject}
+                disabled={
+                  wordCount < MIN_WORD_COUNT ||
+                  flowState === "pending" ||
+                  createProject.isPending
+                }
+              >
+                {flowState === "pending" || createProject.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Building...
+                  </>
+                ) : (
+                  "Build"
+                )}
+              </Button>
+              {wordCount < MIN_WORD_COUNT && (
+                <div className="flex flex-col space-y-2">
+                  <span className="text-sm text-gray-500 text-left"></span>
+                  <p className="text-sm text-gray-500 text-left">
+                    {MIN_WORD_COUNT - wordCount} more{" "}
+                    {MIN_WORD_COUNT - wordCount > 1 ? "words" : "word 🤩"}.
+                    Describe your frame in at least {MIN_WORD_COUNT} words. The
+                    more detail you provide, the better Maschine will build it.
+                    You can chat with Maschine to keep changing your frame.
+                  </p>
+                </div>
+              )}
             </div>
 
             {creationError && (
@@ -121,33 +145,11 @@ const Page = () => {
                 Error: {creationError}
               </div>
             )}
-
-            <Button
-              size="lg"
-              className="w-full py-4 text-lg font-semibold"
-              onClick={handleCreateProject}
-              disabled={
-                wordCount < MIN_WORD_COUNT ||
-                flowState === "pending" ||
-                createProject.isPending
-              }
-            >
-              {flowState === "pending" || createProject.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {createProject.isPending
-                    ? "Creating Project..."
-                    : "Creating Project..."}
-                </>
-              ) : (
-                "Start Building →"
-              )}
-            </Button>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="mt-8 border-0 shadow-lg">
+      <Card className="mt-4 border-0 shadow-lg">
         <CardContent className="pt-6">
           <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-4 uppercase tracking-wide">
             Popular Starting Points
