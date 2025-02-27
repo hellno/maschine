@@ -96,6 +96,22 @@ function ProjectInfoCard({
 
   const lastUpdateTime = getLastUpdateTime();
 
+  const renderProjectStatus = () => {
+    if (!project.latestBuild) return null;
+
+    const status = project.latestBuild.status;
+    // ai! use status "submitted" | "building" | "success" | "error" | "queued";
+    const statusText = status === "success" ? "Success" : "Failed";
+    const statusColor = status === "success" ? "green" : "red";
+    return (
+      <div
+        className={`px-4 py-2 text-md font-medium rounded-full bg-${statusColor}-50 text-${statusColor}-700 dark:bg-${statusColor}-900/30 dark:text-${statusColor}-400`}
+      >
+        {statusText}
+      </div>
+    );
+  };
+
   return (
     <div className={styles.card}>
       <div className="p-5 space-y-5">
@@ -105,11 +121,7 @@ function ProjectInfoCard({
               <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 line-clamp-1">
                 {project.name}
               </div>
-              {project?.latestBuild?.status && (
-                <div className="px-4 py-2 text-md font-medium rounded-full bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                  Live
-                </div>
-              )}
+              {renderProjectStatus()}
             </div>
             <div className="mt-1 space-y-1">
               <p className="text-xs text-gray-500">
