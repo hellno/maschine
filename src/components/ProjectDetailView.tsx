@@ -100,9 +100,25 @@ function ProjectInfoCard({
     if (!project.latestBuild) return null;
 
     const status = project.latestBuild.status;
-    // ai! use status "submitted" | "building" | "success" | "error" | "queued";
-    const statusText = status === "success" ? "Success" : "Failed";
-    const statusColor = status === "success" ? "green" : "red";
+    let statusText = status.charAt(0).toUpperCase() + status.slice(1);
+    let statusColor = "gray";
+    
+    switch (status) {
+      case "submitted":
+      case "queued":
+        statusColor = "blue";
+        break;
+      case "building":
+        statusColor = "yellow";
+        break;
+      case "success":
+        statusColor = "green";
+        break;
+      case "error":
+        statusColor = "red";
+        break;
+    }
+
     return (
       <div
         className={`px-4 py-2 text-md font-medium rounded-full bg-${statusColor}-50 text-${statusColor}-700 dark:bg-${statusColor}-900/30 dark:text-${statusColor}-400`}
