@@ -109,7 +109,7 @@ const Page = () => {
 
               <Button
                 size="lg"
-                className="w-full py-4 text-xl font-semibold"
+                className="w-full py-4 text-lg font-semibold"
                 onClick={handleCreateProject}
                 disabled={
                   wordCount < MIN_WORD_COUNT ||

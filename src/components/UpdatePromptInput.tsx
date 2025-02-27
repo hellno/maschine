@@ -52,16 +52,9 @@ function UpdatePromptInput({
   const hasBuildErrors =
     latestJob?.status === "failed" || latestBuild?.status === "error";
 
-  const buildErrorLog = logs
-    .filter((log) => log.source === "vercel" && log.data)
-    .sort(
-      (a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-    )[0];
-
   return (
     <div className="space-y-4 max-w-full">
-      {(isSubmitting || hasAnyJobsPending) && (
+      {isSubmitting || hasAnyJobsPending ? (
         <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-lg text-sm text-amber-800 dark:text-amber-300">
           <div className="flex items-center gap-4">
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-500 dark:border-amber-400"></div>
@@ -71,7 +64,21 @@ function UpdatePromptInput({
             </span>
           </div>
         </div>
-      )}
+      ) : hasBuildErrors ? (
+        <div className="flex flex-col gap-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-lg text-sm text-amber-800 dark:text-amber-300">
+          <span>
+            Maschine has made an error in the last change. You can try to fix it
+            manually or let Maschine try to autofix it (beta).
+          </span>
+          <Button
+            onClick={onHandleTryAutofix}
+            disabled={hasAnyJobsPending}
+            className="w-full"
+          >
+            Try Autofix
+          </Button>
+        </div>
+      ) : null}
       {!hasAnyJobsPending && (
         <>
           <div className="relative">
@@ -110,48 +117,15 @@ function UpdatePromptInput({
             {isSubmitting ? (
               <>
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                <span>Processing your update...</span>
+                <span>Building...</span>
               </>
             ) : (
               <>
                 <span>Update Frame</span>
-                <ArrowUp className="w-5 h-5" />
               </>
             )}
           </Button>
         </>
-      )}
-      {hasBuildErrors && (
-        <div className="grid grid-cols-2 gap-4">
-          <Button
-            onClick={onHandleTryAutofix}
-            disabled={hasAnyJobsPending}
-            className="w-full"
-          >
-            Try Autofix
-          </Button>
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" className="w-full">
-                View Build Errors
-              </Button>
-            </SheetTrigger>
-            <SheetContent className="w-[400px] sm:w-[540px] lg:w-[680px] overflow-y-auto flex flex-col h-full">
-              <div className="flex-none">
-                <SheetHeader>
-                  <SheetTitle>Build Error Details</SheetTitle>
-                  <SheetDescription>
-                    {buildErrorLog &&
-                      new Date(buildErrorLog.created_at).toLocaleString()}
-                  </SheetDescription>
-                </SheetHeader>
-              </div>
-              {buildErrorLog?.data?.logs && (
-                <LogViewer logs={buildErrorLog.data.logs} />
-              )}
-            </SheetContent>
-          </Sheet>
-        </div>
       )}
     </div>
   );

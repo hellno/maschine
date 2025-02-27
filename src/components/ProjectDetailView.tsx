@@ -10,6 +10,7 @@ import {
   CircleXIcon,
   LoaderCircle,
   CheckCircle,
+  Code,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import sdk from "@farcaster/frame-sdk";
@@ -100,38 +101,64 @@ function ProjectInfoCard({
   const lastUpdateTime = getLastUpdateTime();
 
   const renderProjectStatus = () => {
-    if (!project.latestBuild) return null;
+    if (!project) return null;
+    if (!project.latestBuild && !project.latestJob) return null;
 
-    const status = project.latestBuild.status;
+    const latestBuildStarted = new Date(
+      project.latestBuild?.created_at || null,
+    );
+    const latestJobStarted = new Date(project.latestJob?.created_at || null);
+
+    if (!latestJobStarted && !latestBuildStarted) return null;
+
     let text = "pending";
     let statusColor = "gray";
+    let description = "";
     let icon = null;
 
-    switch (status) {
-      case "submitted":
-      case "queued":
-        statusColor = "blue";
-        break;
-      case "building":
-        text = "building";
-        statusColor = "yellow";
-        icon = <LoaderCircle className="w-4 h-4 animate-spin" />;
-        break;
-      case "success":
-        text = "live";
-        statusColor = "green";
-        icon = <CheckCircle className="w-4 h-4" />;
-        break;
-      case "error":
-        text = "error";
-        statusColor = "red";
-        icon = <CircleXIcon className="w-4 h-4" />;
-        break;
+    if (latestBuildStarted > latestJobStarted) {
+      const status = project?.latestBuild?.status;
+      switch (status) {
+        case "submitted":
+        case "queued":
+        case "building":
+          text = "building";
+          statusColor = "blue";
+          icon = <LoaderCircle className="w-4 h-4 animate-spin" />;
+          description = "Maschine is pushing your changes to the live website";
+          break;
+        case "success":
+          text = "ready";
+          statusColor = "green";
+          icon = <CheckCircle className="w-4 h-4" />;
+          break;
+        case "error":
+          text = "error";
+          statusColor = "red";
+          icon = <CircleXIcon className="w-4 h-4" />;
+          break;
+      }
+    } else {
+      const status = project?.latestJob?.status;
+      switch (status) {
+        case "pending":
+        case "running":
+        case "completed":
+          text = "building";
+          statusColor = "blue";
+          icon = <LoaderCircle className="w-4 h-4 animate-spin" />;
+          description = "Maschine is writing code for you";
+          break;
+        case "failed":
+          text = "error";
+          statusColor = "red";
+          icon = <CircleXIcon className="w-4 h-4" />;
+          break;
+      }
     }
-
     return (
       <div
-        className={`px-4 py-2 text-md font-medium rounded-full bg-${statusColor}-50 text-${statusColor}-700 dark:bg-${statusColor}-900/30 dark:text-${statusColor}-400`}
+        className={`flex items-center px-4 py-2 text-md font-medium rounded-full border border-${statusColor}-500 bg-${statusColor}-50 text-${statusColor}-600`}
       >
         {icon && <span className="mr-2">{icon}</span>}
         {text}
@@ -176,7 +203,7 @@ function ProjectInfoCard({
         </div>
 
         <div className="flex items-center gap-3">
-          {project?.latestBuild?.status === "success" ? (
+          {project?.latestBuild?.status === "success" && (
             <Button
               variant="default"
               onClick={handleShare}
@@ -185,7 +212,8 @@ function ProjectInfoCard({
               <Share className="w-4 h-4 mr-2" />
               Share
             </Button>
-          ) : (
+          )}
+          {/* {(
             <Button
               onClick={onHandleDeploy}
               className="flex-1 h-10"
@@ -195,12 +223,20 @@ function ProjectInfoCard({
               <ArrowsUpFromLine className="w-4 h-4 mr-2" />
               Deploy
             </Button>
-          )}
-          {project.frontend_url && (
+          )} */}
+          {project.frontend_url && project.latestBuild ? (
             <Link href={project.frontend_url} className="flex-1">
               <Button variant="outline" className="w-full h-10">
                 <ExternalLink className="w-4 h-4 mr-2" />
                 Open Frame
+              </Button>
+            </Link>
+          ) : (
+            //show github
+            <Link href={project.repo_url} className="flex-1">
+              <Button variant="outline" className="w-full h-10">
+                <Code className="w-4 h-4 mr-2" />
+                Open Github {repo_url}
               </Button>
             </Link>
           )}

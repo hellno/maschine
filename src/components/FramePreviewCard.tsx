@@ -27,17 +27,17 @@ const FramePreviewCard = ({ project }: FramePreviewCardProps) => {
   const renderPendingBuildInfo = () => {
     let text = "";
     let icon;
-    
+
     if (project.latestBuild?.status === "error") {
-      text = "Build failed - click refresh after fixes";
+      text = "Last change failed! Go to edit and try autofix or fix manually";
       icon = <CircleX className="h-4 w-4 text-red-500" />;
     } else if (
-      project.latestBuild?.status === "queued" || 
+      project.latestBuild?.status === "queued" ||
       project.latestBuild?.status === "building"
     ) {
       icon = <LoaderCircle className="h-4 w-4 animate-spin text-amber-500" />;
-      text = hasAnySuccessfulBuild 
-        ? "New version building..." 
+      text = hasAnySuccessfulBuild
+        ? "New version building..."
         : "Initial build in progress...";
     } else {
       return null;
@@ -50,7 +50,7 @@ const FramePreviewCard = ({ project }: FramePreviewCardProps) => {
           <div className="space-y-1">
             <p className="font-medium">{text}</p>
             {hasAnySuccessfulBuild && (
-              <p className="text-xs opacity-75">
+              <p className="opacity-80">
                 Preview shows previous successful build
               </p>
             )}
@@ -62,6 +62,8 @@ const FramePreviewCard = ({ project }: FramePreviewCardProps) => {
 
   return (
     <>
+      {renderPendingBuildInfo()}
+
       <Card className="overflow-hidden border">
         <div className="flex w-full items-center text-[14px] font-medium text-gray-500 h-10 border-alpha-200 border-b bg-muted gap-1 px-2">
           <div className="relative mx-1 flex-1">
@@ -101,7 +103,6 @@ const FramePreviewCard = ({ project }: FramePreviewCardProps) => {
 
         <CardContent className="p-0">
           <div className="w-full">
-            {renderPendingBuildInfo()}
             {project.frontend_url && hasAnySuccessfulBuild ? (
               <div className="w-full aspect-square relative overflow-hidden">
                 <iframe
