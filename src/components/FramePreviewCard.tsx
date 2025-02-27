@@ -24,28 +24,37 @@ const FramePreviewCard = ({ project }: FramePreviewCardProps) => {
     setRefreshKey((prev) => prev + 1);
   };
 
-  // ai! I want to inform the user if the latest build is pending (=queued, building)
-  // but we have hasAnySuccessfulBuild = true, which means we're showing a preview, but it might be outdated
   const renderPendingBuildInfo = () => {
     let text = "";
     let icon;
+    
     if (project.latestBuild?.status === "error") {
-      text = "Build failed";
-      icon = <CircleX className="h-4 w-4" />;
+      text = "Build failed - click refresh after fixes";
+      icon = <CircleX className="h-4 w-4 text-red-500" />;
     } else if (
-      project.latestBuild?.status === "queued" ||
+      project.latestBuild?.status === "queued" || 
       project.latestBuild?.status === "building"
     ) {
-      icon = <LoaderCircle className="h-4 w-4 animate-spin" />;
-      text = "Building";
+      icon = <LoaderCircle className="h-4 w-4 animate-spin text-amber-500" />;
+      text = hasAnySuccessfulBuild 
+        ? "New version building..." 
+        : "Initial build in progress...";
     } else {
       return null;
     }
+
     return (
-      <div className="p-4 border border-amber-200 dark:border-amber-800/50 rounded-lg text-sm">
-        <div className="flex items-center gap-4">
-          {icon ? icon : null}
-          <span>{text}</span>
+      <div className="p-4 border border-amber-200 bg-amber-50 dark:border-amber-800/50 dark:bg-amber-900/20 rounded-lg text-sm">
+        <div className="flex items-center gap-3">
+          {icon}
+          <div className="space-y-1">
+            <p className="font-medium">{text}</p>
+            {hasAnySuccessfulBuild && (
+              <p className="text-xs opacity-75">
+                Preview shows previous successful build
+              </p>
+            )}
+          </div>
         </div>
       </div>
     );
