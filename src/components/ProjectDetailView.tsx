@@ -7,6 +7,9 @@ import {
   ExternalLink,
   Copy,
   ArrowsUpFromLine,
+  CircleXIcon,
+  LoaderCircle,
+  CheckCircle,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import sdk from "@farcaster/frame-sdk";
@@ -96,6 +99,46 @@ function ProjectInfoCard({
 
   const lastUpdateTime = getLastUpdateTime();
 
+  const renderProjectStatus = () => {
+    if (!project.latestBuild) return null;
+
+    const status = project.latestBuild.status;
+    let text = "pending";
+    let statusColor = "gray";
+    let icon = null;
+
+    switch (status) {
+      case "submitted":
+      case "queued":
+        statusColor = "blue";
+        break;
+      case "building":
+        text = "building";
+        statusColor = "yellow";
+        icon = <LoaderCircle className="w-4 h-4 animate-spin" />;
+        break;
+      case "success":
+        text = "live";
+        statusColor = "green";
+        icon = <CheckCircle className="w-4 h-4" />;
+        break;
+      case "error":
+        text = "error";
+        statusColor = "red";
+        icon = <CircleXIcon className="w-4 h-4" />;
+        break;
+    }
+
+    return (
+      <div
+        className={`px-4 py-2 text-md font-medium rounded-full bg-${statusColor}-50 text-${statusColor}-700 dark:bg-${statusColor}-900/30 dark:text-${statusColor}-400`}
+      >
+        {icon && <span className="mr-2">{icon}</span>}
+        {text}
+      </div>
+    );
+  };
+
   return (
     <div className={styles.card}>
       <div className="p-5 space-y-5">
@@ -105,11 +148,7 @@ function ProjectInfoCard({
               <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 line-clamp-1">
                 {project.name}
               </div>
-              {project?.latestBuild?.status && (
-                <div className="px-4 py-2 text-md font-medium rounded-full bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                  Live
-                </div>
-              )}
+              {renderProjectStatus()}
             </div>
             <div className="mt-1 space-y-1">
               <p className="text-xs text-gray-500">
