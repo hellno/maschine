@@ -91,30 +91,26 @@ Create a stepped implementation plan where:
 {spec}
 """
 
+
 CREATE_TODO_LIST_PROMPT = """## Coding Task List
-Generate a prioritized task list focusing on rapid implementation.
+ Generate an executable task list focusing on immediate implementation steps.
 
-### Instructions
-Create a task list that:
-1. Starts with the template setup and customizing the template
-2. Prioritizes visible user-facing features
-3. Identifies dependencies clearly
+ ### Instructions
+ Create tasks that:
+ 1. Specify exact files to create/modify
+ 2. Include code snippets or function signatures needed
+ 3. List explicit API endpoints and their methods
+ 4. Order tasks by implementation sequence
+ 5. Contain verifiable completion criteria, but no specific tests needed
+ 6. Reference specific UI components to implement
 
-### Output Format
-#### Setup
-- [ ] Task 1: [Brief action description]
-
-#### Core Features
-- [ ] Task 2: [Brief action description]
-  - Depends on: [Previous task number]
-
-#### API Integration
-- [ ] Task 3: [Brief action description]
-  - Depends on: [Previous task number]
-
-#### UI/UX
-- [ ] Task 4: [Brief action description]
-  - Depends on: [Previous task number]
+ ### Output Format
+ #### Database
+ - [ ] Task 1: Create [description]
+   File: path/to/file.ext
+   Action: Create x/Add y/Change from z to y
+   Description: xyz
+ - [ ] Task 2: ...
 
 ### Implementation Plan
 {plan}
