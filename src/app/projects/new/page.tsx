@@ -2,7 +2,7 @@
 
 import { Card, CardContent } from "~/components/ui/card";
 
-import { ArrowUp, AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2, ListPlus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { useFrameSDK } from "~/hooks/useFrameSDK";
@@ -18,7 +18,7 @@ const promptTemplates = [
   {
     title: "Image Gallery",
     template:
-      "Create a frame that shows a gallery of images with next/previous navigation. Include 5 images or videos that I have shared recently.",
+      "Create a frame that shows a gallery of images with next and previous navigation. Include 5 images or videos that I have shared recently on Farcaster.",
   },
   {
     title: "Quiz Game",
@@ -28,9 +28,11 @@ const promptTemplates = [
   {
     title: "Event Countdown",
     template:
-      "Show a countdown timer for my event coming up at 5pm on Friday UTC.",
+      "Show a countdown timer for my event coming up at 5pm on Friday UTC. Make it look MySpace-y and 90s style. Include a countdown timer with a retro design.",
   },
 ];
+
+const MIN_WORD_COUNT = 25;
 
 const Page = () => {
   const router = useRouter();
@@ -41,13 +43,13 @@ const Page = () => {
     "enteringPrompt" | "pending" | "success"
   >("enteringPrompt");
   const [creationError, setCreationError] = useState<string | null>(null);
-
   const [newProjectId, setNewProjectId] = useState<string | null>(null);
+  const wordCount = inputValue.trim().split(" ").length - 1 || 0;
 
   const handleCreateProject = useCallback(async () => {
     try {
-      if (inputValue.trim().length < 25) {
-        throw new Error("Please enter at least 25 characters");
+      if (wordCount < MIN_WORD_COUNT) {
+        throw new Error(`Please enter at least ${MIN_WORD_COUNT} characters`);
       }
       if (!context?.user?.fid) {
         throw new Error("User session not found");
@@ -63,7 +65,6 @@ const Page = () => {
 
       const projectId = response.project_id;
       setNewProjectId(projectId);
-      //   setSelectedProjectId(projectId);
       setFlowState("success");
 
       requestAnimationFrame(() => {
@@ -75,7 +76,7 @@ const Page = () => {
     } catch (error) {
       console.error("Error creating project:", error);
       setCreationError(
-        error instanceof Error ? error.message : "An unknown error occurred"
+        error instanceof Error ? error.message : "An unknown error occurred",
       );
       setFlowState("enteringPrompt");
     }
@@ -98,7 +99,7 @@ const Page = () => {
                   Describe your frame
                 </label>
                 <span className="text-sm text-gray-500">
-                  {inputValue.length}/25
+                  {wordCount}/{MIN_WORD_COUNT}
                 </span>
               </div>
               <textarea
@@ -109,9 +110,9 @@ const Page = () => {
                 className="w-full p-4 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
               />
               <p className="text-sm text-gray-500 mt-2 text-left">
-                Describe your frame in at least 25 characters. The more detail
-                you provide, the better the frame will be. You can keep chatting
-                with the AI later to improve your frame.
+                Describe your frame in at least {MIN_WORD_COUNT} words. The more
+                detail you provide, the better the frame will be. You can keep
+                chatting with the AI later to improve your frame.
               </p>
             </div>
 
@@ -126,7 +127,7 @@ const Page = () => {
               className="w-full py-4 text-lg font-semibold"
               onClick={handleCreateProject}
               disabled={
-                inputValue.trim().length < 25 ||
+                wordCount < MIN_WORD_COUNT ||
                 flowState === "pending" ||
                 createProject.isPending
               }
@@ -146,31 +147,32 @@ const Page = () => {
         </CardContent>
       </Card>
 
-      <div className="mt-8">
-        <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-4 uppercase tracking-wide">
-          Popular Starting Points
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {promptTemplates.map((template) => (
-            <button
-              key={template.title}
-              onClick={() => setInputValue(template.template)}
-              className="group p-4 text-left rounded-xl border hover:border-blue-500 dark:border-gray-700 dark:hover:border-blue-600 transition-all bg-white dark:bg-gray-800 hover:shadow-sm"
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-gray-900 dark:text-gray-100">
-                  {template.title}
-                </span>
-                <ArrowUp className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-colors transform rotate-45" />
-              </div>
-              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
-                {template.template}
-              </p>
-            </button>
-          ))}
-        </div>
-      </div>
-
+      <Card className="mt-8 border-0 shadow-lg">
+        <CardContent className="pt-6">
+          <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-4 uppercase tracking-wide">
+            Popular Starting Points
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {promptTemplates.map((template) => (
+              <button
+                key={template.title}
+                onClick={() => setInputValue(template.template)}
+                className="group p-4 text-left rounded-xl border hover:border-blue-500 dark:border-gray-700 dark:hover:border-blue-600 transition-all bg-white dark:bg-gray-800 hover:shadow-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                    {template.title}
+                  </span>
+                  <ListPlus className="w-5 h-5 text-gray-400" />
+                </div>
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                  {template.template}
+                </p>
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
       {creationError && (
         <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 rounded-xl text-red-600 dark:text-red-400 flex items-center">
           <AlertCircle className="w-5 h-5 mr-2" />
