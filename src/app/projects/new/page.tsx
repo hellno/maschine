@@ -2,7 +2,7 @@
 
 import { Card, CardContent } from "~/components/ui/card";
 
-import { AlertCircle, Loader2, ListPlus, CircleCheckBig } from "lucide-react";
+import { AlertCircle, Loader2, ListPlus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { useFrameSDK } from "~/hooks/useFrameSDK";

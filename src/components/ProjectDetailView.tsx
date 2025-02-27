@@ -7,6 +7,9 @@ import {
   ExternalLink,
   Copy,
   ArrowsUpFromLine,
+  CircleXIcon,
+  LoaderCircle,
+  CheckCircle,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import sdk from "@farcaster/frame-sdk";
@@ -100,22 +103,29 @@ function ProjectInfoCard({
     if (!project.latestBuild) return null;
 
     const status = project.latestBuild.status;
-    let statusText = status.charAt(0).toUpperCase() + status.slice(1);
+    let text = "pending";
     let statusColor = "gray";
-    
+    let icon = null;
+
     switch (status) {
       case "submitted":
       case "queued":
         statusColor = "blue";
         break;
       case "building":
+        text = "building";
         statusColor = "yellow";
+        icon = <LoaderCircle className="w-4 h-4 animate-spin" />;
         break;
       case "success":
+        text = "live";
         statusColor = "green";
+        icon = <CheckCircle className="w-4 h-4" />;
         break;
       case "error":
+        text = "error";
         statusColor = "red";
+        icon = <CircleXIcon className="w-4 h-4" />;
         break;
     }
 
@@ -123,7 +133,8 @@ function ProjectInfoCard({
       <div
         className={`px-4 py-2 text-md font-medium rounded-full bg-${statusColor}-50 text-${statusColor}-700 dark:bg-${statusColor}-900/30 dark:text-${statusColor}-400`}
       >
-        {statusText}
+        {icon && <span className="mr-2">{icon}</span>}
+        {text}
       </div>
     );
   };
