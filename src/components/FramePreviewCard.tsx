@@ -1,6 +1,13 @@
 import { Card, CardContent } from "./ui/card";
 import { Project } from "~/lib/types";
-import { RefreshCw, ChevronLeft, ChevronRight, Monitor } from "lucide-react";
+import {
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+  Monitor,
+  LoaderCircle,
+  CircleX,
+} from "lucide-react";
 import { Button } from "./ui/button";
 import { useState } from "react";
 
@@ -10,9 +17,38 @@ interface FramePreviewCardProps {
 
 const FramePreviewCard = ({ project }: FramePreviewCardProps) => {
   const [refreshKey, setRefreshKey] = useState(0);
-
+  const hasAnySuccessfulBuild = project?.builds?.some(
+    (build) => build.status === "success",
+  );
   const handleRefresh = () => {
     setRefreshKey((prev) => prev + 1);
+  };
+
+  // ai! I want to inform the user if the latest build is pending (=queued, building)
+  // but we have hasAnySuccessfulBuild = true, which means we're showing a preview, but it might be outdated
+  const renderPendingBuildInfo = () => {
+    let text = "";
+    let icon;
+    if (project.latestBuild?.status === "error") {
+      text = "Build failed";
+      icon = <CircleX className="h-4 w-4" />;
+    } else if (
+      project.latestBuild?.status === "queued" ||
+      project.latestBuild?.status === "building"
+    ) {
+      icon = <LoaderCircle className="h-4 w-4 animate-spin" />;
+      text = "Building";
+    } else {
+      return null;
+    }
+    return (
+      <div className="p-4 border border-amber-200 dark:border-amber-800/50 rounded-lg text-sm">
+        <div className="flex items-center gap-4">
+          {icon ? icon : null}
+          <span>{text}</span>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -56,7 +92,8 @@ const FramePreviewCard = ({ project }: FramePreviewCardProps) => {
 
         <CardContent className="p-0">
           <div className="w-full">
-            {project.frontend_url ? (
+            {renderPendingBuildInfo()}
+            {project.frontend_url && hasAnySuccessfulBuild ? (
               <div className="w-full aspect-square relative overflow-hidden">
                 <iframe
                   key={refreshKey}
@@ -71,7 +108,7 @@ const FramePreviewCard = ({ project }: FramePreviewCardProps) => {
               <div className="w-full aspect-square bg-gray-100 flex flex-col items-center justify-center">
                 <Monitor className="h-12 w-12 text-gray-300 mb-4" />
                 <p className="text-gray-500 font-medium">
-                  No preview available
+                  No preview available, yet
                 </p>
               </div>
             )}
