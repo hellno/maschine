@@ -1,22 +1,12 @@
 "use client";
 
 import { Button } from "./ui/button";
-import { ArrowUp, Info } from "lucide-react";
-import { Log, Project, UserContext } from "~/lib/types";
+import { Info } from "lucide-react";
+import { Project, UserContext } from "~/lib/types";
 import { useEffect, useRef, useState } from "react";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "./ui/sheet";
-import LogViewer from "./LogViewer";
 
 interface UpdatePromptInputProps {
   project: Project;
-  logs: Log[];
   updatePrompt: string;
   setUpdatePrompt: (prompt: string) => void;
   isSubmitting: boolean;
@@ -27,7 +17,6 @@ interface UpdatePromptInputProps {
 
 function UpdatePromptInput({
   project,
-  logs,
   updatePrompt,
   setUpdatePrompt,
   isSubmitting,

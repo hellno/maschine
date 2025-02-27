@@ -80,13 +80,13 @@ const Page = () => {
       );
       setFlowState("enteringPrompt");
     }
-  }, [inputValue, context?.user, createProject]);
+  }, [inputValue, wordCount, context?.user, createProject]);
 
   useEffect(() => {
     if ((flowState === "pending" || flowState === "success") && newProjectId) {
       router.push(`/projects/${newProjectId}`);
     }
-  }, [flowState, newProjectId, router]);
+  }, [flowState, wordCount, newProjectId, router]);
 
   return (
     <div className="space-y-6">

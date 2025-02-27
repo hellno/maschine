@@ -6,11 +6,11 @@ import {
   Share,
   ExternalLink,
   Copy,
-  ArrowsUpFromLine,
   CircleXIcon,
   LoaderCircle,
   CheckCircle,
   Code,
+  EllipsisVertical,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import sdk from "@farcaster/frame-sdk";
@@ -29,6 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+import { Label } from "./ui/label";
 
 const styles = {
   card: "bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700",
@@ -57,11 +58,11 @@ interface ProjectDetailViewProps {
 
 function ProjectInfoCard({
   project,
-  onHandleDeploy,
+  // onHandleDeploy,
   isSubmitting,
 }: {
   project: Project;
-  onHandleDeploy: () => void;
+  // onHandleDeploy: () => void;
   isSubmitting: boolean;
 }) {
   const handleCopyUrl = async () => {
@@ -85,31 +86,16 @@ function ProjectInfoCard({
     }
   };
 
-  // Find the latest update timestamp from jobs
-  const getLastUpdateTime = () => {
-    const jobs = project.jobs || [];
-    if (jobs.length === 0) return null;
+  const getProjectStatus = () => {
+    if (!project) return {};
+    if (!project.latestBuild && !project.latestJob) return {};
 
-    const sortedJobs = [...jobs].sort(
-      (a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-    );
-
-    return new Date(sortedJobs[0].created_at);
-  };
-
-  const lastUpdateTime = getLastUpdateTime();
-
-  const renderProjectStatus = () => {
-    if (!project) return null;
-    if (!project.latestBuild && !project.latestJob) return null;
-
-    const latestBuildStarted = new Date(
-      project.latestBuild?.created_at || null,
-    );
-    const latestJobStarted = new Date(project.latestJob?.created_at || null);
-
-    if (!latestJobStarted && !latestBuildStarted) return null;
+    const latestBuildStarted = project.latestBuild?.created_at
+      ? new Date(project.latestBuild?.created_at)
+      : new Date();
+    const latestJobStarted = project.latestJob?.created_at
+      ? new Date(project.latestJob?.created_at)
+      : new Date();
 
     let text = "pending";
     let statusColor = "gray";
@@ -156,7 +142,7 @@ function ProjectInfoCard({
           break;
       }
     }
-    return (
+    const component = (
       <div
         className={`flex items-center px-4 py-2 text-md font-medium rounded-full border border-${statusColor}-500 bg-${statusColor}-50 text-${statusColor}-600`}
       >
@@ -164,18 +150,24 @@ function ProjectInfoCard({
         {text}
       </div>
     );
+
+    return {
+      component,
+      description,
+    };
   };
 
+  const { component, description } = getProjectStatus();
   return (
     <div className={styles.card}>
       <div className="p-5 space-y-5">
-        <div className="flex items-start">
+        <div className="w-full flex flex-col items-start">
           <div className="w-full">
             <div className="flex items-center justify-between w-full">
               <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 line-clamp-1">
                 {project.name}
               </div>
-              {renderProjectStatus()}
+              {component}
             </div>
             <div className="mt-1 space-y-1">
               <p className="text-xs text-gray-500">
@@ -186,20 +178,13 @@ function ProjectInfoCard({
                   year: "numeric",
                 })}
               </p>
-              {lastUpdateTime && (
-                <p className="text-xs text-gray-500">
-                  Last updated{" "}
-                  {lastUpdateTime.toLocaleString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </p>
-              )}
             </div>
           </div>
+          {description && (
+            <div className="w-full">
+              <Label>{description}</Label>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -232,11 +217,10 @@ function ProjectInfoCard({
               </Button>
             </Link>
           ) : (
-            //show github
             <Link href={project.repo_url} className="flex-1">
               <Button variant="outline" className="w-full h-10">
                 <Code className="w-4 h-4 mr-2" />
-                Open Github {repo_url}
+                Open Github
               </Button>
             </Link>
           )}
@@ -244,22 +228,7 @@ function ProjectInfoCard({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon" className="h-10 w-10">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="w-4 h-4"
-                >
-                  <circle cx="12" cy="12" r="1" />
-                  <circle cx="12" cy="5" r="1" />
-                  <circle cx="12" cy="19" r="1" />
-                </svg>
+                <EllipsisVertical className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
@@ -280,13 +249,15 @@ function ProjectInfoCard({
               <DropdownMenuSeparator />
               {project.repo_url && (
                 <DropdownMenuItem asChild>
-                  <Link
+                  <a
                     href={`https://${project.repo_url}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center"
                   >
                     <GitBranch className="w-4 h-4 mr-2" />
                     Show GitHub
-                  </Link>
+                  </a>
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>
@@ -388,29 +359,29 @@ function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
     }
   };
 
-  const onHandleDeploy = async () => {
-    if (!project) return;
-    setIsSubmitting(true);
+  // const onHandleDeploy = async () => {
+  //   if (!project) return;
+  //   setIsSubmitting(true);
 
-    try {
-      const response = await fetch("/api/deploy-project", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          projectId: project.id,
-          userContext: userContext,
-        }),
-      });
-      if (!response.ok) throw new Error("Deployment failed");
-      await fetchProject();
-    } catch (err) {
-      console.error("Deployment error:", err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  //   try {
+  //     const response = await fetch("/api/deploy-project", {
+  //       method: "POST",
+  //       headers: {
+  //         "Content-Type": "application/json",
+  //       },
+  //       body: JSON.stringify({
+  //         projectId: project.id,
+  //         userContext: userContext,
+  //       }),
+  //     });
+  //     if (!response.ok) throw new Error("Deployment failed");
+  //     await fetchProject();
+  //   } catch (err) {
+  //     console.error("Deployment error:", err);
+  //   } finally {
+  //     setIsSubmitting(false);
+  //   }
+  // };
 
   const onHandleTryAutofix = async () => {
     if (!project) return;
@@ -487,7 +458,7 @@ function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
     <div className="w-full mx-auto space-y-6 mb-6 px-4 max-w-[100vw-2rem] lg:max-w-4xl xl:max-w-5xl">
       <ProjectInfoCard
         project={project}
-        onHandleDeploy={onHandleDeploy}
+        // onHandleDeploy={onHandleDeploy}
         isSubmitting={isSubmitting}
       />
 
@@ -516,7 +487,6 @@ function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
         <TabsContent value="edit" className="space-y-4 mt-4">
           <UpdatePromptInput
             project={project}
-            logs={logs}
             updatePrompt={updatePrompt}
             setUpdatePrompt={setUpdatePrompt}
             isSubmitting={isSubmitting}
