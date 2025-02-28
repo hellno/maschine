@@ -21,12 +21,12 @@ DEFAULT_PROJECT_FILES = [
     "src/components/Frame.tsx",
     "src/lib/constants.ts",
     "src/app/opengraph-image.tsx",
+    "todo.md",
 ]
 
 READONLY_FILES = [
     # "plan.md",
     # "spec.md",
-    "todo.md",
 ]
 
 
@@ -89,6 +89,7 @@ class CodeService:
                     )
 
             self._sync_git_changes()
+            self._create_build_and_poll_status_async()
             self.db.update_job_status(self.job_id, "completed")
             return {"status": "success", "result": aider_result, "build_logs": logs}
 
@@ -126,6 +127,11 @@ class CodeService:
         with open(context_file, "w") as f:
             f.write(content)
 
+    def _read_file_from_sandbox(self, filename: str) -> str:
+        # ai! use sandbox.exec to read file from sandbox and return content as string
+        # https://modal.com/docs/reference/modal.Sandbox
+        pass
+
     def _setup(self):
         if self.is_setup:
             return
@@ -151,18 +157,8 @@ class CodeService:
                 print("[code_service] Committing changes to git")
                 self._create_commit("automatic changes")
 
-            # Get commit before pushing
-            commit_hash = self._get_latest_commit_sha()
-
             # Push changes
             repo.git.push("origin", "main")
-
-            # Create build record after successful push
-            build_id = self.db.create_build(
-                self.project_id, commit_hash, status="submitted"
-            )
-
-            self._start_build_polling(build_id, commit_hash)
         except git.GitCommandError as e:
             print(f"[code_service] sync git changes failed: {str(e)}")
 
@@ -201,10 +197,10 @@ class CodeService:
 
             print("[build] Running build command")
             build_process = self.sandbox.exec("pnpm", "build")
-            build_logs, build_code = self.parse_sandbox_process(build_process)
+            build_logs, build_returncode = self.parse_sandbox_process(build_process)
             logs.extend(build_logs)
 
-            has_error_in_logs = any(
+            has_error_in_logs = build_returncode == 1 or any(
                 "error" in line.lower()
                 or "failed" in line.lower()
                 or "exited with 1" in line.lower()
@@ -214,7 +210,7 @@ class CodeService:
             logs_cleaned = clean_log_lines(logs)
             logs_str = "\n".join(logs_cleaned)
             print(
-                f"sandbox results: has_error_in_logs {has_error_in_logs} returncode {build_code} logs_str {logs_str} "
+                f"sandbox results: has_error_in_logs {has_error_in_logs} build return_code {build_returncode} logs_str {logs_str} "
             )
             if terminate_after_build and not self.manual_sandbox_termination:
                 print("[code_service] Terminating sandbox after build")
@@ -364,6 +360,16 @@ class CodeService:
         repo = git.Repo(path=self.repo_dir)
         return repo.head.commit.hexsha
 
+    def _create_build_and_poll_status_async(self):
+            # Get commit before pushing
+            commit_hash = self._get_latest_commit_sha()
+
+            # Create build record after successful push
+            build_id = self.db.create_build(
+                self.project_id, commit_hash, status="submitted"
+            )
+            self._start_build_polling(build_id, commit_hash)
+
     def _start_build_polling(self, build_id: str, commit_hash: str):
         """Start asynchronous polling for build status"""
         try:
@@ -392,14 +398,18 @@ def get_error_fix_prompt_from_logs(logs: str) -> str:
 
 def clean_log_lines(logs: list[str]) -> list[str]:
     """Clean up log lines for display."""
-    urls_to_skip = ["nextjs.org/telemetry", "vercel.com/docs/analytics"]
-
+    phrases_to_skip = [
+        "nextjs.org/telemetry",
+        "vercel.com/docs/analytics",
+        "[Upstash Redis]",
+        "metadataBase property in metadata export"
+    ]
     return [
         line
         for line in logs
         if line
         and not line.startswith("warning")
-        and not any(url in line for url in urls_to_skip)
+        and not any(url in line for url in phrases_to_skip)
     ]
 
 
