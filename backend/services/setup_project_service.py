@@ -57,6 +57,12 @@ class SetupProjectService:
             IMPLEMENT_TODO_LIST_PROMPT, auto_enhance_context=False
         )
         print(f"implement todo list response: {result}")
+        # ai!
+        # create a simple for loop that runs 4 times
+        # it should stop if we reached end of loop or when no more todos are left
+        # in each loop we can find open todos by reading todo.md file from code_service sandbox and
+        # checking if any "- [ ]" characters appear in the markdown file
+        # the code_service will by itself update the todo.md file and mark files as done if it completes them
         result = code_service.run(
             RETRY_IMPLEMENT_TODO_LIST_PROMPT, auto_enhance_context=False
         )
