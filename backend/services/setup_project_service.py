@@ -1,3 +1,5 @@
+import re
+
 from backend.services.code_service import CodeService
 from backend.services.context_enhancer import CodeContextEnhancer
 from backend.services.prompts import (
@@ -8,7 +10,6 @@ from backend.services.prompts import (
     RETRY_IMPLEMENT_TODO_LIST_PROMPT,
 )
 from backend.types import UserContext
-
 from backend.integrations.github_api import GithubApi
 from backend.integrations.vercel_api import VercelApi
 from backend.integrations.db import Database
@@ -47,41 +48,36 @@ class SetupProjectService:
     def _apply_initial_customization(self):
         """Only apply user's initial prompt customization"""
         prompt = self.data["prompt"]
-        
+
         code_service = CodeService(self.project_id, self.job_id, self.user_context)
         self._add_brainstorm_docs_to_repo(code_service, prompt)
-        
+
         self._log("Starting initial code implementation")
         result = code_service.run(
             IMPLEMENT_TODO_LIST_PROMPT, auto_enhance_context=False
         )
-        
-        # Retry implementation up to 4 times if there are remaining todos
-        for attempt in range(4):
+
+        MAX_ATTEMPT_COUNT = 4
+        for attempt in range(MAX_ATTEMPT_COUNT):
             try:
-                # Check if any open todos remain
-                todo_content = code_service.sandbox.read_file("todo.md")
-                if "- [ ]" not in todo_content:
-                    self._log(f"No open todos found after attempt {attempt+1}")
+                todo_content = code_service._read_file_from_sandbox("todo.md")
+                open_todo_count = len(re.findall(r'- \[ \]', todo_content))
+                solved_todo_count = len(re.findall(r'- \[x\]', todo_content))
+                print(f'open todos: {open_todo_count}, solved todos: {solved_todo_count}')
+                if open_todo_count == 0 and solved_todo_count > 0:
+                    print(f"no open todos found after attempt {attempt+1} -> leaving the initial implementation")
                     break
-                    
-                self._log(f"Retrying implementation (attempt {attempt+1})")
+
+                print(f"retrying implementation (attempt {attempt+1})")
                 result = code_service.run(
-                    RETRY_IMPLEMENT_TODO_LIST_PROMPT, 
+                    RETRY_IMPLEMENT_TODO_LIST_PROMPT,
                     auto_enhance_context=False
                 )
-                
-                # Check if todos were updated
-                updated_todos = code_service.sandbox.read_file("todo.md")
-                if "- [ ]" not in updated_todos:
-                    self._log("All todos completed successfully")
-                    break
-                    
             except Exception as e:
                 self._log(f"Retry attempt {attempt+1} failed: {str(e)}", "warning")
                 continue
-                
-        self._log("Initial customization complete")
+
+        self._log("Maschine initial code writing complete")
         return result
 
     def _generate_project_name(self):

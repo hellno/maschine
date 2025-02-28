@@ -92,7 +92,7 @@ Create a stepped implementation plan where:
 """
 
 
-CREATE_TODO_LIST_PROMPT = """## Coding Task List
+CREATE_TODO_LIST_PROMPT = """## Make a Coding Task List
  Generate an executable task list focusing on immediate implementation steps based on the implementation plan.
 
  ### Instructions
@@ -115,8 +115,7 @@ CREATE_TODO_LIST_PROMPT = """## Coding Task List
 {plan}
 """
 
-IMPLEMENT_TODO_LIST_PROMPT = """## Implement Current Task
-Code the next highest priority task from the todo list.
+IMPLEMENT_TODO_LIST_PROMPT = """Code the next highest priority task from the todo list.
 
 ### Instructions
 1. Find the highest priority uncompleted task
@@ -126,7 +125,12 @@ Code the next highest priority task from the todo list.
 5. Update the todo list to reflect completed work
 """
 
-RETRY_IMPLEMENT_TODO_LIST_PROMPT = """## Fix Implementation Issues
+RETRY_IMPLEMENT_TODO_LIST_PROMPT = f"""{IMPLEMENT_TODO_LIST_PROMPT}
+
+If there are no todo items left, skip this step and move on without changing anything.
+"""
+
+FIX_PROBLEMS_PROMPT = """## Fix Implementation Issues
 Address specific problems with the current implementation and get it working.
 
 ### Instructions

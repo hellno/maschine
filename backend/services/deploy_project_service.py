@@ -92,6 +92,7 @@ class DeployProjectService:
     def _push_commit_to_show_deployment_is_done(self):
         self.code_service._create_commit(DEPLOYMENT_COMPLETE_COMMIT_MESSAGE)
         self.code_service._sync_git_changes()
+        self.code_service._create_build_and_poll_status_async()
 
     def _wait_for_vercel_build(self):
         """Wait for Vercel build to complete using service"""
