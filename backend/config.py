@@ -37,8 +37,8 @@ CODE_CONTEXT = {
 
 AIDER_CONFIG = {
     "MODEL": {
-        "model": "sonnet",
-        "editor_model": "sonnet",
+        "model": "r1",
+        "editor_model": "claude-3-5-sonnet-20241022",
     },
     "CODER": {"verbose": False, "cache_prompts": True},
 }
