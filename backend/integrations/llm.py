@@ -44,26 +44,25 @@ def send_prompt_to_reasoning_model(prompt: str) -> Tuple[str, str]:
         ],
     )
     content = response.choices[0].message.content.strip()
-    
-    # First check if we have proper think tags
+
     if "<think>" not in content or "</think>" not in content:
         return content, ""
 
     try:
-        # Split into think section and response
         parts = content.split("</think>", 1)  # Only split on first occurrence
         if len(parts) < 2:
             return content, ""
-            
+
         think_section = parts[0].split("<think>")[-1].strip()
         response_text = parts[1].strip()
-        
+
         # Fallback if response is empty but think exists
         if not response_text:
             return content.replace("<think>", "").replace("</think>", "").strip(), think_section
-            
+
+        print(f'reasoning response: think length {len(think_section)}, response length {len(response_text)}')
         return response_text, think_section
-        
+
     except Exception as e:
         print(f"Error parsing reasoning model response: {str(e)}")
         return content, ""
