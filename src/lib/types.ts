@@ -31,7 +31,12 @@ export interface Project {
 export interface Job {
   id: string;
   type: string;
-  status: "pending" | "completed" | "failed" | "running";
+  status:
+    | "pending"
+    | "completed"
+    | "failed"
+    | "running"
+    | "awaiting_deployment";
   created_at: string;
   data: any;
   logs?: Log[];

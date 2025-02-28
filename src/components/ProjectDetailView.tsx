@@ -102,11 +102,10 @@ function ProjectInfoCard({
     let description = "";
     let icon = null;
 
-    // when project setup then
-    const isLastJobDone =
+    const isLatestJobDone =
       latestJob?.status !== "running" &&
       latestJob?.status !== "awaiting_deployment";
-    if (latestBuildStarted > latestJobStarted) {
+    if (latestBuildStarted > latestJobStarted && isLatestJobDone) {
       const status = latestBuild?.status;
       switch (status) {
         case "submitted":
