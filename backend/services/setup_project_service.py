@@ -71,26 +71,31 @@ class SetupProjectService:
 
     def _add_brainstorm_docs_to_repo(self, code_service: CodeService, prompt: str):
         print("Adding brainstormed docs to repo")
-        context = CodeContextEnhancer().get_relevant_context(prompt)
+        try:
+            context = CodeContextEnhancer().get_relevant_context(prompt)
+            print("got context, now sending prompt to reasoning model")
+            create_spec = CREATE_SPEC_PROMPT.format(context=context, prompt=prompt)
+            spec_content, spec_reasoning = send_prompt_to_reasoning_model(create_spec)
+            print(f"Received spec content: {spec_content}\nReasoning: {spec_reasoning}")
+            code_service._add_file_to_repo_dir("spec.md", spec_content)
 
-        print("got context, now sending prompt to reasoning model")
-        create_spec = CREATE_SPEC_PROMPT.format(context=context, prompt=prompt)
-        spec_content, spec_reasoning = send_prompt_to_reasoning_model(create_spec)
-        print(f"Received spec content: {spec_content}\nReasoning: {spec_reasoning}")
-        code_service._add_file_to_repo_dir("spec.md", create_spec)
+            create_plan = CREATE_TASK_PLAN_PROMPT.format(spec=spec_content)
+            plan_content, plan_reasoning = send_prompt_to_reasoning_model(create_plan)
+            print(f"Received plan content: {plan_content}\nReasoning: {plan_reasoning}")
+            code_service._add_file_to_repo_dir("plan.md", plan_content)
 
-        create_plan = CREATE_TASK_PLAN_PROMPT.format(spec=spec_content)
-        plan_content, plan_reasoning = send_prompt_to_reasoning_model(create_plan)
-        print(f"Received plan content: {plan_content}\nReasoning: {plan_reasoning}")
-        code_service._add_file_to_repo_dir("plan.md", plan_content)
+            todo = CREATE_TODO_LIST_PROMPT.format(plan=plan_content)
+            todo_content, todo_reasoning = send_prompt_to_reasoning_model(todo)
+            print(f"Received todo content: {todo_content}\nReasoning: {todo_reasoning}")
+            code_service._add_file_to_repo_dir("todo.md", content=todo_content)
 
-        todo = CREATE_TODO_LIST_PROMPT.format(plan=plan_content)
-        todo_content, todo_reasoning = send_prompt_to_reasoning_model(todo)
-        print(f"Received todo content: {todo_content}\nReasoning: {todo_reasoning}")
-        code_service._add_file_to_repo_dir("todo.md", content=todo_content)
-
-        code_service._create_commit("Add spec, plan, and todo list")
-        code_service._sync_git_changes()
+            code_service._create_commit("Add spec, plan, and todo list")
+            code_service._sync_git_changes()
+        except Exception as e:
+            print(f"Error occurred while creating todo list: {e}")
+            code_service._create_commit("Add spec, plan, and todo list")
+            code_service._sync_git_changes()
+            raise e
 
     def _setup_github_repo(self):
         self._log("Creating GitHub repository")

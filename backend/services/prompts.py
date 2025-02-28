@@ -93,7 +93,7 @@ Create a stepped implementation plan where:
 
 
 CREATE_TODO_LIST_PROMPT = """## Coding Task List
- Generate an executable task list focusing on immediate implementation steps.
+ Generate an executable task list focusing on immediate implementation steps based on the implementation plan.
 
  ### Instructions
  Create tasks that:
@@ -105,7 +105,6 @@ CREATE_TODO_LIST_PROMPT = """## Coding Task List
  6. Reference specific UI components to implement
 
  ### Output Format
- #### Database
  - [ ] Task 1: Create [description]
    File: path/to/file.ext
    Action: Create x/Add y/Change from z to y
@@ -124,6 +123,7 @@ Code the next highest priority task from the todo list.
 2. Implement focused, working code (not perfect)
 3. Add brief comments on complex logic
 4. Verify the implementation meets the task requirement
+5. Update the todo list to reflect completed work
 """
 
 RETRY_IMPLEMENT_TODO_LIST_PROMPT = """## Fix Implementation Issues
