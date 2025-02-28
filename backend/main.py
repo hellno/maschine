@@ -2,6 +2,7 @@ import time
 from datetime import datetime
 
 from backend.integrations.openrank import get_openrank_score_for_fid
+from backend.integrations.vercel_api import VercelApi
 from backend.types import UserContext
 from backend.utils.sentry import setup_sentry
 import modal
@@ -359,4 +360,18 @@ def poll_build_status_webhook(project_id: str, build_id: str):
         datetime_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return {"status": "success", "message": "Started polling build status", "datetime": datetime_str}
     except Exception as e:
+        return {"status": "error", "message": str(e)}, 500
+
+@app.function(secrets=all_secrets)
+@modal.web_endpoint(method="GET", label="create-vercel-build-webhook")
+def create_vercel_build_webhook(project_id: str):
+    try:
+        print(f'creating vercel build webhook for project {project_id}')
+        db = Database()
+        project = db.get_project(project_id)
+        vercel_api = VercelApi(project_id)
+        result = vercel_api._trigger_deployment(project.get('name'), project.get('github_repo_id'))
+        return {"status": "success", "message": "Started creating vercel build", "result": result}
+    except Exception as e:
+        print(f"Error creating vercel build webhook: {e}")
         return {"status": "error", "message": str(e)}, 500

@@ -131,16 +131,16 @@ class CodeService:
         """Read file contents from sandbox using cat command"""
         if not self.sandbox:
             return ""
-        
+
         try:
             # Execute cat command to read file
             process = self.sandbox.exec("cat", filename)
             logs, exit_code = self.parse_sandbox_process(process)
-            
+
             if exit_code == 0:
                 return "\n".join(logs)
             return ""
-            
+
         except Exception as e:
             print(f"Error reading {filename} from sandbox: {str(e)}")
             return ""
@@ -186,6 +186,17 @@ class CodeService:
         logs, exit_code = self.parse_sandbox_process(process)
         return exit_code
 
+    def get_git_repo_status(self) -> Tuple[bool, bool]:
+        git_status = self.sandbox.exec("git", "status")
+        status_logs, _ = self.parse_sandbox_process(git_status)
+        print("[build] Current git status:", status_logs)
+        no_new_commits = 'Your branch is up to date'
+        no_pending_changes = 'nothing to commit'
+        has_new_commits = no_new_commits not in status_logs
+        has_pending_changes = no_pending_changes not in status_logs
+
+        return has_new_commits, has_pending_changes
+
     def _run_build_in_sandbox(
         self, terminate_after_build: bool = False
     ) -> Tuple[bool, str]:
@@ -194,10 +205,11 @@ class CodeService:
             self._create_sandbox(repo_dir=self.repo_dir)
 
             logs = []
-            git_status = self.sandbox.exec("git", "status")
-            status_logs, _ = self.parse_sandbox_process(git_status)
-            logs.extend(status_logs)
-            print("[build] Current git status:", status_logs)
+
+            has_new_commits, has_pending_changes = self.get_git_repo_status()
+            if not has_new_commits and not has_pending_changes:
+                print("[build] No new commits or pending changes. skipping to build again")
+                return False, "No new commits or pending changes"
 
             git_log = self.sandbox.exec("git", "log", "-1", "--oneline")
             log_lines, _ = self.parse_sandbox_process(git_log)
@@ -374,14 +386,16 @@ class CodeService:
         return repo.head.commit.hexsha
 
     def _create_build_and_poll_status_async(self):
-            # Get commit before pushing
-            commit_hash = self._get_latest_commit_sha()
+        has_new_commits, has_pending_changes = self.get_git_repo_status()
+        if not has_new_commits:
+            print("No new commits or pending changes found")
+            return
 
-            # Create build record after successful push
-            build_id = self.db.create_build(
-                self.project_id, commit_hash, status="submitted"
-            )
-            self._start_build_polling(build_id, commit_hash)
+        commit_hash = self._get_latest_commit_sha()
+        build_id = self.db.create_build(
+            self.project_id, commit_hash, status="submitted"
+        )
+        self._start_build_polling(build_id, commit_hash)
 
     def _start_build_polling(self, build_id: str, commit_hash: str):
         """Start asynchronous polling for build status"""

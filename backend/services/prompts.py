@@ -39,8 +39,8 @@ Determine if this can be built within Frame limitations.
 CREATE_SPEC_PROMPT = """
 ## Minimal Implementation Spec
 Create a focused spec addressing the core user need.
-We have an existing Farcaster miniapp (Frame v2) template to work with.
-We need to customize the template in form and function to meet the user requirements.
+We have an existing Farcaster miniapp (Frame v2) template based on Next.js using typescript.
+We need to customize this template in form and function to meet the user requirements.
 
 ### Output Format
 1. Core Functionality
@@ -137,15 +137,10 @@ Address specific problems with the current implementation and get it working.
 1. Focus on critical problems first - get something working
 2. Prioritize fixing:
    - Broken user flows
-   - Frame-specific rendering issues
+   - Rendering issues
    - API integration failures
    - State management problems
 3. Make minimal changes needed to fix the issue
-4. Update the todo list to reflect completed work
+4. Update the todo list to related todos if their status is changed
 
-### Frame-Specific Checks
-- Button actions working correctly
-- Images rendering properly
-- State passing between frames
-- Input validation for crypto values
 """

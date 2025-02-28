@@ -8,6 +8,7 @@ from backend.services.code_service import CodeService
 from backend.services.vercel_build_service import VercelBuildService
 from backend.utils.farcaster import generate_domain_association
 from backend.types import UserContext
+from backend.services.prompts import FIX_PROBLEMS_PROMPT
 
 DEPLOYMENT_COMPLETE_COMMIT_MESSAGE = "Deployment complete"
 
@@ -85,7 +86,7 @@ class DeployProjectService:
                 print("deploy project service: build success in attempt", attempt)
                 return
             self._run_code_update(
-                f"Fix build errors (attempt {attempt + 1} / {MAX_FIX_ATTEMPTS}):\n{logs}"
+                f'{FIX_PROBLEMS_PROMPT}: logs:\n{logs}'
             )
         raise Exception("Failed to resolve build errors after 3 attempts")
 
