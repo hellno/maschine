@@ -28,7 +28,7 @@ if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_POSTHOG_KEY) {
 
 const WagmiProvider = dynamic(
   () => import("~/components/providers/WagmiProvider"),
-  { ssr: false }
+  { ssr: false },
 );
 
 export function CSPostHogProvider({ children }: { children: React.ReactNode }) {

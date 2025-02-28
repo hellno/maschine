@@ -165,7 +165,7 @@ function ProjectInfoCard({
           <div className="w-full">
             <div className="flex items-center justify-between w-full">
               <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 line-clamp-1">
-                {project.name}
+                {project.name || "your frame..."}
               </div>
               {component}
             </div>
