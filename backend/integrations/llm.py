@@ -47,6 +47,12 @@ def send_prompt_to_reasoning_model(prompt: str) -> Tuple[str, str]:
     if "<think>" not in content and "</think>" not in content:
         return content, ""
 
+    # ai! make sure we return correct content and have fallback if error occurs
+    # recent error in prod: File "/root/backend/integrations/llm.py", line 51, in send_prompt_to_reasoning_model
+        # response = content.split("</think>")[1].strip()
+                   # ~~~~~~~~~~~~~~~~~~~~~~~~~^^^
+    # IndexError: list index out of range
+
     reasoning = content.split("</think>")[0].split("<think>")[1].strip()
     response = content.split("</think>")[1].strip()
     return response, reasoning
@@ -83,8 +89,8 @@ def generate_project_name(prompt: str) -> str:
 
 
 QUERY_GEN_STR = """\
-You are a technical query refinement assistant. 
-Transform the following user project description into up to {num_queries} concise, highly technical search queries — one per line — that will help retrieve relevant API documentation. 
+You are a technical query refinement assistant.
+Transform the following user project description into up to {num_queries} concise, highly technical search queries — one per line — that will help retrieve relevant API documentation.
 Your queries should:
 • Use precise, domain-specific terminology.
 • Don't hallucinate or generate false information.
