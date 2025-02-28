@@ -9,7 +9,6 @@ import {
   CircleXIcon,
   LoaderCircle,
   CheckCircle,
-  Code,
   EllipsisVertical,
 } from "lucide-react";
 import { Button } from "./ui/button";
@@ -217,12 +216,17 @@ function ProjectInfoCard({
               </Button>
             </Link>
           ) : (
-            <Link href={project.repo_url} className="flex-1">
+            <a
+              href={`https://${project.repo_url}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1"
+            >
               <Button variant="outline" className="w-full h-10">
-                <Code className="w-4 h-4 mr-2" />
+                <GitBranch className="w-4 h-4 mr-2" />
                 Open Github
               </Button>
-            </Link>
+            </a>
           )}
 
           <DropdownMenu>
