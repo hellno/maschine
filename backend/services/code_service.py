@@ -128,9 +128,22 @@ class CodeService:
             f.write(content)
 
     def _read_file_from_sandbox(self, filename: str) -> str:
-        # ai! use sandbox.exec to read file from sandbox and return content as string
-        # https://modal.com/docs/reference/modal.Sandbox
-        pass
+        """Read file contents from sandbox using cat command"""
+        if not self.sandbox:
+            return ""
+        
+        try:
+            # Execute cat command to read file
+            process = self.sandbox.exec("cat", filename)
+            logs, exit_code = self.parse_sandbox_process(process)
+            
+            if exit_code == 0:
+                return "\n".join(logs)
+            return ""
+            
+        except Exception as e:
+            print(f"Error reading {filename} from sandbox: {str(e)}")
+            return ""
 
     def _setup(self):
         if self.is_setup:
