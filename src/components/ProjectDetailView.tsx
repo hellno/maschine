@@ -89,11 +89,12 @@ function ProjectInfoCard({
     if (!project) return {};
     if (!project.latestBuild && !project.latestJob) return {};
 
-    const latestBuildStarted = project.latestBuild?.created_at
-      ? new Date(project.latestBuild?.created_at)
+    const { latestBuild, latestJob } = project;
+    const latestBuildStarted = latestBuild?.created_at
+      ? new Date(latestBuild?.created_at)
       : new Date();
-    const latestJobStarted = project.latestJob?.created_at
-      ? new Date(project.latestJob?.created_at)
+    const latestJobStarted = latestJob?.created_at
+      ? new Date(latestJob?.created_at)
       : new Date();
 
     let text = "pending";
@@ -101,8 +102,12 @@ function ProjectInfoCard({
     let description = "";
     let icon = null;
 
+    // when project setup then
+    const isLastJobDone =
+      latestJob?.status !== "running" &&
+      latestJob?.status !== "awaiting_deployment";
     if (latestBuildStarted > latestJobStarted) {
-      const status = project?.latestBuild?.status;
+      const status = latestBuild?.status;
       switch (status) {
         case "submitted":
         case "queued":
@@ -141,7 +146,7 @@ function ProjectInfoCard({
           break;
       }
     }
-    const component = (
+    const statusComponent = (
       <div
         className={`flex items-center px-4 py-2 text-md font-medium rounded-full border border-${statusColor}-500 bg-${statusColor}-50 text-${statusColor}-600`}
       >
@@ -151,12 +156,12 @@ function ProjectInfoCard({
     );
 
     return {
-      component,
+      statusComponent,
       description,
     };
   };
 
-  const { component, description } = getProjectStatus();
+  const { statusComponent, description } = getProjectStatus();
   return (
     <div className={styles.card}>
       <div className="p-5 space-y-5">
@@ -166,7 +171,7 @@ function ProjectInfoCard({
               <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 line-clamp-1">
                 {project.name || "your frame..."}
               </div>
-              {component}
+              {statusComponent}
             </div>
             <div className="mt-1 space-y-1">
               <p className="text-xs text-gray-500">
