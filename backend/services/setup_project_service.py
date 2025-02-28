@@ -47,27 +47,42 @@ class SetupProjectService:
     def _apply_initial_customization(self):
         """Only apply user's initial prompt customization"""
         prompt = self.data["prompt"]
-
+        
         code_service = CodeService(self.project_id, self.job_id, self.user_context)
         self._add_brainstorm_docs_to_repo(code_service, prompt)
-
-        self._log("Brainstormed and generated context, starting to write custom code")
-
+        
+        self._log("Starting initial code implementation")
         result = code_service.run(
             IMPLEMENT_TODO_LIST_PROMPT, auto_enhance_context=False
         )
-        print(f"implement todo list response: {result}")
-        # ai!
-        # create a simple for loop that runs 4 times
-        # it should stop if we reached end of loop or when no more todos are left
-        # in each loop we can find open todos by reading todo.md file from code_service sandbox and
-        # checking if any "- [ ]" characters appear in the markdown file
-        # the code_service will by itself update the todo.md file and mark files as done if it completes them
-        result = code_service.run(
-            RETRY_IMPLEMENT_TODO_LIST_PROMPT, auto_enhance_context=False
-        )
-        print(f"retry implement todo list response: {result}")
+        
+        # Retry implementation up to 4 times if there are remaining todos
+        for attempt in range(4):
+            try:
+                # Check if any open todos remain
+                todo_content = code_service.sandbox.read_file("todo.md")
+                if "- [ ]" not in todo_content:
+                    self._log(f"No open todos found after attempt {attempt+1}")
+                    break
+                    
+                self._log(f"Retrying implementation (attempt {attempt+1})")
+                result = code_service.run(
+                    RETRY_IMPLEMENT_TODO_LIST_PROMPT, 
+                    auto_enhance_context=False
+                )
+                
+                # Check if todos were updated
+                updated_todos = code_service.sandbox.read_file("todo.md")
+                if "- [ ]" not in updated_todos:
+                    self._log("All todos completed successfully")
+                    break
+                    
+            except Exception as e:
+                self._log(f"Retry attempt {attempt+1} failed: {str(e)}", "warning")
+                continue
+                
         self._log("Initial customization complete")
+        return result
 
     def _generate_project_name(self):
         project_name = generate_project_name(self.data["prompt"])
