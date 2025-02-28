@@ -44,18 +44,29 @@ def send_prompt_to_reasoning_model(prompt: str) -> Tuple[str, str]:
         ],
     )
     content = response.choices[0].message.content.strip()
-    if "<think>" not in content and "</think>" not in content:
+    
+    # First check if we have proper think tags
+    if "<think>" not in content or "</think>" not in content:
         return content, ""
 
-    # ai! make sure we return correct content and have fallback if error occurs
-    # recent error in prod: File "/root/backend/integrations/llm.py", line 51, in send_prompt_to_reasoning_model
-        # response = content.split("</think>")[1].strip()
-                   # ~~~~~~~~~~~~~~~~~~~~~~~~~^^^
-    # IndexError: list index out of range
-
-    reasoning = content.split("</think>")[0].split("<think>")[1].strip()
-    response = content.split("</think>")[1].strip()
-    return response, reasoning
+    try:
+        # Split into think section and response
+        parts = content.split("</think>", 1)  # Only split on first occurrence
+        if len(parts) < 2:
+            return content, ""
+            
+        think_section = parts[0].split("<think>")[-1].strip()
+        response_text = parts[1].strip()
+        
+        # Fallback if response is empty but think exists
+        if not response_text:
+            return content.replace("<think>", "").replace("</think>", "").strip(), think_section
+            
+        return response_text, think_section
+        
+    except Exception as e:
+        print(f"Error parsing reasoning model response: {str(e)}")
+        return content, ""
 
 
 def generate_project_name(prompt: str) -> str:
