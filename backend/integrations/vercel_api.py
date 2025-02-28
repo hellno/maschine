@@ -1,12 +1,8 @@
 import base64
 import os
-import re
-import time
 import requests
-import git
-from git import Repo
-from typing import Dict, List, Optional, Tuple
 from backend.integrations.db import Database
+from typing import Optional
 
 VERCEL_CONFIG = {
     "FRAMEWORK": "nextjs",
@@ -19,7 +15,7 @@ VERCEL_CONFIG = {
 class VercelApi:
     """Handles all Vercel-related operations with retries and error handling."""
 
-    def __init__(self, project_id: str, job_id: str):
+    def __init__(self, project_id: str, job_id: Optional[str] = None):
         self.project_id = project_id
         self.job_id = job_id
         self.vercel_team_id = os.environ["VERCEL_TEAM_ID"]
@@ -113,31 +109,43 @@ class VercelApi:
                         "target": ["production"],
                     },
                 ],
+                "projectSettings": {
+                    "framework": "nextjs",
+                    "installCommand": VERCEL_CONFIG["INSTALL_CMD"],
+                    "buildCommand": VERCEL_CONFIG["BUILD_CMD"],
+                    "outputDirectory": VERCEL_CONFIG["OUTPUT_DIR"],
+                }
             }
-
+            print(f'creating vercel project with project data {project_data}')
             response = requests.post(
-                f"https://api.vercel.com/v9/projects",
+                "https://api.vercel.com/v11/projects",
                 params={"teamId": self.vercel_team_id},
                 headers=self.headers,
                 json=project_data,
             )
 
             if not response.ok:
+                print(f"Failed to create project: {response.text}")
                 raise Exception(f"Failed to create project: {response.text}")
 
             vercel_project = response.json()
-            print("vercel_project response", vercel_project)
-            self.db.add_log(self.job_id, "vercel", f"created project {repo_full_name}")
+            print("create vercel project response", vercel_project)
+            if self.job_id:
+                self.db.add_log(self.job_id, "vercel", f"created project {repo_full_name}")
             return vercel_project
         except Exception as e:
-            self.db.add_log(self.job_id, "vercel", f"Error creating project: {str(e)}")
+            print(f'Error creating project: {str(e)}')
+            if self.job_id:
+                self.db.add_log(self.job_id, "vercel", f"Error creating project: {str(e)}")
             raise
 
     def _deploy_vercel_project(self, project_name: str, github_repo_id: str):
         try:
             self._trigger_deployment(project_name, github_repo_id)
         except Exception as e:
-            self.db.add_log(self.job_id, "vercel", f"Error deploying project: {str(e)}")
+            print(f'Error deploying project: {str(e)}')
+            if self.job_id:
+                self.db.add_log(self.job_id, "vercel", f"Error deploying project: {str(e)}")
             raise
 
     def _get_project(self, name: str) -> Optional[dict]:
@@ -180,35 +188,20 @@ class VercelApi:
                 ],
             }
             self._set_env_var(vercel_project_id, domain_env_var)
-            self.db.add_log(
+            if self.job_id:
+                self.db.add_log(
                 self.job_id, "vercel", f"Set custom domain: {custom_domain}"
             )
             self.db.update_project(
                 self.project_id, {"frontend_url": f"https://{custom_domain}"}
             )
         except Exception as e:
-            self.db.add_log(
+            print(f'Error setting custom domain: {str(e)}')
+            if self.job_id:
+                self.db.add_log(
                 self.job_id, "vercel", f"Error setting frontend URL: {str(e)}"
             )
             raise
-
-    # def _setup_custom_domain(self, project_name: str, vercel_project_id: str) -> None:
-    #     custom_domain = (
-    #         f"{project_name.lower().replace(' ', '-')}-frameception.vercel.app"
-    #     )
-    #     print(f"Setting custom domain: {custom_domain}")
-    #     response = requests.post(
-    #         f"https://api.vercel.com/v10/projects/{vercel_project_id}/domains",
-    #         params={"teamId": self.vercel_team_id},
-    #         headers=self.headers,
-    #         json={
-    #             "name": custom_domain,
-    #             "gitBranch": "main",
-    #         },
-    #     )
-    #     if not response.ok:
-    #         raise Exception(f"Failed to set custom domain: {response.text}")
-    #     return custom_domain
 
     def _set_env_var(self, project_name: str, env_var: dict) -> None:
         """Set a single environment variable with error handling."""
@@ -227,82 +220,51 @@ class VercelApi:
             else:
                 print(f"Set environment variable: {env_var['key']}")
         except Exception as e:
-            self.db.add_log(
-                self.job_id, "vercel", f"Error setting {env_var['key']}: {str(e)}"
-            )
+            print(f'Error setting environment variable: {env_var["key"]}: {str(e)}')
+            if self.job_id:
+                self.db.add_log(
+                    self.job_id, "vercel", f"Error setting {env_var['key']}: {str(e)}"
+                )
 
     def _trigger_deployment(
         self, project_name: str, github_repo_id: str
     ) -> Optional[dict]:
         try:
+            payload = {
+                "name": "test",
+                "target": "production",
+                "gitSource": {
+                    "type": "github",
+                    "ref": "main",
+                    "repoId": github_repo_id,
+                },
+            }
+            print(f'triggering a vercel deployment with payload: {payload}')
             response = requests.post(
                 "https://api.vercel.com/v13/deployments",
                 params={"teamId": self.vercel_team_id},
                 headers=self.headers,
-                json={
-                    "name": project_name,
-                    "target": "production",
-                    "gitSource": {
-                        "type": "github",
-                        "ref": "main",
-                        "repoId": github_repo_id,
-                    },
-                },
+                json=payload,
             )
 
             if response.ok:
                 deployment = response.json()
                 print(f"triggering a deployment worked: {deployment}")
-                self.db.add_log(
-                    self.job_id, "vercel", f"Triggered deployment: {deployment['id']}"
-                )
+                if self.job_id:
+                    self.db.add_log(
+                        self.job_id, "vercel", f"Triggered deployment: {deployment['id']}"
+                    )
                 return deployment
             else:
                 print(f"trigger deployment failed: {response.text}")
                 raise Exception(f"Failed to trigger deployment: {response.text}")
         except Exception as e:
-            self.db.add_log(
-                self.job_id, "vercel", f"Error triggering deployment: {str(e)}"
-            )
+            print(f'Error triggering deployment: {str(e)}')
+            if self.job_id:
+                self.db.add_log(
+                    self.job_id, "vercel", f"Error triggering deployment: {str(e)}"
+                )
             return None
-
-    # def _wait_for_deployment(self, deployment_id: str, timeout: int = 300) -> bool:
-    #     """Wait for deployment to complete."""
-    #     start_time = time.time()
-    #     print(f"start to wait for deployment with timeout {timeout}")
-    #     while time.time() - start_time < timeout:
-    #         try:
-    #             response = requests.get(
-    #                 f"https://api.vercel.com/v13/deployments/{deployment_id}",
-    #                 params={"teamId": self.vercel_team_id},
-    #                 headers=self.headers,
-    #             )
-
-    #             if response.ok:
-    #                 deployment_status = response.json()
-    #                 print("deployment_status", deployment_status)
-
-    #                 state = deployment_status.get("state")
-    #                 if state == "READY":
-    #                     self.db.add_log(
-    #                         self.job_id, "vercel", "Deployment completed successfully"
-    #                     )
-    #                     return True
-    #                 elif state in ["ERROR", "CANCELED"]:
-    #                     self.db.add_log(
-    #                         self.job_id,
-    #                         "vercel",
-    #                         f"Deployment failed with status: {state}",
-    #                     )
-    #                     return False
-    #             time.sleep(10)
-    #         except Exception as e:
-    #             self.db.add_log(
-    #                 self.job_id, "vercel", f"Error checking deployment status: {str(e)}"
-    #             )
-    #             return False
-
-    #     return False
 
 
 def generate_random_secret() -> str:
