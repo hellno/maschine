@@ -69,11 +69,15 @@ function ConversationCard({ project }: { project: Project }) {
 
   // Keep track of previous message count to determine if we should auto-scroll
   const prevItemCountRef = useRef(0);
-  
+
   // Scroll to bottom only when new messages are added
   useEffect(() => {
-    if (chatContainerRef.current && conversationItems.length > prevItemCountRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    if (
+      chatContainerRef.current &&
+      conversationItems.length > prevItemCountRef.current
+    ) {
+      chatContainerRef.current.scrollTop =
+        chatContainerRef.current.scrollHeight;
     }
     prevItemCountRef.current = conversationItems.length;
   }, [conversationItems]);
@@ -107,7 +111,7 @@ function ConversationCard({ project }: { project: Project }) {
         >
           {conversationItems.length > 0 ? (
             conversationItems.map((item) => (
-              <div key={item.id} className="flex items-start">
+              <div key={item.id} className="flex items-start max-w-xs">
                 {item.type === "system" && (
                   <div className="mr-2 mt-1">{getStatusIcon(item.status)}</div>
                 )}

@@ -160,17 +160,61 @@ function ProjectInfoCard({
     };
   };
 
+  const renderDropdownMenu = () => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="icon" className="h-10 w-10">
+          <EllipsisVertical className="w-4 h-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuItem
+          onClick={handleShare}
+          className="transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+        >
+          <Share className="w-4 h-4 mr-2" />
+          Share
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={handleCopyUrl}
+          className="transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+        >
+          <Copy className="w-4 h-4 mr-2" />
+          Copy URL
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {project.repo_url && (
+          <DropdownMenuItem asChild>
+            <a
+              href={`https://${project.repo_url}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center"
+            >
+              <GitBranch className="w-4 h-4 mr-2" />
+              Show GitHub
+            </a>
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   const { statusComponent, description } = getProjectStatus();
+
   return (
     <div className={styles.card}>
       <div className="p-5 space-y-5">
         <div className="w-full flex flex-col items-start">
           <div className="w-full">
-            <div className="flex items-center justify-between w-full">
-              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 line-clamp-1">
-                {project.name || "your frame..."}
+            <div className="flex items-center w-full space-x-2">
+              <div className="flex items-center justify-between w-full">
+                <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 line-clamp-1">
+                  {project.name || "your frame..."}
+                </div>
               </div>
               {statusComponent}
+              {renderDropdownMenu()}
             </div>
             <div className="mt-1 space-y-1">
               <p className="text-xs text-gray-500">
@@ -189,19 +233,19 @@ function ProjectInfoCard({
             </div>
           )}
         </div>
-
-        <div className="flex items-center gap-3">
-          {project?.latestBuild?.status === "success" && (
-            <Button
-              variant="default"
-              onClick={handleShare}
-              disabled={isSubmitting}
-            >
-              <Share className="w-4 h-4 mr-2" />
-              Share
-            </Button>
-          )}
-          {/* {(
+        {project.frontend_url && project.latestBuild && (
+          <div className="flex items-center gap-3">
+            {project?.latestBuild?.status === "success" && (
+              <Button
+                variant="default"
+                onClick={handleShare}
+                disabled={isSubmitting}
+              >
+                <Share className="w-4 h-4 mr-2" />
+                Share
+              </Button>
+            )}
+            {/* {(
             <Button
               onClick={onHandleDeploy}
               className="flex-1 h-10"
@@ -212,65 +256,14 @@ function ProjectInfoCard({
               Deploy
             </Button>
           )} */}
-          {project.frontend_url && project.latestBuild ? (
             <Link href={project.frontend_url} className="flex-1">
               <Button variant="outline" className="w-full h-10">
                 <ExternalLink className="w-4 h-4 mr-2" />
-                Open Frame
+                Open
               </Button>
             </Link>
-          ) : (
-            <a
-              href={`https://${project.repo_url}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-1"
-            >
-              <Button variant="outline" className="w-full h-10">
-                <GitBranch className="w-4 h-4 mr-2" />
-                Open Github
-              </Button>
-            </a>
-          )}
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="h-10 w-10">
-                <EllipsisVertical className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem
-                onClick={handleShare}
-                className="transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
-              >
-                <Share className="w-4 h-4 mr-2" />
-                Share
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={handleCopyUrl}
-                className="transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
-              >
-                <Copy className="w-4 h-4 mr-2" />
-                Copy URL
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {project.repo_url && (
-                <DropdownMenuItem asChild>
-                  <a
-                    href={`https://${project.repo_url}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center"
-                  >
-                    <GitBranch className="w-4 h-4 mr-2" />
-                    Show GitHub
-                  </a>
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
