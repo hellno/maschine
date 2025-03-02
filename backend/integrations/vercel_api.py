@@ -109,12 +109,6 @@ class VercelApi:
                         "target": ["production"],
                     },
                 ],
-                "projectSettings": {
-                    "framework": "nextjs",
-                    "installCommand": VERCEL_CONFIG["INSTALL_CMD"],
-                    "buildCommand": VERCEL_CONFIG["BUILD_CMD"],
-                    "outputDirectory": VERCEL_CONFIG["OUTPUT_DIR"],
-                }
             }
             print(f'creating vercel project with project data {project_data}')
             response = requests.post(

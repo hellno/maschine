@@ -130,6 +130,7 @@ class CodeService:
     def _read_file_from_sandbox(self, filename: str) -> str:
         """Read file contents from sandbox using cat command"""
         if not self.sandbox:
+            print(f'error reading file from sandbox {filename}, sandbox not initialized')
             return ""
 
         try:
@@ -181,12 +182,20 @@ class CodeService:
         repo.git.commit("-m", message, "--allow-empty")
 
     def _run_install_in_sandbox(self):
+        if not self.sandbox:
+            print('error running install in sandbox, sandbox not initialized')
+            return
+
         print("[code_service] Running install command")
         process = self.sandbox.exec("pnpm", "install")
         logs, exit_code = self.parse_sandbox_process(process)
         return exit_code
 
     def get_git_repo_status(self) -> Tuple[bool, bool]:
+        if not self.sandbox:
+            print('error getting git repo status, sandbox not initialized')
+            return False, False
+
         git_status = self.sandbox.exec("git", "status")
         status_logs, _ = self.parse_sandbox_process(git_status)
         print("[build] Current git status:", status_logs)
@@ -316,7 +325,7 @@ class CodeService:
             cpu=2,
             memory=1024,
             workdir="/repo",
-            timeout=config.TIMEOUTS["BUILD"],
+            # timeout=config.TIMEOUTS["BUILD"],
         )
         self.sandbox.set_tags({"project_id": self.project_id, "job_id": self.job_id})
         self._run_install_in_sandbox()

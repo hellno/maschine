@@ -51,7 +51,7 @@ class DeployProjectService:
             send_notification(
                 fid=self.user_context["fid"],
                 title=f"Your {self.project.get('name')} frame is ready!",
-                body="@maschine prepared your frame. You can share it now! 🚀",
+                body="@maschine deployed your frame 🚀",
             )
             parent_hash = self.project.get("data", {}).get("cast", {}).get("hash")
             url = self.project.get("frontend_url")

@@ -18,6 +18,7 @@ from backend.integrations.llm import (
     send_prompt_to_reasoning_model,
 )
 from backend.utils.strings import sanitize_project_name
+from backend.config import SETUP_COMPLETE_COMMIT_MESSAGE
 
 
 class SetupProjectService:
@@ -78,6 +79,9 @@ class SetupProjectService:
                 continue
 
         self._log("Maschine initial code writing complete")
+        self._submit_successful_project_creation_commit(code_service)
+        code_service.terminate_sandbox()
+
         return result
 
     def _generate_project_name(self):
@@ -137,6 +141,11 @@ class SetupProjectService:
             project_name=vercel_project_name, repo_full_name=self.repo_name
         )
         self._log("Vercel project setup complete")
+
+    def _submit_successful_project_creation_commit(self, code_service: CodeService):
+        code_service._create_commit(SETUP_COMPLETE_COMMIT_MESSAGE)
+        code_service._sync_git_changes()
+        code_service._create_build_and_poll_status_async()
 
     def _log(self, message: str, level: str = "info"):
         print(f"[{level.upper()}] ProjectService {message}")

@@ -4,6 +4,8 @@ import requests
 from datetime import datetime
 from typing import Optional, Dict, Literal
 from backend.integrations.db import Database
+from backend.config import SETUP_COMPLETE_COMMIT_MESSAGE
+from backend.integrations.farcaster_notifications import send_notification
 
 status_map = {
     "BUILDING": "building",
@@ -26,12 +28,12 @@ class VercelBuildService:
         self.max_polling_attempts = 60  # 5 minutes with 10s interval
         self.poll_interval = 15  # seconds
 
-    def _get_vercel_project_id(self) -> Optional[str]:
-        """Get Vercel project ID from database"""
+    def _get_project(self):
         if not hasattr(self, "_project"):
             self._project = self.db.get_project(self.project_id)
 
-        return self._project.get("vercel_project_id")
+        return self._project
+
 
     def get_vercel_build_by_commit_hash(self, commit_hash: str) -> Dict:
         """
@@ -46,7 +48,7 @@ class VercelBuildService:
         }
         """
         print(f'get_vercel_build_by_commit_hash: {commit_hash}')
-        vercel_project_id = self._get_vercel_project_id()
+        vercel_project_id = self._get_project().get("vercel_project_id")
         if not vercel_project_id:
             return {"error": "Project not configured with Vercel"}
 
@@ -117,7 +119,7 @@ class VercelBuildService:
         Uses vercel deployment id, not the DB 'builds' table id
         """
         print(f'get_vercel_build_by_vercel_build_id: {vercel_build_id}')
-        vercel_project_id = self._get_vercel_project_id()
+        vercel_project_id = self._get_project().get("vercel_project_id")
         headers = {"Authorization": f"Bearer {self.vercel_token}"}
         params = {
             "projectId": vercel_project_id,
@@ -216,6 +218,15 @@ class VercelBuildService:
                 if status in ['success', 'error']:
                     print(f'build {build_id} has status {initial_status} - no need to keep polling')
                     self.db.update_build(str(build_id), build)
+                    data = build.get('data', {})
+                    commit_message = data.get('meta', {}).get('githubCommitMessage', '')
+                    if commit_message is SETUP_COMPLETE_COMMIT_MESSAGE:
+                        project = self._get_project()
+                        send_notification(
+                            fid=project.get('fid_owner'),
+                            title=f"@maschine created your frame {project.get('name', '')}",
+                            body='your frame is ready'
+                        )
                     return build
 
             except Exception as e:

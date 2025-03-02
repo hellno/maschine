@@ -6,6 +6,9 @@ GITHUB = {
     "DEFAULT_DESCRIPTION": "A new Farcaster frameception project",
 }
 
+SETUP_COMPLETE_COMMIT_MESSAGE = "Setup complete"
+
+
 APP_NAME = "frameception"
 MODAL_UPDATE_CODE_FUNCTION_NAME = "update_code"
 MODAL_SETUP_PROJECT_FUNCTION_NAME = "setup_project"
