@@ -37,92 +37,119 @@ Determine if this can be built within Frame limitations.
 """
 
 CREATE_SPEC_PROMPT = """
-## Minimal Implementation Spec
-Create a focused spec addressing the core user need.
-We have an existing Farcaster miniapp (Frame v2) template based on Next.js using typescript.
-We need to customize this template in form and function to meet the user requirements.
+You are a technical expert designing a Farcaster Frame v2 application.
+We have an existing nextjs typescript template with common UI components.
+It has scaffolding to make the project a complete Frame v2 application (meta tags to indicate the webapp is a Frame v2).
+We need to fill in the content based on the user request.
+CRITICAL: Frames v2 provides full HTML/CSS/JS capabilities with no button limits.
 
-### Output Format
-1. Core Functionality
-   - Main user flow
-   - Required API endpoints
-   - Key data structures
+USER REQUEST: {prompt}
 
-2. Implementation Approach
-   - Frame structure (screens/actions)
-   - External API integration points
-   - State management approach
+TECHNICAL CONTEXT: {context}
 
-3. Technical Considerations
-   - API authentication needs
-   - Critical error scenarios
+Create a detailed specification document with these sections:
 
-### API Context
-{context}
+1. OVERVIEW
+   - Core functionality
+   - UX flow
 
-### User Prompt
-{prompt}
+2. TECHNICAL REQUIREMENTS
+    - Frontend components using HTML/CSS/JS (leverage the full canvas)
+    - API integrations (only use APIs mentioned in context)
+    - Client-side state management approach
+    - Mobile responsiveness strategy
+
+3. FRAMES v2 IMPLEMENTATION
+    - Interactive canvas elements
+    - Animation and transition effects
+    - User input handling (not limited to buttons)
+    - Notification integration (if applicable)
+    - Saving/sharing capabilities
+
+5. MOBILE CONSIDERATIONS
+    - Touch interaction patterns
+    - Responsive layout techniques
+    - Performance optimization
+
+4. CONSTRAINTS COMPLIANCE
+   - Confirm: No database requirements
+   - Confirm: No smart contract deployments
+
+FORMAT YOUR RESPONSE AS A DETAILED MARKDOWN DOCUMENT.
 """
 
 CREATE_TASK_PLAN_PROMPT = """
-## Implementation Tasks
-Break down the spec into ordered coding tasks.
+You are a technical expert designing a Farcaster Frame v2 application.
 
-### Instructions
-Create a stepped implementation plan where:
-1. Each step builds on previous work
-2. Core functionality comes first
-3. Tasks are small enough to implement in 30-45 mins
-4. Focus on making each step functional, not perfect
+Based on this specification:
 
-### Output Format
-### Step 1: [Action-focused title]
-```text
-- Build: [What to implement]
-- Outcome: [How to verify it works]
-```
-
-### Step 2: [Action-focused title]
-```text
-- Build: [What to implement]
-- Outcome: [How to verify it works]
-
-### Specification
 {spec}
+
+Create a development plan that:
+1. Breaks down implementation into logical phases
+2. Implements modern web interactions (not limited to basic buttons)
+3. Properly handles mobile touch interfaces
+4. Utilizes client-side storage when appropriate
+5. Constraints: No database or custom smart contracts to deploy
+
+For each development phase:
+ - Describe what will be built
+ - List technical components/APIs needed
+ - Identify potential challenges
+ - Consider mobile-specific behaviors
+
+FORMAT AS A MARKDOWN DOCUMENT with clear task phases and dependencies.
 """
 
 
-CREATE_TODO_LIST_PROMPT = """## Make a Coding Task List
- Generate an executable task list focusing on immediate implementation steps based on the implementation plan.
+CREATE_TODO_LIST_PROMPT = """
+You are a technical expert designing a Farcaster Frame v2 application.
 
- ### Instructions
- Create tasks that:
- 1. Specify exact files to create/modify
- 2. Include code snippets or function signatures needed
- 3. List explicit API endpoints and their methods
- 4. Order tasks by implementation sequence
- 5. Contain verifiable completion criteria, but no specific tests needed
- 6. Reference specific UI components to implement
+Based on this development plan:
 
- ### Output Format
- - [ ] Task 1: Create [description]
-   File: path/to/file.ext
-   Action: Create x/Add y/Change from z to y
-   Description: xyz
- - [ ] Task 2: ...
-
-### Implementation Plan
 {plan}
+
+Create an actionable todo list where:
+
+1. Each task is concrete and implementable
+2. Tasks are ordered by dependency (foundation first)
+3. Tasks leverage the full HTML/CSS/JS canvas of Frames v2
+4. Mobile responsiveness is explicitly addressed
+5. NO tasks require creating databases or deploying smart contracts
+6. Frames v2 capabilities are fully utilized
+7. Leveraging the existing nextjs typescript template with shadcn UI components
+
+Format each task as:
+- [ ] Task description with component affected
+
+Group tasks into these categories:
+- Frame Structure
+- UI Components & Interactions
+- API Integration
+- Client-Side State Management
+- User Experience & Animations
+- Mobile Optimization
+
+IMPORTANT: Do NOT impose Farcaster frames v1 limitations (like 4-button limits or image-only rendering).
 """
 
-IMPLEMENT_TODO_LIST_PROMPT = """Code the next highest priority task from the todo list.
+IMPLEMENT_TODO_LIST_PROMPT = """
+You are an expert Farcaster Frame v2 developer implementing a project based on your todo list.
+CRITICAL: Frames v2 offers full HTML/CSS/JS canvas capabilities with NO button limitations.
+
+Code the next highest priority task from the todo list.
 
 ### Instructions
 1. Find the highest priority uncompleted task
-2. Implement focused, working code (not perfect)
-3. Add brief comments on complex logic
-4. Verify the implementation meets the task requirement
-5. Update the todo list to reflect completed work
+2. Implement focused, working code (no unnecessary complexity or enterprise-level features)
+3. Build using modern web standards for the interactive canvas
+4. Optimize for touch interfaces on mobile
+3. Verify the implementation meets the task requirement
+4. Update the todo list to reflect completed work
+
+For each task you complete:
+- Create/modify the necessary files with proper HTML/CSS/TypeScript
+- Mark completed tasks with [x]
 """
 
 RETRY_IMPLEMENT_TODO_LIST_PROMPT = f"""{IMPLEMENT_TODO_LIST_PROMPT}
