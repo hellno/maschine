@@ -31,20 +31,31 @@ class SetupProjectService:
 
     def run(self):
         """Fast initial setup without final verification"""
-        self._log("Starting accelerated core setup")
-        self._validate_data()
-        self._generate_project_name()
-        self._setup_github_repo()
-        self._setup_vercel_project()
-        self._apply_initial_customization()
-        self.db.update_project(
-            self.project_id,
-            {
-                "status": "created",
-            },
-        )
-        self.db.update_job_status(self.job_id, "awaiting_deployment")
-        self._log("Core infrastructure ready for deployment")
+        try:
+            self._log("Starting core setup")
+            self._validate_data()
+            self._generate_project_name()
+            self._setup_github_repo()
+            self._setup_vercel_project()
+            self._apply_initial_customization()
+            self.db.update_project(
+                self.project_id,
+                {
+                    "status": "created",
+                },
+            )
+            self.db.update_job_status(self.job_id, "completed")
+            self._log("finished the project setup")
+        except Exception as e:
+            print(f"Failed to complete core setup. Error: {e}")
+            self.db.update_project(
+                self.project_id,
+                {
+                    "status": "failed",
+                },
+            )
+            self.db.update_job_status(self.job_id, "failed")
+            self._log("core setup failed")
 
     def _apply_initial_customization(self):
         """Only apply user's initial prompt customization"""
@@ -58,24 +69,24 @@ class SetupProjectService:
             IMPLEMENT_TODO_LIST_PROMPT, auto_enhance_context=False
         )
 
-        MAX_ATTEMPT_COUNT = 4
-        for attempt in range(MAX_ATTEMPT_COUNT):
+        MAX_ITERATAIONS = 10
+        for iteration in range(MAX_ITERATAIONS):
             try:
                 todo_content = code_service._read_file_from_sandbox("todo.md")
                 open_todo_count = len(re.findall(r'- \[ \]', todo_content))
                 solved_todo_count = len(re.findall(r'- \[x\]', todo_content))
                 print(f'open todos: {open_todo_count}, solved todos: {solved_todo_count}')
                 if open_todo_count == 0 and solved_todo_count > 0:
-                    print(f"no open todos found after attempt {attempt+1} -> leaving the initial implementation")
+                    print(f"no open todos found after iteration {iteration+1} -> leaving the initial implementation")
                     break
 
-                print(f"retrying implementation (attempt {attempt+1})")
+                print(f"retrying implementation (iteration {iteration+1})")
                 result = code_service.run(
                     RETRY_IMPLEMENT_TODO_LIST_PROMPT,
                     auto_enhance_context=False
                 )
             except Exception as e:
-                self._log(f"Retry attempt {attempt+1} failed: {str(e)}", "warning")
+                self._log(f"Retry iteration {iteration+1} failed: {str(e)}", "warning")
                 continue
 
         self._log("Maschine initial code writing complete")

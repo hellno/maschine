@@ -6,12 +6,10 @@ from datetime import datetime
 
 class Database:
     def __init__(self):
-        # conflict with import in local project because of supabase/ dir
         from supabase import create_client
 
         url = os.environ.get("SUPABASE_URL")
         key = os.environ.get("SUPABASE_API_KEY")
-
         if not url or not key:
             raise RuntimeError(
                 "Supabase credentials not configured. "

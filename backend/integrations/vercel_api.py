@@ -110,7 +110,10 @@ class VercelApi:
                     },
                 ],
             }
-            print(f'creating vercel project with project data {project_data}')
+            print(f'creating vercel project with project data {
+                dict((k, v) for k, v in project_data.items()
+                    if k != 'environmentVariables')
+            }')
             response = requests.post(
                 "https://api.vercel.com/v11/projects",
                 params={"teamId": self.vercel_team_id},
@@ -232,6 +235,12 @@ class VercelApi:
                     "ref": "main",
                     "repoId": github_repo_id,
                 },
+                "projectSettings": {
+                    "framework": "nextjs",
+                    "installCommand": VERCEL_CONFIG["INSTALL_CMD"],
+                    "buildCommand": VERCEL_CONFIG["BUILD_CMD"],
+                    "outputDirectory": VERCEL_CONFIG["OUTPUT_DIR"],
+                }
             }
             print(f'triggering a vercel deployment with payload: {payload}')
             response = requests.post(

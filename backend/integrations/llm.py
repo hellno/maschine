@@ -1,5 +1,5 @@
 import os
-from typing import Tuple
+from typing import Tuple, Optional
 from openai import OpenAI
 from backend.utils.timing import measure_time
 
@@ -34,14 +34,18 @@ def get_together_ai_client() -> OpenAI:
 
 
 @measure_time
-def send_prompt_to_reasoning_model(prompt: str) -> Tuple[str, str]:
-    client = get_together_ai_client()
+def send_prompt_to_reasoning_model(prompt: str, system_prompt: Optional[str] = None) -> Tuple[str, str]:
+    # client = get_together_ai_client()
+    client = get_deepseek_client()
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": prompt})
+
     response = client.chat.completions.create(
-        model="deepseek-ai/DeepSeek-R1",
-        temperature=0.6,
-        messages=[
-            {"role": "user", "content": prompt},
-        ],
+        model="deepseek-reasoner",
+        temperature=0.2,
+        messages=messages,
     )
     content = response.choices[0].message.content.strip()
 
@@ -78,21 +82,21 @@ def generate_project_name(prompt: str) -> str:
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a helpful assistant that generates short, memorable project names for a Farcaster Frame project. Only respond with one project name. 2-3 words max for this one name. no 'or' or &*/ chars.",
+                    "content": "You are a helpful assistant that generates short, memorable project names for a crypto miniapp. Only respond with one project name. 2-3 words max for this one name. no 'or' or &*/ chars. If the user suggests a title or project name, return it without modification.",
                 },
                 {
                     "role": "user",
                     "content": f"Generate one short, memorable project name based on this description: {prompt}",
                 },
             ],
-            max_tokens=50,
-            temperature=2,
+            max_tokens=25,
+            temperature=1.5,
         )
         llm_content = response.choices[0].message.content.strip()
         print(f'generate_project_name: response "{llm_content}"')
         project_name = llm_content.split("\n")[0].replace('"', "").strip()
         print(f'generate_project_name: project_name "{project_name}"')
-        return project_name[:50]  # Limit length
+        return project_name[:50]  # hard cut length
     except Exception as e:
         print(f"Warning: Could not generate project name: {e}")
         return "new-frame-project"
@@ -100,40 +104,52 @@ def generate_project_name(prompt: str) -> str:
 
 QUERY_GEN_STR = """\
 You are a technical query refinement assistant.
-Transform the following user project description into up to {num_queries} concise, highly technical search queries — one per line — that will help retrieve relevant API documentation.
+You are analyzing a request to build a Farcaster Frames v2 application.
+You generate technical search queries — one per line — that will help retrieve relevant documentation.
+If no technical details are present, do not generate any queries.
+
+IMPORTANT: Frames v2 offers a full HTML/CSS/JS canvas.
+
 Your queries should:
 • Use precise, domain-specific terminology.
 • Don't hallucinate or generate false information.
 • be clear and concise for humans, no API calls or code snippets.
 
-If no clear API-related details are present, do not generate any queries.
+First, identify which technical components this request requires:
+1. External API integrations
+2. Farcaster-specific features (notifications, native actions)
+3. Blockchain interactions with smart contracts
+
+Second, generate queries for each of them. Return a list of queries, one per line.
 """
 
 
 @measure_time
 def generate_search_queries_from_user_input(
-    user_input: str, num_queries: int = 2
+    user_input: str
 ) -> list[str]:
     """Generate expanded technical queries for documentation search."""
-    print(f"Generating queries from prompt: {user_input}")
+    print(f"Generating queries from user input: {user_input}")
 
     try:
-        client = get_openai_client()
-        system_prompt = QUERY_GEN_STR.format(num_queries=num_queries)
+        prompt = f"Original user input: {user_input} Generate technical search queries — one per line — that will help retrieve relevant documentation. Refined search queries:"
+        llm_content, _ = send_prompt_to_reasoning_model(prompt, system_prompt=QUERY_GEN_STR)
+        # client = get_deepseek_client()
 
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {
-                    "role": "user",
-                    "content": f"Original user input: {user_input} Refined search queries:",
-                },
-            ],
-        )
+        # response = client.chat.completions.create(
+        #     model="deepseek-ai/DeepSeek-R1",
+        #     messages=[
+        #         {"role": "system", "content": QUERY_GEN_STR},
+        #         {
+        #             "role": "user",
+        #             "content": f"Original user input: {user_input} Generate technical search queries — one per line — that will help retrieve relevant documentation. Refined search queries:",
+        #         },
+        #     ],
+        #     temperature=0.0,
+        # )
 
-        llm_content = response.choices[0].message.content.strip()
-        print("Raw model response:", llm_content)
+        # llm_content = response.choices[0].message.content.strip()
+        print("Model response for search queries prompt:", llm_content)
         llm_content = llm_content.replace("`", "").strip()
         queries = [q.lstrip("-").strip() for q in llm_content.split("\n") if q]
         queries = [q for q in queries if q]
@@ -141,5 +157,5 @@ def generate_search_queries_from_user_input(
         return queries
 
     except Exception as e:
-        print(f"Query generation failed: {e}")
+        print(f"Failed to generate search queries from user input. Error: {e}")
         return []

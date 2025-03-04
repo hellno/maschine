@@ -353,7 +353,7 @@ def poll_build_status(project_id: str, build_id: Optional[str] = None, commit_ha
         return {"status": "error", "message": str(e)}
 
 @app.function()
-@modal.web_endpoint(method="GET", label="poll-build-status-webhook")
+@modal.web_endpoint(method="GET", label="poll-build-status-webhook", docs=True)
 def poll_build_status_webhook(project_id: str, build_id: str):
     """Endpoint to poll build status"""
     try:
@@ -364,7 +364,7 @@ def poll_build_status_webhook(project_id: str, build_id: str):
         return {"status": "error", "message": str(e)}, 500
 
 @app.function(secrets=all_secrets)
-@modal.web_endpoint(method="GET", label="create-vercel-build-webhook")
+@modal.web_endpoint(method="GET", label="create-vercel-build-webhook", docs=True)
 def create_vercel_build_webhook(project_id: str):
     try:
         print(f'creating vercel build webhook for project {project_id}')
@@ -376,3 +376,148 @@ def create_vercel_build_webhook(project_id: str):
     except Exception as e:
         print(f"Error creating vercel build webhook: {e}")
         return {"status": "error", "message": str(e)}, 500
+
+
+@app.function(secrets=all_secrets)
+@modal.web_endpoint(method="POST", label="debug-prompt-to-project")
+def debug_prompt_to_project(data: dict):
+    prompt = data.get('prompt')
+    if not prompt:
+        return {"status": "error", "message": "prompt is required"}, 400
+
+    from backend.services.context_enhancer import CodeContextEnhancer
+    from backend.services.prompts import CREATE_SPEC_PROMPT, CREATE_TASK_PLAN_PROMPT, CREATE_TODO_LIST_PROMPT
+    from backend.integrations.llm import send_prompt_to_reasoning_model
+
+    context = CodeContextEnhancer().get_relevant_context(prompt)
+    print("got context, now sending prompt to reasoning model")
+    create_spec = CREATE_SPEC_PROMPT.format(context=context, prompt=prompt)
+    spec_content, spec_reasoning = send_prompt_to_reasoning_model(create_spec)
+    print(f"Received spec content: {spec_content}\nReasoning: {spec_reasoning}")
+
+    create_plan = CREATE_TASK_PLAN_PROMPT.format(spec=spec_content)
+    plan_content, plan_reasoning = send_prompt_to_reasoning_model(create_plan)
+    print(f"Received plan content: {plan_content}\nReasoning: {plan_reasoning}")
+
+    todo = CREATE_TODO_LIST_PROMPT.format(plan=plan_content)
+    todo_content, todo_reasoning = send_prompt_to_reasoning_model(todo)
+    print(f"Received todo content: {todo_content}\nReasoning: {todo_reasoning}")
+
+    print("All prompts completed successfully")
+    results = {
+        "context": context,
+        "spec": spec_content,
+        "plan": plan_content,
+        "todo": todo_content
+    }
+    return {"status": "success", "results": results}, 200
+
+# @app.function(secrets=all_secrets)
+# @modal.web_endpoint(method="POST", label="fix-project-setup")
+# def fix_project_setup(data: dict):
+#     project_id = data.get('project_id')
+#     if not project_id:
+#         return {"status": "error", "message": "project_id is required"}, 400
+
+#     import json
+#     from typing import Optional, Dict
+#     from backend.services.setup_project_service import SetupProjectService
+#     from backend.integrations.db import Database
+
+#     def find_setup_job(db: Database, project_id: str) -> tuple[Optional[str], Optional[Dict]]:
+#         """
+#         Find the setup_project job for the specified project.
+
+#         Args:
+#             db: Database instance
+#             project_id: The project ID to lookup
+
+#         Returns:
+#             Tuple of (job_id, job_data) or (None, None) if not found
+#         """
+#         try:
+#             # Query for the setup_project job using Supabase client
+#             result = db.client.from_("jobs") \
+#                 .select("*") \
+#                 .eq("project_id", project_id) \
+#                 .eq("type", "setup_project") \
+#                 .limit(1) \
+#                 .execute()
+
+#             if result.data and len(result.data) > 0:
+#                 job = result.data[0]
+#                 job_id = job["id"]
+#                 job_data = job.get("data", {})
+
+#                 # Parse job_data if it's a string
+#                 if isinstance(job_data, str):
+#                     try:
+#                         job_data = json.loads(job_data)
+#                     except json.JSONDecodeError:
+#                         job_data = {}
+
+#                 return job_id, job_data
+
+#             return None, None
+#         except Exception as e:
+#             print(f"Error querying for setup job: {str(e)}")
+#             return None, None
+
+#     def fix_setup_project(project_id: str) -> bool:
+#         """
+#         Fix a setup project job by applying initial customization and updating DB states.
+
+#         Args:
+#             project_id: The ID of the project to fix
+
+#         Returns:
+#             True if successful, False otherwise
+#         """
+#         try:
+#             # Initialize database connection
+#             db = Database()
+
+#             print(f"Starting fix for project {project_id}")
+
+#             # Find the setup_project job for this project
+#             job_id, job_data = find_setup_job(db, project_id)
+
+#             if not job_id or not job_data:
+#                 print(f"Error: No setup_project job found for project {project_id}")
+#                 return False
+
+#             print(f"Found setup job {job_id} for project {project_id} with data {job_data}")
+
+#             # Initialize the SetupProjectService
+#             setup_service = SetupProjectService(
+#                 project_id=project_id,
+#                 job_id=job_id,
+#                 data=job_data
+#             )
+
+#             # Apply initial customization
+#             print("Applying initial customization...")
+#             setup_service._apply_initial_customization()
+
+#             # Update project status
+#             print("Updating project status to 'created'...")
+#             db.update_project(
+#                 project_id,
+#                 {
+#                     "status": "created",
+#                 },
+#             )
+
+#             # Update job status
+#             print("Updating job status to 'completed'...")
+#             db.update_job_status(job_id, "completed")
+
+#             print(f"Successfully fixed setup for project {project_id}")
+#             return True
+
+#         except Exception as e:
+#             error_msg = f"Error during fix process: {str(e)}"
+#             print(error_msg)
+#             return False
+
+#     fix_setup_project(project_id)
