@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "./ui/button";
-import { Info } from "lucide-react";
+import { Info, LoaderCircle } from "lucide-react";
 import { Project, UserContext } from "~/lib/types";
 import { useEffect, useRef, useState } from "react";
 
@@ -46,7 +46,7 @@ function UpdatePromptInput({
       {isSubmitting || hasAnyJobsPending ? (
         <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-lg text-sm text-amber-800 dark:text-amber-300">
           <div className="flex items-center gap-4">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-500 dark:border-amber-400"></div>
+            <LoaderCircle className="w-4 h-4 animate-spin  border-amber-500 dark:border-amber-400" />
             <span>
               Maschine is working on your project. We will notify you when
               it&apos;s done. Thanks for building with Maschine!

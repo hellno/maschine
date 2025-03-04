@@ -15,7 +15,7 @@ export interface TemplateCustomizationResponse {
 export interface Project {
   id: string;
   name: string;
-  status: string;
+  status: "created" | "pending" | "deploy_failed" | "error" | "deployed";
   created_at: string;
   repo_url: string;
   frontend_url: string;
@@ -31,12 +31,7 @@ export interface Project {
 export interface Job {
   id: string;
   type: string;
-  status:
-    | "pending"
-    | "completed"
-    | "failed"
-    | "running"
-    | "awaiting_deployment";
+  status: "pending" | "completed" | "failed" | "running";
   created_at: string;
   data: any;
   logs?: Log[];

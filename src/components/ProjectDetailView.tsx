@@ -100,11 +100,10 @@ function ProjectInfoCard({
     let text = "pending";
     let statusColor = "gray";
     let description = "";
-    let icon = null;
+    let icon = <LoaderCircle className="w-4 h-4 animate-spin" />;
 
     const isLatestJobDone =
-      latestJob?.status !== "running" &&
-      latestJob?.status !== "awaiting_deployment";
+      latestJob?.status !== "running" && latestJob?.status !== "failed";
     if (latestBuildStarted > latestJobStarted && isLatestJobDone) {
       const status = latestBuild?.status;
       switch (status) {
@@ -147,7 +146,7 @@ function ProjectInfoCard({
     }
     const statusComponent = (
       <div
-        className={`flex items-center px-4 py-2 text-md font-medium rounded-full border border-${statusColor}-500 bg-${statusColor}-50 text-${statusColor}-600`}
+        className={`flex items-center px-4 py-2 text-md font-medium rounded-full border border-${statusColor}-500 bg-${statusColor}-50 text-${statusColor}-600 dark:bg-${statusColor}-900 dark:text-${statusColor}-200 dark:border-${statusColor}-700`}
       >
         {icon && <span className="mr-2">{icon}</span>}
         {text}
@@ -388,7 +387,6 @@ function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
     if (!project) return;
     setIsSubmitting(true);
 
-    console.log("logs", logs);
     // Filter logs to get only stderr entries
     const errorLogs = logs
       .filter((log) => log.data?.logs?.some((l) => l.type === "stderr"))
