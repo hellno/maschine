@@ -44,9 +44,9 @@ function UpdatePromptInput({
   return (
     <div className="space-y-4 max-w-full">
       {isSubmitting || hasAnyJobsPending ? (
-        <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-lg text-sm text-amber-800 dark:text-amber-300">
+        <div className="p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/50 rounded-lg text-sm text-blue-800 dark:text-blue-400">
           <div className="flex items-center gap-4">
-            <LoaderCircle className="w-4 h-4 animate-spin  border-amber-500 dark:border-amber-400" />
+            <LoaderCircle className="w-12 h-12 animate-spin border-blue-500 dark:border-blue-400" />
             <span>
               Maschine is working on your project. We will notify you when
               it&apos;s done. Thanks for building with Maschine!
