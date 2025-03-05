@@ -150,7 +150,6 @@ export type FrameContext = {
     notificationDetails?: FrameNotificationDetails;
     safeAreaInsets?: SafeAreaInsets;
   };
-  subscriptions?: UserSubscription[];
 };
 
 export declare const notificationDetailsSchema: z.ZodObject<
@@ -185,4 +184,12 @@ export interface UserSubscription {
   maxProjects?: number;
   isActive: boolean;
   expires_at?: string;
+}
+
+export interface NeynarSubscriptionData {
+  contract_address: string;
+  expires_at: string;
+  tier: {
+    id: string;
+  };
 }

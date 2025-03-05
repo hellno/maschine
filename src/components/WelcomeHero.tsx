@@ -1,7 +1,111 @@
+"use client";
+
 import Link from "next/link";
 import FancyLargeButton from "./FancyLargeButton";
+import { useFrameSDK } from "~/hooks/useFrameSDK";
+import { useUser } from "~/hooks/useUser";
+import { prepareMint, tierDetail } from "@withfabric/protocol-sdks/stpv2";
+import { useAccount } from "wagmi";
+import { useCallback, useState } from "react";
+import { LoaderCircle } from "lucide-react";
+
+const HYPERSUB_CONTRACT_ADDRESS = "0x2211e467d0c210f4bdebf4895c25569d93225cfc";
+const DEFAULT_SUBSCRIPTION_TIER = 3;
+const DEFAULT_SUBSCRIPTION_PERIOD = 3n; // 2 months + upfront cost to subscribe
 
 const WelcomeHero = () => {
+  const [isMinting, setIsMinting] = useState(false);
+
+  const { address } = useAccount();
+  const { context } = useFrameSDK();
+  const {
+    subscriptions: {
+      hasActive: hasActiveSubscription,
+      active,
+      maxProjects,
+      loading,
+      refetch,
+    },
+  } = useUser(context?.user?.fid);
+
+  const onMintSubscription = useCallback(async () => {
+    if (!address) return;
+
+    const tier = await tierDetail({
+      contractAddress: HYPERSUB_CONTRACT_ADDRESS,
+      tierId: DEFAULT_SUBSCRIPTION_TIER,
+    });
+    const amount = DEFAULT_SUBSCRIPTION_PERIOD * tier.params.pricePerPeriod;
+    try {
+      const mint = await prepareMint({
+        contractAddress: HYPERSUB_CONTRACT_ADDRESS,
+        amount,
+      });
+      const receipt = await mint();
+      console.log("receipt", receipt);
+    } catch (error) {
+      console.error(error);
+    }
+
+    setIsMinting(true);
+    await refetch();
+    setIsMinting(false);
+  }, [address, refetch]);
+
+  const renderSubscription = () => {
+    if (loading) {
+      return <p>Loading...</p>;
+    }
+    if (hasActiveSubscription) {
+      return (
+        <div className="p-2 pt-0">
+          <p>
+            Thank your for subscribing {active?.tierName}
+            <br />
+            You can create{" "}
+            {maxProjects
+              ? `${maxProjects} frames`
+              : "as many frames as you want"}
+            .
+          </p>
+        </div>
+      );
+    } else {
+      return (
+        <div className="p-2 mt-4 justify-center">
+          {isMinting ? (
+            <div className="h-16 align-center text-center w-full flex flex-row justify-center">
+              <LoaderCircle className="w-6 h-6 animate-spin" />
+              <p className="ml-2 font-medium text-xl">Minting...</p>
+            </div>
+          ) : (
+            <button
+              onClick={() => onMintSubscription()}
+              disabled={isMinting}
+              className="relative inline-flex h-12 overflow-hidden rounded-full p-[1px] focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-50 disabled:opacity-75 disabled:cursor-not-allowed transition-opacity"
+            >
+              <span className="absolute inset-[-500%] bg-gray-100 border" />
+              <span className="inline-flex h-full w-full items-center justify-center rounded-full bg-slate-950 px-6 py-2 text-xl font-medium text-white backdrop-blur-3xl hover:bg-slate-900">
+                Upgrade to Maschine Pro
+              </span>
+            </button>
+          )}
+          <p className="mt-4 mx-auto max-w-xs">
+            Subscribe here or visit{" "}
+            <a
+              href="https://hypersub.xyz/s/maschine?referrer=0x6d9ffaede2c6cd9bb48bece230ad589e0e0d981c"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-700 underline hover:text-blue-500"
+            >
+              Hypersub for details
+            </a>
+            .
+          </p>
+        </div>
+      );
+    }
+  };
   return (
     <div className="mx-auto max-w-3xl lg:pt-8">
       <div className="mt-8 flex justify-center">
@@ -11,48 +115,19 @@ const WelcomeHero = () => {
           className="h-20 w-20 rounded-xl"
         />
       </div>
-      <h1 className="mx-auto mt-4 text-pretty text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl md:text-6xl dark:text-gray-100 max-w-xl">
-        Create your own Farcaster frame <br className="hidden md:inline" />
+      <h1 className="mx-auto max-w-xs mt-4 text-pretty text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl md:text-6xl dark:text-gray-100 lg:max-w-xl">
+        Turn your idea into a <br className="hidden md:inline" />
         <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-          in a Farcaster frame
+          shareable frame in minutes
         </span>
       </h1>
-      {/* <div className="mt-4 sm:mt-8 lg:mt-10">
-            <div className="flex justify-center space-x-4">
-              <span className="rounded-full bg-blue-600/10 px-3 py-1 text-sm/6 font-semibold text-blue-600 ring-1 ring-inset ring-blue-600/10 dark:bg-blue-400/20 dark:text-blue-300 dark:ring-blue-400/30">
-                What&apos;s new
-              </span>
-              <Sheet>
-                <SheetTrigger className="inline-flex items-center space-x-2 text-sm/6 font-medium text-gray-600 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 transition-colors">
-                  <PlayCircle className="w-4 h-4" />
-                  <span>Watch v0.1 Demo</span>
-                </SheetTrigger>
-                <SheetContent className="w-full max-w-4xl sm:max-w-6xl">
-                  <SheetHeader>
-                    <SheetTitle>Frameception Demo</SheetTitle>
-                  </SheetHeader>
-                  <div
-                    className="relative mt-4"
-                    style={{ paddingTop: "56.25%" }}
-                  >
-                    <iframe
-                      src="https://player.vimeo.com/video/1047553467?h=af29b86b8e&badge=0&autopause=0&player_id=0&app_id=58479"
-                      allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; presentation"
-                      className="absolute top-0 left-0 w-full h-full rounded-lg"
-                      title="frameception-demo"
-                    />
-                  </div>
-                </SheetContent>
-              </Sheet>
-            </div>
-          </div> */}
       <p className="mt-6 mx-8 text-pretty text-lg font-medium text-gray-600 sm:text-xl/8 dark:text-gray-400 max-w-2xl">
-        From idea to shareable frame in minutes. Create your own
-        Farcaster frame right here.
+        Create your own Farcaster frame in a Farcaster frame, right here.
       </p>
-      <Link className="mt-8 flex justify-center" href="/projects/new">
+      <Link className="pt-8 pb-2 flex justify-center" href="/projects/new">
         <FancyLargeButton text="Start Building" />
       </Link>
+      {renderSubscription()}
     </div>
   );
 };

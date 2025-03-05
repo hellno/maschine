@@ -32,7 +32,7 @@ export function NavProjects({
           </SidebarMenuItem>
         ) : null}
         {projects.map((item) => (
-          <SidebarMenuItem key={item.name}>
+          <SidebarMenuItem key={item.id}>
             <SidebarMenuButton asChild className="text-xl">
               <Link
                 href={`/projects/${item.id}`}

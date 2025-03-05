@@ -29,6 +29,7 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { Label } from "./ui/label";
+import { useProjects } from "~/hooks/useProjects";
 
 const styles = {
   card: "bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700",
