@@ -453,6 +453,46 @@ function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
     );
   }
 
+  const renderDebugView = () => {
+    if (userContext?.fid !== "13596") return;
+    const { jobs, builds, latestJob, latestBuild, ...rest } = project;
+    const { logs, ...latestJobRest } = latestJob;
+    return (
+      <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg max-w-sm break-all space-4">
+        Debug View
+        <div className="bg-gray-200 dark:bg-gray-700 p-2 rounded-lg">
+          {JSON.stringify(rest, null, 2)}
+        </div>
+        <div className="bg-gray-200 dark:bg-gray-700 p-2 rounded-lg">
+          <h3 className="text-lg font-semibold m-2">Latest Job</h3>
+          {latestJob ? (
+            <p>{JSON.stringify(latestJobRest)}</p>
+          ) : (
+            <p>No job found</p>
+          )}
+        </div>
+        <div className="bg-gray-200 dark:bg-gray-700 p-2 rounded-lg">
+          <h3 className="text-lg font-semibold m-2">Latest Build</h3>
+          {latestBuild ? (
+            <p>{JSON.stringify(latestBuild)}</p>
+          ) : (
+            <p>No build found</p>
+          )}
+        </div>
+        <div className="bg-gray-200 dark:bg-gray-700 p-2 rounded-lg">
+          <h3 className="text-lg font-semibold m-2">Jobs</h3>
+          {jobs?.map((job) => <p key={job.id}>{JSON.stringify(job)}</p>)}
+        </div>
+        <div className="bg-gray-200 dark:bg-gray-700 p-2 rounded-lg">
+          <h3 className="text-lg font-semibold m-2">Builds</h3>
+          {builds?.map((build) => (
+            <p key={build.id}>{JSON.stringify(build)}</p>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="w-full mx-auto space-y-6 mb-6 px-4 max-w-[100vw-2rem] lg:max-w-4xl xl:max-w-5xl">
       <ProjectInfoCard
@@ -481,6 +521,14 @@ function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
           >
             Conversation
           </TabsTrigger>
+          {userContext?.fid === "13596" && (
+            <TabsTrigger
+              value="debug"
+              className="flex-1 data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:shadow-sm"
+            >
+              Debug
+            </TabsTrigger>
+          )}{" "}
         </TabsList>
 
         <TabsContent value="edit" className="space-y-4 mt-4">
@@ -501,6 +549,9 @@ function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
 
         <TabsContent value="conversation" className="space-y-4 mt-4">
           <ConversationCard project={project} />
+        </TabsContent>
+        <TabsContent value="debug" className="space-y-4 mt-4">
+          {renderDebugView()}
         </TabsContent>
       </Tabs>
 
