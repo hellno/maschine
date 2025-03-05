@@ -77,16 +77,18 @@ const WelcomeHero = () => {
               : "as many frames as you want"}
             .
           </p>
-          <button
-            onClick={() => onMintSubscription(MASCHINE_PRO_SUBSCRIPTION_TIER)}
-            disabled={isMinting}
-            className="relative inline-flex h-12 overflow-hidden rounded-full p-[1px] focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-50 disabled:opacity-75 disabled:cursor-not-allowed transition-opacity"
-          >
-            <span className="absolute inset-[-500%] bg-gray-100 border" />
-            <span className="inline-flex h-full w-full items-center justify-center rounded-full bg-slate-950 px-6 py-2 text-xl font-medium text-white backdrop-blur-3xl hover:bg-slate-900">
-              Upgrade to Maschine Pro
-            </span>
-          </button>
+          {active?.subscribedTier === DEFAULT_SUBSCRIPTION_TIER && (
+            <button
+              onClick={() => onMintSubscription(MASCHINE_PRO_SUBSCRIPTION_TIER)}
+              disabled={isMinting}
+              className="relative inline-flex h-12 overflow-hidden rounded-full p-[1px] focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-50 disabled:opacity-75 disabled:cursor-not-allowed transition-opacity"
+            >
+              <span className="absolute inset-[-500%] bg-gray-100 border" />
+              <span className="inline-flex h-full w-full items-center justify-center rounded-full bg-slate-950 px-6 py-2 text-xl font-medium text-white backdrop-blur-3xl hover:bg-slate-900">
+                Upgrade to Maschine Pro
+              </span>
+            </button>
+          )}
         </div>
       );
     } else {
