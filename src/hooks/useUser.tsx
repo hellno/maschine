@@ -1,51 +1,53 @@
-import { useEffect, useState } from 'react';
-import { UserContext, UserSubscription } from '@/lib/types';
+import { useEffect, useState } from "react";
+import { UserContext, UserSubscription, SubscriptionTier } from "~/lib/types";
 
 const tierConfigs: Record<number, SubscriptionTier> = {
-  1: { id: 1, tierName: 'Starter', maxProjects: 1 },
-  2: { id: 2, tierName: 'Pro', maxProjects: 3 },
-  3: { id: 3, tierName: 'Unlimited' }, // undefined means unlimited
+  1: { id: 1, tierName: "Maschine Membe", maxProjects: 1 },
+  2: { id: 2, tierName: "Maschine Pro" },
+  3: { id: 3, tierName: "Maschine Human Hybrid" }, // undefined means unlimited
 };
 
+const HYPERSUB_CONTRACT_ADDRESS = "0x2211e467d0c210F4bdebF4895c25569D93225CFc";
+
+// ai! update to use tanstack query like in `useProjects.ts`
 export const useUser = (user?: UserContext) => {
   const [subscriptions, setSubscriptions] = useState<UserSubscription[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     const fetchSubscriptions = async () => {
       try {
         if (!user?.fid) {
-          setLoading(false);
+          setIsLoading(false);
           return;
         }
 
-        const contractAddress = process.env.NEXT_PUBLIC_HYPERSUB_CONTRACT_ADDRESS;
-        if (!contractAddress) {
-          throw new Error('HYPERSUB_CONTRACT_ADDRESS not configured');
-        }
+        const response = await fetch(`/api/user?fid=${user.fid}`);
 
-        const response = await fetch(
-          `https://api.neynar.com/v2/farcaster/user/subscribed_to?fid=${user.fid}&subscription_provider=fabric_stp`,
-          {
-            headers: {
-              'x-api-key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY!,
-            },
-          }
-        );
+        if (!response.ok) throw new Error("Failed to fetch subscriptions");
 
-        if (!response.ok) throw new Error('Failed to fetch subscriptions');
-        
         const data = await response.json();
-        const ourSubs = data.subscribed_to.filter((sub: any) => 
-          sub.contract_address.toLowerCase() === contractAddress.toLowerCase()
+        type NewType = {
+          contract_address: string;
+          expires_at: string;
+          tier: {
+            id: string;
+          };
+        };
+
+        console.log("data", data);
+        const maschineSubscriptions = data.subscribed_to.filter(
+          (sub: NewType): boolean =>
+            sub.contract_address.toLowerCase() ===
+            HYPERSUB_CONTRACT_ADDRESS.toLowerCase(),
         );
 
-        const mapped = ourSubs.map((sub: any) => {
+        const mapped = maschineSubscriptions.map((sub: NewType) => {
           const tierId = sub.tier.id;
-          const tier = tierConfigs[tierId] || { tierName: 'Unknown' };
+          const tier = tierConfigs[tierId] || { tierName: "Unknown" };
           const expiresAt = new Date(sub.expires_at);
-          
+
           return {
             subscribedTier: tierId,
             tierName: tier.tierName,
@@ -57,9 +59,11 @@ export const useUser = (user?: UserContext) => {
 
         setSubscriptions(mapped);
       } catch (err) {
-        setError(err instanceof Error ? err : new Error('Subscription check failed'));
+        setError(
+          err instanceof Error ? err : new Error("Subscription check failed"),
+        );
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     };
 
@@ -67,14 +71,14 @@ export const useUser = (user?: UserContext) => {
   }, [user?.fid]);
 
   const activeSubscription = subscriptions
-    .filter(sub => sub.isActive)
+    .filter((sub) => sub.isActive)
     .sort((a, b) => (b.subscribedTier || 0) - (a.subscribedTier || 0))[0];
 
   return {
     subscriptions: {
       data: subscriptions,
       active: activeSubscription,
-      loading,
+      loading: isLoading,
       error,
       hasActive: !!activeSubscription?.isActive,
       maxProjects: activeSubscription?.maxProjects,
