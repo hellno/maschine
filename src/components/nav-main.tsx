@@ -35,13 +35,13 @@ export function NavMain({ items }: { items: NavItem[] }) {
   const { isMobile, toggleSidebar } = useSidebar();
   const renderMainItemButton = (item: NavItem) => (
     <Link href={item.url} passHref>
-      <SidebarMenuButton className="text-xl" tooltip={item.title}>
-        <Link href={item.url} onClick={() => isMobile && toggleSidebar()}>
+      <Link href={item.url} onClick={() => isMobile && toggleSidebar()}>
+        <SidebarMenuButton className="text-xl" tooltip={item.title}>
           {item.icon && <item.icon />}
           <span>{item.title}</span>
           <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-        </Link>
-      </SidebarMenuButton>
+        </SidebarMenuButton>
+      </Link>
     </Link>
   );
 

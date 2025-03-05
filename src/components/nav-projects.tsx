@@ -11,13 +11,26 @@ import {
 } from "~/components/ui/sidebar";
 import { Project } from "~/lib/types";
 
-export function NavProjects({ projects }: { projects: Project[] }) {
+export function NavProjects({
+  projects,
+  isLoading,
+}: {
+  projects: Project[];
+  isLoading: boolean;
+}) {
   const { isMobile, toggleSidebar } = useSidebar();
 
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
       <SidebarGroupLabel>Projects</SidebarGroupLabel>
       <SidebarMenu className="gap-y-2">
+        {isLoading ? (
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild className="text-xl">
+              <span>Loading...</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        ) : null}
         {projects.map((item) => (
           <SidebarMenuItem key={item.name}>
             <SidebarMenuButton asChild className="text-xl">
