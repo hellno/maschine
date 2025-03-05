@@ -1,6 +1,7 @@
 import os
 import modal
 import time
+import threading
 from typing import Optional, Tuple
 import git
 from aider.coders import Coder
@@ -69,14 +70,45 @@ class CodeService:
 
             # Retry logic with 3 attempts
             max_retries = 3
-            retry_delay = 60  # seconds
+            retry_delay = 10  # seconds between retries
             aider_result = None
             last_exception = None
             
             for attempt in range(max_retries):
                 try:
-                    aider_result = coder.run(prompt)
+                    # Run with 60 second timeout per attempt
+                    result = [None]  # Use list to store result from thread
+                    exception = []
+                    
+                    def run_aider():
+                        try:
+                            result[0] = coder.run(prompt)
+                        except Exception as e:
+                            exception.append(e)
+                    
+                    thread = threading.Thread(target=run_aider)
+                    thread.start()
+                    thread.join(timeout=60)
+                    
+                    if thread.is_alive():
+                        # Thread is still running after timeout
+                        raise TimeoutError("coder.run timed out after 60 seconds")
+                    
+                    if exception:
+                        # Re-raise the exception caught in the thread
+                        raise exception[0]
+                        
+                    aider_result = result[0]
                     break
+                except TimeoutError as e:
+                    last_exception = e
+                    error_msg = f"Timeout after 60 seconds (attempt {attempt+1}/{max_retries})"
+                    print(f"[code_service] {error_msg}")
+                    self.db.add_log(self.job_id, "backend", error_msg)
+                    
+                    if attempt < max_retries - 1:
+                        print(f"Waiting {retry_delay}s before retry...")
+                        time.sleep(retry_delay)
                 except Exception as e:
                     last_exception = e
                     if attempt < max_retries - 1:
@@ -88,12 +120,20 @@ class CodeService:
                         )
                         time.sleep(retry_delay)
                     else:
-                        error_msg = f"API timeout after {max_retries} retries: {str(last_exception)}"
+                        error_msg = f"Failed after {max_retries} attempts: {str(last_exception)}"
                         print(f"[code_service] {error_msg}")
                         self.db.add_log(self.job_id, "backend", error_msg)
                         self.db.update_job_status(self.job_id, "failed", error_msg)
                         self.terminate_sandbox()
                         return {"status": "error", "error": error_msg}
+
+            if not aider_result:
+                error_msg = "All attempts failed - no aider result"
+                print(f"[code_service] {error_msg}")
+                self.db.add_log(self.job_id, "backend", error_msg)
+                self.db.update_job_status(self.job_id, "failed", error_msg)
+                self.terminate_sandbox()
+                return {"status": "error", "error": error_msg}
 
             print(f"[code_service] Aider result (truncated): {aider_result[:250]}")
             _handle_pnpm_commands(aider_result, self.sandbox)
