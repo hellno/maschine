@@ -1,5 +1,6 @@
 import os
 import modal
+import time
 from typing import Optional, Tuple
 import git
 from aider.coders import Coder
@@ -66,11 +67,34 @@ class CodeService:
             if auto_enhance_context:
                 prompt = self._enhance_prompt_with_context(prompt)
 
-            # ai! code.run calls can have an API timeout due to LLMs / network issues.
-            # I want this code to be more robust. if there is 1min lag, I want the code to retry to run coder.run
-            # up to 3 retries
-            # if after 3 retries we don't get a response, we should add a log and update job status to timeout
-            aider_result = coder.run(prompt)
+            # Retry logic with 3 attempts
+            max_retries = 3
+            retry_delay = 60  # seconds
+            aider_result = None
+            last_exception = None
+            
+            for attempt in range(max_retries):
+                try:
+                    aider_result = coder.run(prompt)
+                    break
+                except Exception as e:
+                    last_exception = e
+                    if attempt < max_retries - 1:
+                        print(f"Attempt {attempt+1} failed, retrying in {retry_delay} seconds...")
+                        self.db.add_log(
+                            self.job_id,
+                            "backend",
+                            f"Attempt {attempt+1} failed: {str(e)}. Retrying..."
+                        )
+                        time.sleep(retry_delay)
+                    else:
+                        error_msg = f"API timeout after {max_retries} retries: {str(last_exception)}"
+                        print(f"[code_service] {error_msg}")
+                        self.db.add_log(self.job_id, "backend", error_msg)
+                        self.db.update_job_status(self.job_id, "failed", error_msg)
+                        self.terminate_sandbox()
+                        return {"status": "error", "error": error_msg}
+
             print(f"[code_service] Aider result (truncated): {aider_result[:250]}")
             _handle_pnpm_commands(aider_result, self.sandbox)
             has_errors, logs = self._run_build_in_sandbox()
