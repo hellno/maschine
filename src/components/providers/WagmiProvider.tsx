@@ -2,6 +2,7 @@ import { createConfig, http, WagmiProvider } from "wagmi";
 import { base, optimism } from "wagmi/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { farcasterFrame } from "@farcaster/frame-wagmi-connector";
+import { configureFabricSDK } from "@withfabric/protocol-sdks";
 
 export const config = createConfig({
   chains: [base, optimism],
@@ -11,6 +12,8 @@ export const config = createConfig({
   },
   connectors: [farcasterFrame()],
 });
+
+configureFabricSDK({ wagmiConfig: config });
 
 const queryClient = new QueryClient();
 

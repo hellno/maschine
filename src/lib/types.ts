@@ -171,3 +171,25 @@ export declare const notificationDetailsSchema: z.ZodObject<
 export type FrameNotificationDetails = z.infer<
   typeof notificationDetailsSchema
 >;
+
+export interface SubscriptionTier {
+  id: number;
+  tierName: string;
+  maxProjects?: number;
+}
+
+export interface UserSubscription {
+  subscribedTier?: number;
+  tierName: string;
+  maxProjects?: number;
+  isActive: boolean;
+  expires_at?: string;
+}
+
+export interface NeynarSubscriptionData {
+  contract_address: string;
+  expires_at: string;
+  tier: {
+    id: string;
+  };
+}
