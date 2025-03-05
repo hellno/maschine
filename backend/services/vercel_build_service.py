@@ -210,13 +210,14 @@ class VercelBuildService:
                 print(f'[vercel_build_service] db build id {build_id} polling attempt {attempts+1}')
                 build = self.get_vercel_build_by_commit_hash(str(commit_hash))
                 if not build:
-                    print(f'build based on commit hash {commit_hash} not found')
+                    print(f'build based on commit hash {commit_hash} not found via vercel api')
                     time.sleep(self.poll_interval)
                     continue
+
                 status = build.get("status")
                 print('build', build)
                 if status in ['success', 'error']:
-                    print(f'build {build_id} has status {initial_status} - no need to keep polling')
+                    print(f'======================================================\nbuild {build_id} changed to status {status} - no need to keep polling')
                     self.db.update_build(str(build_id), build)
                     data = build.get('data', {})
                     commit_message = data.get('meta', {}).get('githubCommitMessage', '')
