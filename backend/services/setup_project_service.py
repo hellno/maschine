@@ -60,38 +60,39 @@ class SetupProjectService:
     def _apply_initial_customization(self):
         """Only apply user's initial prompt customization"""
         prompt = self.data["prompt"]
+        self._log("Generating a concept of a plan")
 
         code_service = CodeService(self.project_id, self.job_id, self.user_context, manual_sandbox_termination=True)
+        code_service._create_sandbox(repo_dir=code_service.repo_dir)
+
         self._add_brainstorm_docs_to_repo(code_service, prompt)
 
         self._log("Starting initial code implementation")
+        MAX_ITERATAIONS = 20
         try:
-            result = code_service.run(
-                IMPLEMENT_TODO_LIST_PROMPT, auto_enhance_context=False
-            )
-
-            MAX_ITERATAIONS = 20
             for iteration in range(MAX_ITERATAIONS):
                 try:
                     todo_content = code_service._read_file_from_sandbox("todo.md")
                     open_todo_count = len(re.findall(r'- \[ \]', todo_content))
                     solved_todo_count = len(re.findall(r'- \[x\]', todo_content))
-                    print(f'open todos: {open_todo_count}, solved todos: {solved_todo_count}')
+                    print(f'open todos: {open_todo_count} solved todos: {solved_todo_count}')
                     if open_todo_count == 0 and solved_todo_count > 0:
                         print(f"no open todos found after iteration {iteration+1} -> leaving the initial implementation")
                         break
 
                     print(f"retrying implementation (iteration {iteration+1})")
                     result = code_service.run(
-                        RETRY_IMPLEMENT_TODO_LIST_PROMPT,
+                        IMPLEMENT_TODO_LIST_PROMPT,
                         auto_enhance_context=False
                     )
                 except Exception as e:
-                    self._log(f"Retry iteration {iteration+1} failed: {str(e)}", "warning")
+                    self._log(f"retry iteration {iteration+1} failed: {str(e)}", "warning")
                     continue
+
             self._submit_successful_project_creation_commit(code_service)
             self._log("Maschine initial code writing complete")
         except Exception as e:
+            print(f'initial code writing failed: {e}')
             self._log(f"initial code writing failed: {str(e)}", "error")
         finally:
             code_service.terminate_sandbox()
