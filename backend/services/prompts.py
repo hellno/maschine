@@ -1,3 +1,4 @@
+from backend.services import prompts
 CLARIFY_INTENT_PROMPT = """
 ## Extract User Intent
 Distill the core functionality request into clear technical requirements.
@@ -74,81 +75,75 @@ Create a detailed specification document with these sections:
 4. CONSTRAINTS COMPLIANCE
    - Confirm: No database requirements
    - Confirm: No smart contract deployments
+   - Confirm: No third-party integrations beyond those mentioned in context
+   - Confirm: No unnecessary complexity or enterprise-level features
 
 FORMAT YOUR RESPONSE AS A DETAILED MARKDOWN DOCUMENT.
 """
 
-CREATE_TASK_PLAN_PROMPT = """
+CREATE_PROMPT_PLAN_PROMPT = """
 You are a technical expert designing a Farcaster Frame v2 application.
+
+Draft a detailed, step-by-step blueprint for building this project.
+Then, once you have a solid plan, break it down into small, iterative chunks that build on each other.
+Look at these chunks and then go another round to break it into small steps.
+Review the results and make sure that the steps are small enough to be implemented safely, but big enough to move the project forward.
+Iterate until you feel that the steps are right sized for this project.
+
+From here you should have the foundation to provide a series of prompts for a code-generation LLM that will implement each step.
+Prioritize best practices, and incremental progress, ensuring no big jumps in complexity at any stage.
+Make sure that each prompt builds on the previous prompts, and ends with wiring things together.
+There should be no hanging or orphaned code that isn't integrated into a previous step.
+
+Make sure and separate each prompt section. Use markdown. Each prompt should be tagged as text using code tags. The goal is to output prompts, but context, etc is important as well.
 
 Based on this specification:
 
 {spec}
 
-Create a development plan that:
-1. Breaks down implementation into logical phases
-2. Implements modern web interactions (not limited to basic buttons)
-3. Properly handles mobile touch interfaces
-4. Utilizes client-side storage when appropriate
-5. Constraints: No database or custom smart contracts to deploy
+- Describe what will be built
+- List technical components/APIs needed
+- Identify potential challenges
+- Consider mobile-specific behaviors
+- We have an existing nextjs typescript template with common UI components. Remember to customize title and components of the template
+- Constraints: No database or custom smart contracts to deploy
 
-For each development phase:
- - Describe what will be built
- - List technical components/APIs needed
- - Identify potential challenges
- - Consider mobile-specific behaviors
-
-FORMAT AS A MARKDOWN DOCUMENT with clear task phases and dependencies.
+Create a list of prompts that will be used to generate code for the application.
 """
 
 
 CREATE_TODO_LIST_PROMPT = """
 You are a technical expert designing a Farcaster Frame v2 application.
 
-Based on this development plan:
+Based on this prompt plan:
 
 {plan}
 
-Create an actionable todo list where:
+Create an actionable todo list that I can use as a checklist.
 
 1. Each task is concrete and implementable
 2. Tasks are ordered by dependency (foundation first)
-3. Tasks leverage the full HTML/CSS/JS canvas of Frames v2
-4. Mobile responsiveness is explicitly addressed
-5. NO tasks require creating databases or deploying smart contracts
-6. Frames v2 capabilities are fully utilized
-7. Leveraging the existing nextjs typescript template with shadcn UI components
 
 Format each task as:
-- [ ] Task description with component affected
-
-Group tasks into these categories:
-- Frame Structure
-- UI Components & Interactions
-- API Integration
-- Client-Side State Management
-- User Experience & Animations
-- Mobile Optimization
-
-IMPORTANT: Do NOT impose Farcaster frames v1 limitations (like 4-button limits or image-only rendering).
+- [ ] Task description with component affected and user outcome
 """
 
 IMPLEMENT_TODO_LIST_PROMPT = """
 You are an expert Farcaster Frame v2 developer implementing a project based on your todo list.
-CRITICAL: Frames v2 offers full HTML/CSS/JS canvas capabilities with NO button limitations.
+CRITICAL: Frames v2 offers full html canvas capabilities with NO button limitations.
 
 Code the next highest priority task from the todo list.
 
 ### Instructions
-1. Find the highest priority uncompleted task
-2. Implement focused, working code (no unnecessary complexity or enterprise-level features)
-3. Build using modern web standards for the interactive canvas
+1. Find the highest priority uncompleted todos
+2. Use relevant prompt and context that was prepared for you in the prompt_plan.md
+3. Implement focused, working code (no unnecessary complexity or enterprise-level features)
 4. Optimize for touch interfaces on mobile
-3. Verify the implementation meets the task requirement
-4. Update the todo list to reflect completed work
+5. Verify the implementation meets the task requirement
+6. Update the todo list to reflect completed work
 
 For each task you complete:
-- Create/modify the necessary files with proper HTML/CSS/TypeScript
+- Create/modify the necessary files with proper TypeScript
 - Mark completed tasks with [x]
 """
 

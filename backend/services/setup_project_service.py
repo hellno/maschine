@@ -3,7 +3,7 @@ import re
 from backend.services.code_service import CodeService
 from backend.services.context_enhancer import CodeContextEnhancer
 from backend.services.prompts import (
-    CREATE_TASK_PLAN_PROMPT,
+    CREATE_PROMPT_PLAN_PROMPT,
     CREATE_SPEC_PROMPT,
     CREATE_TODO_LIST_PROMPT,
     IMPLEMENT_TODO_LIST_PROMPT,
@@ -61,39 +61,40 @@ class SetupProjectService:
         """Only apply user's initial prompt customization"""
         prompt = self.data["prompt"]
 
-        code_service = CodeService(self.project_id, self.job_id, self.user_context)
+        code_service = CodeService(self.project_id, self.job_id, self.user_context, manual_sandbox_termination=True)
         self._add_brainstorm_docs_to_repo(code_service, prompt)
 
         self._log("Starting initial code implementation")
-        result = code_service.run(
-            IMPLEMENT_TODO_LIST_PROMPT, auto_enhance_context=False
-        )
+        try:
+            result = code_service.run(
+                IMPLEMENT_TODO_LIST_PROMPT, auto_enhance_context=False
+            )
 
-        MAX_ITERATAIONS = 10
-        for iteration in range(MAX_ITERATAIONS):
-            try:
-                todo_content = code_service._read_file_from_sandbox("todo.md")
-                open_todo_count = len(re.findall(r'- \[ \]', todo_content))
-                solved_todo_count = len(re.findall(r'- \[x\]', todo_content))
-                print(f'open todos: {open_todo_count}, solved todos: {solved_todo_count}')
-                if open_todo_count == 0 and solved_todo_count > 0:
-                    print(f"no open todos found after iteration {iteration+1} -> leaving the initial implementation")
-                    break
+            MAX_ITERATAIONS = 20
+            for iteration in range(MAX_ITERATAIONS):
+                try:
+                    todo_content = code_service._read_file_from_sandbox("todo.md")
+                    open_todo_count = len(re.findall(r'- \[ \]', todo_content))
+                    solved_todo_count = len(re.findall(r'- \[x\]', todo_content))
+                    print(f'open todos: {open_todo_count}, solved todos: {solved_todo_count}')
+                    if open_todo_count == 0 and solved_todo_count > 0:
+                        print(f"no open todos found after iteration {iteration+1} -> leaving the initial implementation")
+                        break
 
-                print(f"retrying implementation (iteration {iteration+1})")
-                result = code_service.run(
-                    RETRY_IMPLEMENT_TODO_LIST_PROMPT,
-                    auto_enhance_context=False
-                )
-            except Exception as e:
-                self._log(f"Retry iteration {iteration+1} failed: {str(e)}", "warning")
-                continue
-
-        self._log("Maschine initial code writing complete")
-        self._submit_successful_project_creation_commit(code_service)
-        code_service.terminate_sandbox()
-
-        return result
+                    print(f"retrying implementation (iteration {iteration+1})")
+                    result = code_service.run(
+                        RETRY_IMPLEMENT_TODO_LIST_PROMPT,
+                        auto_enhance_context=False
+                    )
+                except Exception as e:
+                    self._log(f"Retry iteration {iteration+1} failed: {str(e)}", "warning")
+                    continue
+            self._submit_successful_project_creation_commit(code_service)
+            self._log("Maschine initial code writing complete")
+        except Exception as e:
+            self._log(f"initial code writing failed: {str(e)}", "error")
+        finally:
+            code_service.terminate_sandbox()
 
     def _generate_project_name(self):
         project_name = generate_project_name(self.data["prompt"])
@@ -111,12 +112,12 @@ class SetupProjectService:
             print(f"Received spec content: {spec_content}\nReasoning: {spec_reasoning}")
             code_service._add_file_to_repo_dir("spec.md", spec_content)
 
-            create_plan = CREATE_TASK_PLAN_PROMPT.format(spec=spec_content)
-            plan_content, plan_reasoning = send_prompt_to_reasoning_model(create_plan)
-            print(f"Received plan content: {plan_content}\nReasoning: {plan_reasoning}")
-            code_service._add_file_to_repo_dir("plan.md", plan_content)
+            create_prompt_plan = CREATE_PROMPT_PLAN_PROMPT.format(spec=spec_content)
+            prompt_plan_content, plan_reasoning = send_prompt_to_reasoning_model(create_prompt_plan)
+            print(f"Received plan content: {prompt_plan_content}\nReasoning: {plan_reasoning}")
+            code_service._add_file_to_repo_dir("prompt_plan.md", prompt_plan_content)
 
-            todo = CREATE_TODO_LIST_PROMPT.format(plan=plan_content)
+            todo = CREATE_TODO_LIST_PROMPT.format(plan=prompt_plan_content)
             todo_content, todo_reasoning = send_prompt_to_reasoning_model(todo)
             print(f"Received todo content: {todo_content}\nReasoning: {todo_reasoning}")
             code_service._add_file_to_repo_dir("todo.md", content=todo_content)
