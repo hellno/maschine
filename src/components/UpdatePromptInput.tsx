@@ -48,7 +48,7 @@ function UpdatePromptInput({
           <div className="flex items-center gap-4">
             <LoaderCircle className="w-12 h-12 animate-spin border-blue-500 dark:border-blue-400" />
             <span>
-              Maschine is working on your project. We will notify you when
+              Maschine is working on your project and will notify you when
               it&apos;s done. Thanks for building with Maschine!
             </span>
           </div>

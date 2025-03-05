@@ -68,7 +68,10 @@ function ActivityLogCard({ logs }: { logs: Log[] }) {
               ) : (
                 <div className="divide-y">
                   {logs.map((log) => (
-                    <div key={log.id} className="p-3 hover:bg-gray-50">
+                    <div
+                      key={log.id}
+                      className="p-3 hover:bg-gray-50 dark:hover:bg-gray-900"
+                    >
                       <div className="flex items-start justify-between flex-wrap gap-2">
                         <div
                           className={`text-sm font-medium ${getSourceColor(
