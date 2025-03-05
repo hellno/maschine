@@ -25,6 +25,8 @@ DEFAULT_PROJECT_FILES = [
 ]
 
 READONLY_FILES = [
+    "prompt_plan.md",
+    "llm_docs/frames.md",
     # "plan.md",
     # "spec.md",
 ]
@@ -63,6 +65,11 @@ class CodeService:
             self.db.update_job_status(self.job_id, "running")
             if auto_enhance_context:
                 prompt = self._enhance_prompt_with_context(prompt)
+
+            # ai! code.run calls can have an API timeout due to LLMs / network issues.
+            # I want this code to be more robust. if there is 1min lag, I want the code to retry to run coder.run
+            # up to 3 retries
+            # if after 3 retries we don't get a response, we should add a log and update job status to timeout
             aider_result = coder.run(prompt)
             print(f"[code_service] Aider result (truncated): {aider_result[:250]}")
             _handle_pnpm_commands(aider_result, self.sandbox)
@@ -246,6 +253,7 @@ class CodeService:
             print(
                 f"sandbox results: has_error_in_logs {has_error_in_logs} build return_code {build_returncode} logs_str {logs_str} "
             )
+            print(f'terminate_after_build {terminate_after_build} manual_sandbox_termination {self.manual_sandbox_termination}')
             if terminate_after_build and not self.manual_sandbox_termination:
                 print("[code_service] Terminating sandbox after build")
                 self.terminate_sandbox()
