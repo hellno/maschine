@@ -207,6 +207,7 @@ def create_project_from_cast(data: dict):
     timeout=config.TIMEOUTS["PROJECT_SETUP"],
     secrets=all_secrets,
     name=config.MODAL_SETUP_PROJECT_FUNCTION_NAME,
+    memory=512,
 )
 def setup_project(data: dict) -> dict:
     from backend.services.setup_project_service import SetupProjectService
