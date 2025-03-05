@@ -89,7 +89,9 @@ const data = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { context } = useFrameSDK();
-  const { projects } = useProjects(context?.user.fid);
+  const { isLoading: isLoadingProjects, projects } = useProjects(
+    context?.user.fid,
+  );
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -102,7 +104,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={data.navMain} />
-        <NavProjects projects={projects} />
+        <NavProjects projects={projects} isLoading={isLoadingProjects} />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={context?.user} />
