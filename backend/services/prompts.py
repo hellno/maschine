@@ -78,7 +78,7 @@ Create a detailed specification document with these sections:
    - Confirm: No third-party integrations beyond those mentioned in context
    - Confirm: No unnecessary complexity or enterprise-level features
 
-FORMAT YOUR RESPONSE AS A DETAILED MARKDOWN DOCUMENT.
+FORMAT YOUR RESPONSE AS A DETAILED MARKDOWN DOCUMENT with a focus on the spec and no example code.
 """
 
 CREATE_PROMPT_PLAN_PROMPT = """
