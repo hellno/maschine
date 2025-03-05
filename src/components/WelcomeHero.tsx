@@ -8,6 +8,7 @@ import { prepareMint, tierDetail } from "@withfabric/protocol-sdks/stpv2";
 import { useAccount } from "wagmi";
 import { useCallback, useState } from "react";
 import { LoaderCircle } from "lucide-react";
+import { useProjects } from "~/hooks/useProjects";
 
 const HYPERSUB_CONTRACT_ADDRESS = "0x2211e467d0c210f4bdebf4895c25569d93225cfc";
 const DEFAULT_SUBSCRIPTION_TIER = 3;
@@ -27,6 +28,10 @@ const WelcomeHero = () => {
       refetch,
     },
   } = useUser(context?.user?.fid);
+  const { projects } = useProjects(context?.user?.fid);
+  const canCreateMoreProjects = maxProjects
+    ? projects.length < maxProjects
+    : true;
 
   const onMintSubscription = useCallback(async () => {
     if (!address) return;
@@ -124,9 +129,15 @@ const WelcomeHero = () => {
       <p className="mt-6 mx-8 text-pretty text-lg font-medium text-gray-600 sm:text-xl/8 dark:text-gray-400 max-w-2xl">
         Create your own Farcaster frame in a Farcaster frame, right here.
       </p>
-      <Link className="pt-8 pb-2 flex justify-center" href="/projects/new">
-        <FancyLargeButton text="Start Building" />
-      </Link>
+      {canCreateMoreProjects ? (
+        <Link className="pt-8 pb-2 flex justify-center" href="/projects/new">
+          <FancyLargeButton text="Start Building" />
+        </Link>
+      ) : (
+        <p className="pt-8 pb-2 flex justify-center">
+          You have reached your framelimit, upgrade below to create more frames.
+        </p>
+      )}
       {renderSubscription()}
     </div>
   );
