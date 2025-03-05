@@ -228,7 +228,7 @@ class VercelApi:
     ) -> Optional[dict]:
         try:
             payload = {
-                "name": "test",
+                "name": project_name,
                 "target": "production",
                 "gitSource": {
                     "type": "github",

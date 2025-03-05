@@ -454,7 +454,7 @@ function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
   }
 
   const renderDebugView = () => {
-    if (userContext?.fid !== 13596) return;
+    if (userContext?.fid.toString() != "13596") return;
     const { jobs, builds, latestJob, latestBuild, ...rest } = project;
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { logs, ...latestJobRest } = latestJob || {};
@@ -522,7 +522,7 @@ function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
           >
             Conversation
           </TabsTrigger>
-          {userContext?.fid === 13596 && (
+          {userContext?.fid.toString() === "13596" && (
             <TabsTrigger
               value="debug"
               className="flex-1 data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:shadow-sm"
