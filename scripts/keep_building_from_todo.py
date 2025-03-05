@@ -21,23 +21,34 @@ from backend.services.prompts import RETRY_IMPLEMENT_TODO_LIST_PROMPT
 
 load_dotenv()
 
-def find_setup_job(db: Database, project_id: str) -> tuple[Optional[str], Optional[Dict]]:
+def find_setup_job(db: Database, project_id: Optional[str], project_name: Optional[str]) -> tuple[Optional[str], Optional[Dict], Optional[str]]:
     """
     Find the setup_project job for the specified project.
 
     Args:
         db: Database instance
         project_id: The project ID to lookup
+        project_name: The project name to lookup
 
     Returns:
-        Tuple of (job_id, job_data) or (None, None) if not found
+        Tuple of (job_id, job_data, project_id) or (None, None, None) if not found
     """
+    if not project_id and not project_name:
+        raise ValueError("Either project_id or project_name must be provided")
+
     try:
         # Query for the setup_project job using Supabase client
+        query, value = '', ''
+        if project_id:
+            query = "project_id"
+            value = project_id
+        elif project_name:
+            query = "projects.name"
+            value = project_name
+        print(f'Looking for setup job with query {query} and value {value}')
         result = db.client.from_("jobs") \
-            .select("*") \
-            .eq("project_id", project_id) \
-            .eq("type", "setup_project") \
+            .select("*, projects!inner(name)") \
+            .eq(query, value) \
             .limit(1) \
             .execute()
 
@@ -45,6 +56,7 @@ def find_setup_job(db: Database, project_id: str) -> tuple[Optional[str], Option
             job = result.data[0]
             job_id = job["id"]
             job_data = job.get("data", {})
+            project_id = job["project_id"]
 
             # Parse job_data if it's a string
             if isinstance(job_data, str):
@@ -53,14 +65,14 @@ def find_setup_job(db: Database, project_id: str) -> tuple[Optional[str], Option
                 except json.JSONDecodeError:
                     job_data = {}
 
-            return job_id, job_data
+            return job_id, job_data, project_id
 
-        return None, None
+        return None, None, None
     except Exception as e:
         print(f"Error querying for setup job: {str(e)}")
-        return None, None
+        return None, None, None
 
-def keep_building_project(project_id: str):
+def keep_building_project(project_id: Optional[str], project_name: Optional[str]):
     """
     Fix a setup project job by applying initial customization and updating DB states.
 
@@ -71,16 +83,13 @@ def keep_building_project(project_id: str):
         True if successful, False otherwise
     """
     try:
-        # Initialize database connection
         db = Database()
+        print(f'Looking for setup job for project id {project_id} or name {project_name}')
+        job_id, job_data, project_id = find_setup_job(db, project_id, project_name)
+        print(f'got setup job {job_id} for project {project_id}')
 
-        print(f"Starting fix for project {project_id}")
-
-        # Find the setup_project job for this project
-        job_id, job_data = find_setup_job(db, project_id)
-
-        if not job_id or not job_data:
-            print(f"Error: No setup_project job found for project {project_id}")
+        if not job_id or not job_data or not project_id:
+            print(f"Error: No setup_project job found for project id {project_id} or name {project_name}")
             return False
 
         print(f"Found setup job {job_id} for project {project_id} with data {job_data}")
@@ -125,10 +134,11 @@ def keep_building_project(project_id: str):
 
 def main():
     parser = argparse.ArgumentParser(description="Keep building project from todo.md")
-    parser.add_argument("project_id", help="The ID of the project to keep building")
+    parser.add_argument("--project-id", help="The ID of the project to keep building")
+    parser.add_argument("--project-name", help="The name of the project to keep building")
     args = parser.parse_args()
 
-    success = keep_building_project(args.project_id)
+    success = keep_building_project(args.project_id, args.project_name)
     sys.exit(0 if success else 1)
 
 if __name__ == "__main__":
