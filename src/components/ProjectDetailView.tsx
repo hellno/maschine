@@ -39,6 +39,7 @@ import {
 } from "./ui/dropdown-menu";
 import { Label } from "./ui/label";
 import { useProjects } from "~/hooks/useProjects";
+import { useRouter } from "next/navigation";
 
 const styles = {
   card: "bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700",
@@ -67,13 +68,12 @@ interface ProjectDetailViewProps {
 
 function ProjectInfoCard({
   project,
-  // onHandleDeploy,
   isSubmitting,
 }: {
   project: Project;
-  // onHandleDeploy: () => void;
   isSubmitting: boolean;
 }) {
+  const router = useRouter();
   const { context } = useFrameSDK();
   const { removeProject } = useProjects(context?.user?.fid);
   const handleCopyUrl = async () => {
@@ -204,27 +204,34 @@ function ProjectInfoCard({
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Confirm Removal</DialogTitle>
+                <DialogTitle>Remove {project.name}?</DialogTitle>
                 <DialogDescription>
-                  Are you sure you want to remove this project? This action cannot be undone.
+                  Are you sure you want to remove this project? This action
+                  cannot be undone.
                 </DialogDescription>
               </DialogHeader>
-              <DialogFooter>
+              <DialogFooter className="gap-2">
                 <Button
                   variant="outline"
-                  onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))}
+                  onClick={() =>
+                    document.dispatchEvent(
+                      new KeyboardEvent("keydown", { key: "Escape" }),
+                    )
+                  }
                 >
                   Cancel
                 </Button>
                 <Button
                   variant="destructive"
-                  onClick={() => {
+                  disabled={!project?.id || !removeProject}
+                  onClick={async () => {
                     if (removeProject && project?.id) {
                       removeProject.mutate(project.id);
+                      router.push("/projects/all");
                     }
                   }}
                 >
-                  Confirm Removal
+                  Yes, remove it!
                 </Button>
               </DialogFooter>
             </DialogContent>
