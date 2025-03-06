@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { FrameContext, Project } from "~/lib/types";
 import { useRouter } from "next/navigation";
+import type { FrameContext, Project } from "~/lib/types";
 
 export function useProjects(fid?: number) {
   const queryClient = useQueryClient();
@@ -10,7 +10,7 @@ export function useProjects(fid?: number) {
     queryKey: ["projects", fid],
     queryFn: async () => {
       if (!fid) return { projects: [] };
-      
+
       const response = await fetch(`/api/projects?fid=${fid}`);
       if (!response.ok) throw new Error("Failed to fetch projects");
       return response.json();
@@ -19,7 +19,10 @@ export function useProjects(fid?: number) {
   });
 
   const createProjectMutation = useMutation({
-    mutationFn: async (payload: { prompt: string; userContext: FrameContext["user"] }) => {
+    mutationFn: async (payload: {
+      prompt: string;
+      userContext: FrameContext["user"];
+    }) => {
       const response = await fetch("/api/new-frame-project", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

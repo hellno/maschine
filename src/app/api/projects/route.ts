@@ -14,15 +14,14 @@ export async function DELETE(request: Request) {
     if (!id) {
       return NextResponse.json(
         { error: "Project ID is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     const { data, error } = await supabase
       .from("projects")
-      .update({ 
+      .update({
         status: "removed",
-        removed_at: new Date().toISOString()
       })
       .eq("id", id)
       .select();
@@ -31,15 +30,12 @@ export async function DELETE(request: Request) {
       console.error("Error soft deleting project:", error);
       return NextResponse.json(
         { error: "Error removing project" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
     if (!data || data.length === 0) {
-      return NextResponse.json(
-        { error: "Project not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
     return NextResponse.json({ project: data[0] });
@@ -47,7 +43,7 @@ export async function DELETE(request: Request) {
     console.error("Error removing project:", error);
     return NextResponse.json(
       { error: "Failed to remove project" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
