@@ -1,6 +1,5 @@
 import os
 import modal
-import re
 import time
 import threading
 from typing import Optional, Tuple
@@ -19,6 +18,7 @@ import tempfile
 
 from backend.types import UserContext
 from backend.services.context_enhancer import CodeContextEnhancer
+from backend.utils.package_commands import handle_package_install_commands
 
 DEFAULT_PROJECT_FILES = [
     "src/components/Frame.tsx",
@@ -506,34 +506,8 @@ def _handle_pnpm_commands(
     sandbox: modal.Sandbox,
 ) -> None:
     """Parse and execute pnpm/npm install commands from Aider output"""
-
-    # Match both formats:
-    # 1. ```bash pnpm add package-name```
-    # 2. pnpm add package-name (at the beginning of a line)
-    pattern = r"(?:```bash[\s\n]*)?(pnpm add|npm install(?: --save)?)\s+([^\n`]*)(?:```)?"
-    matches = list(re.finditer(pattern, aider_result, re.MULTILINE | re.IGNORECASE))
-
-    print(
-        f"[code_service] Found {len(matches)} package install commands in aider output"
+    handle_package_install_commands(
+        aider_result, 
+        sandbox,
+        CodeService.parse_sandbox_process
     )
-
-    for match in matches:
-        command = match.group(1).lower()
-        packages = match.group(2).strip()
-        if not packages:
-            continue
-
-        try:
-            print(f"[code_service] Installing packages: {packages}")
-            install_proc = sandbox.exec("pnpm", "add", *packages.split())
-
-            # Use the new parsing utility
-            logs, exit_code = CodeService.parse_sandbox_process(install_proc)
-
-            if exit_code != 0:
-                print(f"[code_service] pnpm add failed with code {exit_code}")
-                print("Installation logs:", "\n".join(logs))
-
-        except Exception as e:
-            error_msg = f"Error installing packages {packages}: {e}"
-            print(f"[code_service] {error_msg}")
