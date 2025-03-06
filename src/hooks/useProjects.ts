@@ -31,11 +31,27 @@ export function useProjects(fid?: number) {
     },
   });
 
+  const removeProjectMutation = useMutation({
+    mutationFn: async (projectId: string) => {
+      const response = await fetch("/api/projects", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: projectId }),
+      });
+      if (!response.ok) throw new Error("Failed to remove project");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects", fid] });
+    },
+  });
+
   return {
     projects: query?.data?.projects || [],
     isLoading: query.isLoading,
     refetch: query.refetch,
     error: query.error,
     createProject: createProjectMutation,
+    removeProject: removeProjectMutation,
   };
 }

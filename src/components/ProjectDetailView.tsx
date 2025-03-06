@@ -181,6 +181,20 @@ function ProjectInfoCard({
           <Copy className="w-4 h-4 mr-2" />
           Copy URL
         </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => {
+            if (window.confirm("Are you sure you want to remove this project?")) {
+              // This will be hooked up to the removeProject function
+              if (removeProject && project?.id) {
+                removeProject.mutate(project.id);
+              }
+            }
+          }}
+          className="transition-colors hover:bg-red-100 dark:hover:bg-red-900 text-red-600 dark:text-red-400"
+        >
+          <CircleXIcon className="w-4 h-4 mr-2" />
+          Remove
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         {project.repo_url && (
           <DropdownMenuItem asChild>
@@ -276,6 +290,7 @@ function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
   const [error, setError] = useState<string | null>(null);
   const [updatePrompt, setUpdatePrompt] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { removeProject } = useProjects(context?.user?.fid);
 
   const fetchProject = useCallback(async () => {
     if (!projectId) return;

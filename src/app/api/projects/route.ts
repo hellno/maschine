@@ -8,6 +8,50 @@ const supabase = createClient(
 );
 
 const selectQuery = "*, jobs:jobs(*, logs:logs(*)), builds:builds(*)";
+export async function DELETE(request: Request) {
+  try {
+    const { id } = await request.json();
+    if (!id) {
+      return NextResponse.json(
+        { error: "Project ID is required" },
+        { status: 400 }
+      );
+    }
+
+    const { data, error } = await supabase
+      .from("projects")
+      .update({ 
+        status: "removed",
+        removed_at: new Date().toISOString()
+      })
+      .eq("id", id)
+      .select();
+
+    if (error) {
+      console.error("Error soft deleting project:", error);
+      return NextResponse.json(
+        { error: "Error removing project" },
+        { status: 500 }
+      );
+    }
+
+    if (!data || data.length === 0) {
+      return NextResponse.json(
+        { error: "Project not found" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({ project: data[0] });
+  } catch (error) {
+    console.error("Error removing project:", error);
+    return NextResponse.json(
+      { error: "Failed to remove project" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
@@ -28,6 +72,7 @@ export async function GET(request: Request) {
         .from("projects")
         .select(selectQuery)
         .eq("fid_owner", Number(fid))
+        .neq("status", "removed")
         .order("created_at", { ascending: false })
         .limit(10);
     } else {
@@ -35,6 +80,7 @@ export async function GET(request: Request) {
         .from("projects")
         .select(selectQuery)
         .eq("id", id)
+        .neq("status", "removed")
         .order("created_at", { ascending: false })
         .limit(10);
     }
