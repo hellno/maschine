@@ -121,18 +121,24 @@ const WelcomeHero = () => {
       );
     }
 
-    // ai! make the disabled mode more user-friendly and obvious that I can't click
     return (
-      <button
-        onClick={() => onMintSubscription(tierId)}
-        disabled={isMinting || disabled}
-        className="relative inline-flex h-12 overflow-hidden rounded-full p-[1px] focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-50 disabled:opacity-75 disabled:cursor-not-allowed transition-opacity"
-      >
-        <span className="absolute inset-[-500%] bg-gray-100 border" />
-        <span className="inline-flex h-full w-full items-center justify-center rounded-full bg-slate-950 px-6 py-2 text-xl font-medium text-white backdrop-blur-3xl hover:bg-slate-900">
-          Upgrade Subscription
-        </span>
-      </button>
+      <div className="flex flex-col gap-2">
+        <button
+          onClick={() => onMintSubscription(tierId)}
+          disabled={isMinting || disabled}
+          className="relative inline-flex h-12 overflow-hidden rounded-full p-[1px] focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-50 disabled:opacity-100 disabled:cursor-not-allowed transition-opacity"
+        >
+          <span className="absolute inset-[-500%] bg-gray-100 dark:bg-gray-800 border" />
+          <span className="inline-flex h-full w-full items-center justify-center rounded-full bg-slate-950 px-6 py-2 text-xl font-medium text-white backdrop-blur-3xl hover:bg-slate-900 disabled:bg-gray-300 disabled:text-gray-500">
+            Upgrade Subscription
+          </span>
+        </button>
+        {disabled && (
+          <p className="text-sm text-red-500 dark:text-red-400">
+            Insufficient ETH balance to upgrade
+          </p>
+        )}
+      </div>
     );
   };
 
