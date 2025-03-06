@@ -1,8 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { FrameContext, Project } from "~/lib/types";
+import { useRouter } from "next/navigation";
 
 export function useProjects(fid?: number) {
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   const query = useQuery<{ projects: Project[] }>({
     queryKey: ["projects", fid],
@@ -28,6 +30,7 @@ export function useProjects(fid?: number) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects", fid] });
+      router.push("/projects/all");
     },
   });
 

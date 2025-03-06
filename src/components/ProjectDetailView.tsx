@@ -223,14 +223,16 @@ function ProjectInfoCard({
                 </Button>
                 <Button
                   variant="destructive"
-                  disabled={!project?.id || !removeProject}
-                  onClick={async () => {
+                  disabled={!project?.id || removeProject.isPending}
+                  onClick={() => {
                     if (removeProject && project?.id) {
                       removeProject.mutate(project.id);
-                      router.push("/projects/all");
                     }
                   }}
                 >
+                  {removeProject.isPending ? (
+                    <LoaderCircle className="w-4 h-4 animate-spin mr-2" />
+                  ) : null}
                   Yes, remove it!
                 </Button>
               </DialogFooter>
