@@ -2,6 +2,7 @@ import os
 from typing import Tuple, Optional
 from openai import OpenAI
 from backend.utils.timing import measure_time
+import re
 
 
 def get_deepseek_client() -> OpenAI:
@@ -153,6 +154,7 @@ def generate_search_queries_from_user_input(
         llm_content = llm_content.replace("`", "").strip()
         queries = [q.lstrip("-").strip() for q in llm_content.split("\n") if q]
         queries = [q for q in queries if q]
+        queries = [re.sub(r'^\d+\.\s+', '', q) for q in queries]
         print(f"Generated queries: {queries}")
         return queries
 

@@ -37,12 +37,11 @@ Determine if this can be built within Frame limitations.
 - Suggested Approach: [1-2 sentences]
 """
 
-CREATE_SPEC_PROMPT = """
-You are a technical expert designing a Farcaster Frame v2 application.
+CREATE_SPEC_PROMPT = """You are a technical expert designing a Farcaster Frame v2 application.
 We have an existing nextjs typescript template with common UI components.
 It has scaffolding to make the project a complete Frame v2 application (meta tags to indicate the webapp is a Frame v2).
 We need to fill in the content based on the user request.
-CRITICAL: Frames v2 provides full HTML/CSS/JS capabilities with no button limits.
+CRITICAL: Frames v2 provides full HTML/CSS/Typescript capabilities with no button limits.
 
 USER REQUEST: {prompt}
 
@@ -55,22 +54,17 @@ Create a detailed specification document with these sections:
    - UX flow
 
 2. TECHNICAL REQUIREMENTS
-    - Frontend components using HTML/CSS/JS (leverage the full canvas)
-    - API integrations (only use APIs mentioned in context)
-    - Client-side state management approach
-    - Mobile responsiveness strategy
+    - use full responsive design, most users will be on mobile devices
+    - don't hallucinate APIs, see context for relevant external sources
 
 3. FRAMES v2 IMPLEMENTATION
     - Interactive canvas elements
-    - Animation and transition effects
     - User input handling (not limited to buttons)
-    - Notification integration (if applicable)
     - Saving/sharing capabilities
 
 5. MOBILE CONSIDERATIONS
-    - Touch interaction patterns
     - Responsive layout techniques
-    - Performance optimization
+    - Touch interaction patterns
 
 4. CONSTRAINTS COMPLIANCE
    - Confirm: No database requirements
@@ -78,7 +72,7 @@ Create a detailed specification document with these sections:
    - Confirm: No third-party integrations beyond those mentioned in context
    - Confirm: No unnecessary complexity or enterprise-level features
 
-FORMAT YOUR RESPONSE AS A DETAILED MARKDOWN DOCUMENT with a focus on the spec and no example code.
+respond with markdown format with a focus on the spec, no code snippets needed here.
 """
 
 CREATE_PROMPT_PLAN_PROMPT = """
@@ -107,6 +101,7 @@ Based on this specification:
 - Consider mobile-specific behaviors
 - We have an existing nextjs typescript template with common UI components. Remember to customize title and components of the template
 - Constraints: No database or custom smart contracts to deploy
+- CRITICAL: Frames v2 provides full HTML/CSS/Typescript capabilities with no button limits
 
 Create a list of prompts that will be used to generate code for the application.
 """
@@ -123,13 +118,13 @@ Create an actionable todo list that I can use as a checklist.
 
 1. Each task is concrete and implementable
 2. Tasks are ordered by dependency (foundation first)
+3. Try to aim for up to 20 tasks while making sure that the whole application will be built when all tasks are completed
 
 Format each task as:
 - [ ] Task description with component affected and user outcome
 """
 
-IMPLEMENT_TODO_LIST_PROMPT = """
-You are an expert Farcaster Frame v2 developer implementing a project based on your todo list.
+IMPLEMENT_TODO_LIST_PROMPT = """You are an expert Farcaster Frame v2 developer implementing a project based on your todo list.
 CRITICAL: Frames v2 offers full html canvas capabilities with NO button limitations.
 
 Code the next highest priority task from the todo list.
@@ -138,9 +133,8 @@ Code the next highest priority task from the todo list.
 1. Find the highest priority uncompleted todos
 2. Use relevant prompt and context that was prepared for you in the prompt_plan.md
 3. Implement focused, working code (no unnecessary complexity or enterprise-level features)
-4. Optimize for touch interfaces on mobile
-5. Verify the implementation meets the task requirement
-6. Update the todo list to reflect completed work
+4. Verify the implementation meets the task requirement
+5. Update the todo list to reflect completed work
 
 For each task you complete:
 - Create/modify the necessary files with proper TypeScript
@@ -152,10 +146,8 @@ RETRY_IMPLEMENT_TODO_LIST_PROMPT = f"""{IMPLEMENT_TODO_LIST_PROMPT}
 If there are no todo items left, skip this step and move on without changing anything.
 """
 
-FIX_PROBLEMS_PROMPT = """## Fix Implementation Issues
-Address specific problems with the current implementation and get it working.
-
-### Instructions
+FIX_PROBLEMS_PROMPT = """Address specific problems with the current implementation and get it working.
+# Instructions
 1. Focus on critical problems first - get something working
 2. Prioritize fixing:
    - Broken user flows
@@ -164,5 +156,4 @@ Address specific problems with the current implementation and get it working.
    - State management problems
 3. Make minimal changes needed to fix the issue
 4. Update the todo list to related todos if their status is changed
-
 """
