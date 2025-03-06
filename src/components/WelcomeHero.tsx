@@ -17,7 +17,7 @@ const DEFAULT_SUBSCRIPTION_PERIOD = 3n; // 2 months + upfront cost to subscribe
 
 const WelcomeHero = () => {
   const [isMinting, setIsMinting] = useState(false);
-
+  const [error, setError] = useState<string | null>(null);
   const { address } = useAccount();
   const { context } = useFrameSDK();
   const {
@@ -37,6 +37,7 @@ const WelcomeHero = () => {
   const onMintSubscription = useCallback(
     async (tierId?: number | undefined) => {
       if (!address) return;
+      setError(null);
 
       const tier = await tierDetail({
         contractAddress: HYPERSUB_CONTRACT_ADDRESS,
@@ -52,6 +53,9 @@ const WelcomeHero = () => {
         console.log("receipt", receipt);
       } catch (error) {
         console.error(error);
+        setError(
+          `Failed to mint subscription ${tier}: ${JSON.stringify(error)}`,
+        );
       }
 
       setIsMinting(true);
@@ -156,6 +160,9 @@ const WelcomeHero = () => {
         </a>
         .
       </p>
+      {context?.user?.fid.toString() === "13596" && error && (
+        <p className="mt-4 mx-auto max-w-xs bg-red-800 text-white">{error}</p>
+      )}
     </div>
   );
 };
