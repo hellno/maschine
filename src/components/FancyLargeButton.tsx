@@ -5,6 +5,8 @@ const FancyLargeButton = ({
   text: string;
   onClick?: () => void;
 }) => {
+  // ai! this button looks great on a dark background, can you add a better color that shows the border animation nicely also on a white background
+  // can use dark: tailwindcss to make it work on dark mode
   return (
     <button
       onClick={onClick}
