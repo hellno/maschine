@@ -18,6 +18,8 @@ const DEFAULT_SUBSCRIPTION_PERIOD = 3n; // 2 months + upfront cost to subscribe
 const WelcomeHero = () => {
   const [isMinting, setIsMinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
   const { address } = useAccount();
   const { context } = useFrameSDK();
   const {
@@ -38,17 +40,22 @@ const WelcomeHero = () => {
     async (tierId?: number | undefined) => {
       if (!address) return;
       setError(null);
+      setIsMinting(true);
 
       const tier = await tierDetail({
         contractAddress: HYPERSUB_CONTRACT_ADDRESS,
         tierId: tierId || DEFAULT_SUBSCRIPTION_TIER,
       });
+      setMessage(`Minting subscription... ${JSON.stringify(tier)}`);
       const amount = DEFAULT_SUBSCRIPTION_PERIOD * tier.params.pricePerPeriod;
       try {
         const mint = await prepareMint({
           contractAddress: HYPERSUB_CONTRACT_ADDRESS,
           amount,
         });
+        setMessage(
+          `Got mint for tier ${JSON.stringify(tier)} ${JSON.stringify(mint)}`,
+        );
         const receipt = await mint();
         console.log("receipt", receipt);
       } catch (error) {
@@ -58,12 +65,30 @@ const WelcomeHero = () => {
         );
       }
 
-      setIsMinting(true);
       await refetch();
       setIsMinting(false);
     },
     [address, refetch],
   );
+
+  const renderSubscribeButton = (tierId: number) =>
+    isMinting ? (
+      <div className="h-16 align-center text-center w-full flex flex-row justify-center">
+        <LoaderCircle className="w-6 h-6 animate-spin" />
+        <p className="ml-2 font-medium text-xl">Minting...</p>
+      </div>
+    ) : (
+      <button
+        onClick={() => onMintSubscription(tierId)}
+        disabled={isMinting}
+        className="relative inline-flex h-12 overflow-hidden rounded-full p-[1px] focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-50 disabled:opacity-75 disabled:cursor-not-allowed transition-opacity"
+      >
+        <span className="absolute inset-[-500%] bg-gray-100 border" />
+        <span className="inline-flex h-full w-full items-center justify-center rounded-full bg-slate-950 px-6 py-2 text-xl font-medium text-white backdrop-blur-3xl hover:bg-slate-900">
+          Upgrade to Maschine Member
+        </span>
+      </button>
+    );
 
   const renderSubscription = () => {
     if (loading) {
@@ -81,46 +106,20 @@ const WelcomeHero = () => {
               : "as many frames as you want"}
             .
           </p>
-          {active?.subscribedTier === DEFAULT_SUBSCRIPTION_TIER && (
-            <button
-              onClick={() => onMintSubscription(MASCHINE_PRO_SUBSCRIPTION_TIER)}
-              disabled={isMinting}
-              className="relative inline-flex h-12 overflow-hidden rounded-full p-[1px] focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-50 disabled:opacity-75 disabled:cursor-not-allowed transition-opacity"
-            >
-              <span className="absolute inset-[-500%] bg-gray-100 border" />
-              <span className="inline-flex h-full w-full items-center justify-center rounded-full bg-slate-950 px-6 py-2 text-xl font-medium text-white backdrop-blur-3xl hover:bg-slate-900">
-                Upgrade to Maschine Pro
-              </span>
-            </button>
-          )}
+          {active?.subscribedTier === DEFAULT_SUBSCRIPTION_TIER &&
+            renderSubscribeButton(MASCHINE_PRO_SUBSCRIPTION_TIER)}
         </div>
       );
     } else {
       return (
         <div className="p-2 mt-4 justify-center">
-          {isMinting ? (
-            <div className="h-16 align-center text-center w-full flex flex-row justify-center">
-              <LoaderCircle className="w-6 h-6 animate-spin" />
-              <p className="ml-2 font-medium text-xl">Minting...</p>
-            </div>
-          ) : (
-            <button
-              onClick={() => onMintSubscription()}
-              disabled={isMinting}
-              className="relative inline-flex h-12 overflow-hidden rounded-full p-[1px] focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-50 disabled:opacity-75 disabled:cursor-not-allowed transition-opacity"
-            >
-              <span className="absolute inset-[-500%] bg-gray-100 border" />
-              <span className="inline-flex h-full w-full items-center justify-center rounded-full bg-slate-950 px-6 py-2 text-xl font-medium text-white backdrop-blur-3xl hover:bg-slate-900">
-                Upgrade to Maschine Member
-              </span>
-            </button>
-          )}
+          {renderSubscribeButton(DEFAULT_SUBSCRIPTION_TIER)}
         </div>
       );
     }
   };
   return (
-    <div className="mx-auto max-w-3xl lg:pt-8">
+    <div className="mx-auto max-w-xs lg:max-w-3xl lg:pt-8">
       <div className="mt-8 flex justify-center">
         <img
           alt="Frameception Logo"
@@ -162,6 +161,7 @@ const WelcomeHero = () => {
       </p>
       {context?.user?.fid.toString() === "13596" && (
         <div>
+          <p>message: {message}</p>
           <p>address: {address}</p>
           <p>context: {JSON.stringify(context)}</p>
           {error && (
