@@ -86,6 +86,7 @@ class SetupProjectService:
                         auto_enhance_context=False
                     )
                 except Exception as e:
+                    print(f'exception during implementation iteration {iteration+1}: {str(e)}')
                     self._log(f"retry iteration {iteration+1} failed: {str(e)}", "warning")
                     continue
 

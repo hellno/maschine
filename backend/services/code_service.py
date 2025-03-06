@@ -70,13 +70,13 @@ class CodeService:
 
             # Retry logic with 3 attempts
             max_retries = 3
-            retry_delay = 10  # seconds between retries
+            retry_delay = 15  # seconds between retries
             timeout = 120  # seconds for each attempt
             aider_result = ''
 
             for attempt in range(max_retries):
                 try:
-                    # Run with 60 second timeout per attempt
+                    # Run for timeout seconds per attempt
                     result = [None]  # Use list to store result from thread
                     exception = []
 
@@ -101,9 +101,8 @@ class CodeService:
                     aider_result = result[0]
                     break
                 except TimeoutError as e:
-                    error_msg = f"Timeout after 60 seconds (attempt {attempt+1}/{max_retries})"
+                    error_msg = f"Timeout after {timeout} seconds (attempt {attempt+1}/{max_retries})"
                     print(f"[code_service] {error_msg}")
-                    self.db.add_log(self.job_id, "backend", error_msg)
 
                     if attempt < max_retries - 1:
                         print(f"Waiting {retry_delay}s before retry...")
@@ -138,11 +137,6 @@ class CodeService:
                 )
                 if has_errors:
                     print("[code_service] Build errors persist after fix attempt")
-                    self.db.add_log(
-                        self.job_id,
-                        "backend",
-                        "Build errors could not be automatically fixed",
-                    )
 
             self._sync_git_changes()
             self._create_build_and_poll_status_async()
