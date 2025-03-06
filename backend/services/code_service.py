@@ -1,5 +1,6 @@
 import os
 import modal
+import re
 import time
 import threading
 from typing import Optional, Tuple
@@ -505,7 +506,11 @@ def _handle_pnpm_commands(
     sandbox: modal.Sandbox,
 ) -> None:
     """Parse and execute pnpm/npm install commands from Aider output"""
-    import re
+
+    # ai! make this slightly less strict, the command can also just be at the beginning of a line without ```bash in front
+    # examples are:
+    # pnpm add zustand
+    # npm install lodash-es
 
     pattern = r"```bash[\s\n]*(?:pnpm add|npm install(?: --save)?)\s+([^\n`]*)```"
     matches = list(re.finditer(pattern, aider_result, re.DOTALL))
