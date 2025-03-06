@@ -160,8 +160,16 @@ const WelcomeHero = () => {
         </a>
         .
       </p>
-      {context?.user?.fid.toString() === "13596" && error && (
-        <p className="mt-4 mx-auto max-w-xs bg-red-800 text-white">{error}</p>
+      {context?.user?.fid.toString() === "13596" && (
+        <div>
+          <p>address: {address}</p>
+          <p>context: {JSON.stringify(context)}</p>
+          {error && (
+            <p className="mt-4 mx-auto max-w-xs bg-red-800 text-white">
+              {error}
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
