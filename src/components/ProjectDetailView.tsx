@@ -12,6 +12,15 @@ import {
   EllipsisVertical,
 } from "lucide-react";
 import { Button } from "./ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "./ui/dialog";
 import sdk from "@farcaster/frame-sdk";
 import { Log, Project } from "~/lib/types";
 import Link from "next/link";
@@ -185,21 +194,41 @@ function ProjectInfoCard({
           Copy URL
         </DropdownMenuItem>
         <DropdownMenuItem
-          onClick={() => {
-            // ai! we're on mobile and in sandboxed document, use shadcn dialog to render a confirmation dialog
-            if (
-              window.confirm("Are you sure you want to remove this project?")
-            ) {
-              // This will be hooked up to the removeProject function
-              if (removeProject && project?.id) {
-                removeProject.mutate(project.id);
-              }
-            }
-          }}
+          onSelect={(e) => e.preventDefault()} // Prevent immediate action
           className="transition-colors hover:bg-red-100 dark:hover:bg-red-900 text-red-600 dark:text-red-400"
         >
-          <CircleXIcon className="w-4 h-4 mr-2" />
-          Remove
+          <Dialog>
+            <DialogTrigger className="w-full text-left flex items-center">
+              <CircleXIcon className="w-4 h-4 mr-2" />
+              Remove
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Confirm Removal</DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to remove this project? This action cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    if (removeProject && project?.id) {
+                      removeProject.mutate(project.id);
+                    }
+                  }}
+                >
+                  Confirm Removal
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         {project.repo_url && (
