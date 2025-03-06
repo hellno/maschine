@@ -11,6 +11,8 @@ def handle_package_install_commands(
     # Match both formats:
     # 1. ```bash pnpm add package-name```
     # 2. pnpm add package-name (at the beginning of a line)
+
+    # ai! improve this by supporting the following formwat as well: npm install js-sha256 lodash-es
     pattern = r"(?:```bash[\s\n]*)?(pnpm add|npm install(?: --save)?)\s+([^\n`]*)(?:```)?"
     matches = list(re.finditer(pattern, aider_result, re.MULTILINE | re.IGNORECASE))
 
