@@ -29,6 +29,7 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { Label } from "./ui/label";
+import { useProjects } from "~/hooks/useProjects";
 
 const styles = {
   card: "bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700",
@@ -64,6 +65,8 @@ function ProjectInfoCard({
   // onHandleDeploy: () => void;
   isSubmitting: boolean;
 }) {
+  const { context } = useFrameSDK();
+  const { removeProject } = useProjects(context?.user?.fid);
   const handleCopyUrl = async () => {
     if (project.frontend_url) {
       try {
@@ -183,7 +186,10 @@ function ProjectInfoCard({
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => {
-            if (window.confirm("Are you sure you want to remove this project?")) {
+            // ai! we're on mobile and in sandboxed document, use shadcn dialog to render a confirmation dialog
+            if (
+              window.confirm("Are you sure you want to remove this project?")
+            ) {
               // This will be hooked up to the removeProject function
               if (removeProject && project?.id) {
                 removeProject.mutate(project.id);
@@ -290,7 +296,6 @@ function ProjectDetailView({ projectId }: ProjectDetailViewProps) {
   const [error, setError] = useState<string | null>(null);
   const [updatePrompt, setUpdatePrompt] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { removeProject } = useProjects(context?.user?.fid);
 
   const fetchProject = useCallback(async () => {
     if (!projectId) return;
