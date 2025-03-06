@@ -507,20 +507,19 @@ def _handle_pnpm_commands(
 ) -> None:
     """Parse and execute pnpm/npm install commands from Aider output"""
 
-    # ai! make this slightly less strict, the command can also just be at the beginning of a line without ```bash in front
-    # examples are:
-    # pnpm add zustand
-    # npm install lodash-es
-
-    pattern = r"```bash[\s\n]*(?:pnpm add|npm install(?: --save)?)\s+([^\n`]*)```"
-    matches = list(re.finditer(pattern, aider_result, re.DOTALL))
+    # Match both formats:
+    # 1. ```bash pnpm add package-name```
+    # 2. pnpm add package-name (at the beginning of a line)
+    pattern = r"(?:```bash[\s\n]*)?(pnpm add|npm install(?: --save)?)\s+([^\n`]*)(?:```)?"
+    matches = list(re.finditer(pattern, aider_result, re.MULTILINE | re.IGNORECASE))
 
     print(
         f"[code_service] Found {len(matches)} package install commands in aider output"
     )
 
     for match in matches:
-        packages = match.group(1).strip()
+        command = match.group(1).lower()
+        packages = match.group(2).strip()
         if not packages:
             continue
 
