@@ -145,11 +145,9 @@ const WelcomeHero = () => {
 
     return (
       <div className="flex flex-col align-center text-center justify-center">
-        // ai! round balance to 5 digits after it has run through formatEther.
-        // it shows up as "You have 0.002004576676215631 ETH." right now
         <p className="">
           You need at least {formatEther(minAmount)} ETH in your wallet.{" "}
-          {balance && `You have ${formatEther(balance.value)} ETH.`}
+          {balance && `You have ${Number(formatEther(balance.value)).toFixed(5)} ETH.`}
         </p>
         <div className="flex h-full">
           <Swap setTransactionState={setTransactionState} />
