@@ -121,6 +121,7 @@ const WelcomeHero = () => {
       );
     }
 
+    // ai! make the disabled mode more user-friendly and obvious that I can't click
     return (
       <button
         onClick={() => onMintSubscription(tierId)}
@@ -144,10 +145,11 @@ const WelcomeHero = () => {
     const minAmount = getMinSubscriptionAmount(tierId);
 
     return (
-      <div className="flex flex-col align-center text-center justify-center">
-        <p className="">
+      <div className="flex flex-col align-center text-center justify-center gap-4">
+        <p className="font-semibold text-pretty">
           You need at least {formatEther(minAmount)} ETH in your wallet.{" "}
-          {balance && `You have ${Number(formatEther(balance.value)).toFixed(5)} ETH.`}
+          {balance &&
+            `You have ${Number(formatEther(balance.value)).toFixed(4)} ETH.`}
         </p>
         <div className="flex h-full">
           <Swap setTransactionState={setTransactionState} />
@@ -168,7 +170,7 @@ const WelcomeHero = () => {
       return (
         <div className="flex flex-col p-2 pt-0 space-y-4">
           {active?.subscribedTier === DEFAULT_SUBSCRIPTION_TIER && (
-            <div className="flex flex-col">
+            <div className="flex flex-col gap-4">
               {renderSubscribeButton(
                 MASCHINE_PRO_SUBSCRIPTION_TIER,
                 !hasBalanceToUpgrade,
@@ -190,7 +192,7 @@ const WelcomeHero = () => {
         MASCHINE_PRO_SUBSCRIPTION_TIER,
       );
       return (
-        <div className="p-2 mt-4 justify-center">
+        <div className="p-2 mt-4 justify-center gap-4">
           {renderSubscribeButton(
             DEFAULT_SUBSCRIPTION_TIER,
             !hasBalanceToUpgrade,
@@ -217,8 +219,8 @@ const WelcomeHero = () => {
           Farcaster frame in minutes
         </p>
       </h1>
-      <p className="mt-6 mx-8 text-pretty tracking-tight text-lg font-medium text-gray-600 sm:text-xl/8 dark:text-gray-300 max-w-2xl">
-        Create your own Farcaster frame in a Farcaster frame, right here.
+      <p className="mt-6 mx-4 text-pretty tracking-tight text-lg font-medium text-gray-600 sm:text-xl/8 dark:text-gray-300 max-w-2xl">
+        Create your own share-able frame in a Farcaster frame, right here.
       </p>
       {/* <Link className="pt-8 pb-2 flex justify-center" href="/projects/new">
         <FancyLargeButton text="Start Building" />
