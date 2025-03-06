@@ -1,14 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import type { FrameContext, Project } from "~/lib/types";
 
 export function useProjects(fid?: number) {
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   const query = useQuery<{ projects: Project[] }>({
     queryKey: ["projects", fid],
     queryFn: async () => {
       if (!fid) return { projects: [] };
-      
+
       const response = await fetch(`/api/projects?fid=${fid}`);
       if (!response.ok) throw new Error("Failed to fetch projects");
       return response.json();
@@ -17,13 +19,32 @@ export function useProjects(fid?: number) {
   });
 
   const createProjectMutation = useMutation({
-    mutationFn: async (payload: { prompt: string; userContext: FrameContext["user"] }) => {
+    mutationFn: async (payload: {
+      prompt: string;
+      userContext: FrameContext["user"];
+    }) => {
       const response = await fetch("/api/new-frame-project", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       if (!response.ok) throw new Error("Failed to create project");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects", fid] });
+      router.push("/projects/all");
+    },
+  });
+
+  const removeProjectMutation = useMutation({
+    mutationFn: async (projectId: string) => {
+      const response = await fetch("/api/projects", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: projectId }),
+      });
+      if (!response.ok) throw new Error("Failed to remove project");
       return response.json();
     },
     onSuccess: () => {
@@ -37,5 +58,6 @@ export function useProjects(fid?: number) {
     refetch: query.refetch,
     error: query.error,
     createProject: createProjectMutation,
+    removeProject: removeProjectMutation,
   };
 }

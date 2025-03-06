@@ -14,6 +14,15 @@ export function useFrameSDK() {
   useEffect(() => {
     const load = async () => {
       const frameContext = await sdk.context;
+      // const frameContext = {
+      //   user: {
+      //     fid: 13596,
+      //     username: "hellno",
+      //   },
+      //   client: {
+      //     added: true,
+      //   },
+      // };
       if (!frameContext) return;
 
       setContext(frameContext as unknown as FrameContext);
@@ -82,7 +91,6 @@ export function useFrameSDK() {
   }, []);
 
   return {
-    isSDKLoaded,
     context,
     pinFrame,
     pinFrameResponse,
@@ -90,5 +98,6 @@ export function useFrameSDK() {
     notificationDetails,
     lastEvent,
     sdk,
+    isSDKLoaded,
   };
 }

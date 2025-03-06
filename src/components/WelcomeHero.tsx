@@ -7,7 +7,6 @@ import { useUser } from "~/hooks/useUser";
 import {
   fetchContext,
   prepareMint,
-  // prepareMintAdvanced,
   tierDetail,
 } from "@withfabric/protocol-sdks/stpv2";
 import { useAccount } from "wagmi";
@@ -36,7 +35,6 @@ const WelcomeHero = () => {
   const [isMinting, setIsMinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-
   const { address } = useAccount();
   const { context } = useFrameSDK();
   const {
@@ -225,9 +223,6 @@ const WelcomeHero = () => {
       <p className="mt-6 mx-4 text-pretty tracking-tight text-lg font-medium text-gray-600 sm:text-xl/8 dark:text-gray-300 max-w-2xl">
         Create your own share-able frame in a Farcaster frame, right here.
       </p>
-      {/* <Link className="pt-8 pb-2 flex justify-center" href="/projects/new">
-        <FancyLargeButton text="Start Building" />
-      </Link> */}
       <div className="flex flex-col text-md text-pretty text-gray-600 sm:text-xl/8 dark:text-gray-400 max-w-2xl">
         {canCreateMoreProjects ? (
           <Link className="pt-8 pb-2 flex justify-center" href="/projects/new">
