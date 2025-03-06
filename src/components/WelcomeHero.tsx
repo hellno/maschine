@@ -136,39 +136,47 @@ const WelcomeHero = () => {
       <p className="mt-6 mx-8 text-pretty text-lg font-medium text-gray-600 sm:text-xl/8 dark:text-gray-400 max-w-2xl">
         Create your own Farcaster frame in a Farcaster frame, right here.
       </p>
-      {canCreateMoreProjects ? (
-        <Link className="pt-8 pb-2 flex justify-center" href="/projects/new">
-          <FancyLargeButton text="Start Building" />
-        </Link>
-      ) : (
-        <p className="pt-8 pb-2 flex justify-center">
-          You have reached your frame limit, upgrade below to create more
-          frames.
-        </p>
-      )}
-      {renderSubscription()}
-      <p className="mt-4 mx-auto max-w-xs">
-        Visit{" "}
-        <a
-          href="https://hypersub.xyz/s/maschine?referrer=0x6d9ffaede2c6cd9bb48bece230ad589e0e0d981c"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-700 underline hover:text-blue-500"
-        >
-          Hypersub for details
-        </a>
-        .
-      </p>
+      <Link className="pt-8 pb-2 flex justify-center" href="/projects/new">
+        <FancyLargeButton text="Start Building" />
+      </Link>
       {context?.user?.fid.toString() === "13596" && (
         <div>
-          <p>message: {message}</p>
-          <p>address: {address}</p>
-          <p>context: {JSON.stringify(context)}</p>
-          {error && (
-            <p className="mt-4 mx-auto max-w-xs bg-red-800 text-white">
-              {error}
+          {canCreateMoreProjects ? (
+            <Link
+              className="pt-8 pb-2 flex justify-center"
+              href="/projects/new"
+            >
+              <FancyLargeButton text="Start Building" />
+            </Link>
+          ) : (
+            <p className="pt-8 pb-2 flex justify-center">
+              You have reached your frame limit, upgrade below to create more
+              frames.
             </p>
           )}
+          {renderSubscription()}
+          <p className="mt-4 mx-auto max-w-xs">
+            Visit{" "}
+            <a
+              href="https://hypersub.xyz/s/maschine?referrer=0x6d9ffaede2c6cd9bb48bece230ad589e0e0d981c"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-700 underline hover:text-blue-500"
+            >
+              Hypersub for details
+            </a>
+            .
+          </p>
+          <div className="mt-4 mx-auto max-w-xs flex flex-col items-center">
+            <p>message: {message}</p>
+            <p>address: {address}</p>
+            <p>context: {JSON.stringify(context)}</p>
+            {error && (
+              <p className="mt-4 mx-auto max-w-xs bg-red-800 text-white">
+                {error}
+              </p>
+            )}
+          </div>
         </div>
       )}
     </div>
