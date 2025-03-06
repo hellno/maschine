@@ -82,6 +82,7 @@ export function useFrameSDK() {
   }, []);
 
   return {
+    isSDKLoaded,
     context,
     pinFrame,
     pinFrameResponse,

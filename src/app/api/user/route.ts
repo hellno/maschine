@@ -1,18 +1,11 @@
 import { NextResponse } from "next/server";
 import { NextRequest } from "next/server";
+import { HYPERSUB_CONTRACT_ADDRESS, TIERS } from "~/lib/hypersub";
 import {
   NeynarSubscriptionData,
   SubscriptionTier,
   UserSubscription,
 } from "~/lib/types";
-
-const HYPERSUB_CONTRACT_ADDRESS = "0x2211e467d0c210F4bdebF4895c25569D93225CFc";
-
-const TIERS: SubscriptionTier[] = [
-  { id: 1, tierName: "Maschine Pro" }, // undefined means unlimited
-  { id: 2, tierName: "Maschine Human Hybrid" },
-  { id: 3, tierName: "Maschine Member", maxProjects: 2 },
-];
 
 export async function GET(request: NextRequest) {
   try {
@@ -66,9 +59,7 @@ export async function GET(request: NextRequest) {
     const subscriptions = maschineSubscriptions.map(
       (sub: NeynarSubscriptionData) => {
         const tierId = Number(sub.tier.id);
-        const tier: SubscriptionTier | undefined = TIERS.find(
-          (t) => t.id === tierId,
-        );
+        const tier: SubscriptionTier | undefined = TIERS[tierId];
         const expiresAt = new Date(sub.expires_at);
 
         if (!tier) {

@@ -17,8 +17,8 @@ import { truncateAddress } from "~/lib/truncateAddress";
 import { BigPurpleButton } from "./ui/BigPurpleButton";
 import { BaseError, UserRejectedRequestError } from "viem";
 
-import { config } from "~/components/providers/WagmiProvider";
 import { base } from "wagmi/chains";
+import { config } from "~/app/wagmi";
 
 export default function DebugView() {
   const { context, isFramePinned, notificationDetails, lastEvent } =
@@ -110,7 +110,7 @@ export default function DebugView() {
         onSuccess: (hash) => {
           setTxHash(hash);
         },
-      }
+      },
     );
   }, [sendTransaction]);
 
@@ -286,8 +286,8 @@ export default function DebugView() {
                     {isConfirming
                       ? "Confirming..."
                       : isConfirmed
-                      ? "Confirmed!"
-                      : "Pending"}
+                        ? "Confirmed!"
+                        : "Pending"}
                   </div>
                 </div>
               )}
@@ -402,8 +402,8 @@ export function SendEth() {
             {isConfirming
               ? "Confirming..."
               : isConfirmed
-              ? "Confirmed!"
-              : "Pending"}
+                ? "Confirmed!"
+                : "Pending"}
           </div>
         </div>
       )}
@@ -418,7 +418,7 @@ export const renderError = (error: Error | null) => {
   if (!error) return null;
   if (error instanceof BaseError) {
     const isUserRejection = error.walk(
-      (e) => e instanceof UserRejectedRequestError
+      (e) => e instanceof UserRejectedRequestError,
     );
     if (isUserRejection) {
       return <div className="text-red-500 text-xs mt-1">Rejected by user.</div>;

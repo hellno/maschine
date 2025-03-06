@@ -11,7 +11,7 @@ import {
   tierDetail,
 } from "@withfabric/protocol-sdks/stpv2";
 import { useAccount } from "wagmi";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { useProjects } from "~/hooks/useProjects";
 import { formatEther } from "viem";
@@ -36,7 +36,6 @@ const WelcomeHero = () => {
   const [isMinting, setIsMinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [transactionState, setTransactionState] = useState<string | null>(null);
 
   const { address } = useAccount();
   const { context } = useFrameSDK();
@@ -55,9 +54,7 @@ const WelcomeHero = () => {
     chainId: base.id,
   });
 
-  const canCreateMoreProjects = maxProjects
-    ? projects.length < maxProjects
-    : true;
+  const canCreateMoreProjects = !maxProjects || projects.length < maxProjects;
 
   const onMintSubscription = useCallback(
     async (tierId?: number | undefined) => {
@@ -152,13 +149,13 @@ const WelcomeHero = () => {
 
     return (
       <div className="flex flex-col align-center text-center justify-center gap-4">
-        <p className="font-semibold text-pretty">
-          You need at least {formatEther(minAmount)} ETH in your wallet.{" "}
-          {balance &&
-            `You have ${Number(formatEther(balance.value)).toFixed(4)} ETH.`}
+        <p className="text-pretty font-medium text-gray-600 ">
+          {balance
+            ? `Swap below to get ${Number(formatEther(minAmount - balance.value)).toFixed(4)} more ETH to upgrade.`
+            : "Swap below to get more ETH to upgrade"}
         </p>
         <div className="flex h-full">
-          <Swap setTransactionState={setTransactionState} />
+          <Swap />
         </div>
       </div>
     );
@@ -232,20 +229,23 @@ const WelcomeHero = () => {
         <FancyLargeButton text="Start Building" />
       </Link> */}
       <div className="flex flex-col text-md text-pretty text-gray-600 sm:text-xl/8 dark:text-gray-400 max-w-2xl">
-        {canCreateMoreProjects && (
+        {canCreateMoreProjects ? (
           <Link className="pt-8 pb-2 flex justify-center" href="/projects/new">
             <FancyLargeButton text="Start Building" />
           </Link>
+        ) : (
+          <div className="mt-6 flex flex-col gap-4">
+            {renderSubscribeFlow()}
+            <a
+              href="https://hypersub.xyz/s/maschine?referrer=0x6d9ffaede2c6cd9bb48bece230ad589e0e0d981c"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-700 underline hover:text-blue-500"
+            >
+              Visit Hypersub for details
+            </a>
+          </div>
         )}
-        <div className="mt-6 flex flex-col">{renderSubscribeFlow()}</div>
-        <a
-          href="https://hypersub.xyz/s/maschine?referrer=0x6d9ffaede2c6cd9bb48bece230ad589e0e0d981c"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-700 underline hover:text-blue-500"
-        >
-          Visit Hypersub for details
-        </a>
         {context?.user?.fid.toString() === "13596" && (
           <div className="mt-4 mx-auto max-w-xs flex flex-col items-center">
             <p>message: {message}</p>

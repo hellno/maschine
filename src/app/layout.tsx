@@ -2,9 +2,9 @@ import "~/app/globals.css";
 
 import type { Metadata } from "next";
 import { getSession } from "~/auth";
-import { Providers } from "~/app/providers";
 import Script from "next/script";
 import Layout from "~/components/Layout";
+import { Providers } from "~/components/providers/providers";
 
 export const metadata: Metadata = {
   title: "frameception",

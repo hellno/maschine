@@ -176,6 +176,8 @@ export interface SubscriptionTier {
   id: number;
   tierName: string;
   maxProjects?: number;
+  priceInEth: bigint;
+  priceToBecomeMember?: bigint;
 }
 
 export interface UserSubscription {
