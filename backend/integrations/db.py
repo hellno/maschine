@@ -35,7 +35,7 @@ class Database:
                 "fid_owner": fid_owner,
                 "repo_url": repo_url,
                 "frontend_url": frontend_url,
-                "status": "created",
+                "status": "pending",
                 "data": data,
             }
         ).execute()

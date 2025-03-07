@@ -129,6 +129,12 @@ class CodeService:
                         retry_delay=retry_delay,
                         timeout=timeout
                     )
+                    handle_package_install_commands(
+                        aider_result,
+                        self.sandbox,
+                        parse_sandbox_process
+                    )
+                    print(f"[code_service] Aider result (truncated): {aider_result[:250]}")
                     break
                 except TimeoutError:
                     error_msg = f"Timeout after {timeout} seconds (attempt {attempt+1}/{max_retries})"
@@ -149,12 +155,7 @@ class CodeService:
                         self.terminate_sandbox()
                         return {"status": "error", "error": error_msg}
 
-            print(f"[code_service] Aider result (truncated): {aider_result[:250]}")
-            handle_package_install_commands(
-                aider_result,
-                self.sandbox,
-                parse_sandbox_process
-            )
+
             has_errors, logs = self._run_build_in_sandbox()
 
             if has_errors:
@@ -162,8 +163,9 @@ class CodeService:
                 print("[code_service] Running Aider again to fix build errors")
 
                 aider_result = coder.run(error_fix_prompt)
-                print(
-                    f"[code_service] Fix attempt result (truncated): {aider_result[:250]}"
+                if aider_result:
+                    print(
+                        f"[code_service] Fix attempt result (truncated): {aider_result[:250]}"
                 )
 
                 has_errors, logs = self._run_build_in_sandbox(
@@ -175,7 +177,7 @@ class CodeService:
             self._sync_git_changes()
             self._create_build_and_poll_status_async()
             self.db.update_job_status(self.job_id, "completed")
-            return {"status": "success", "result": aider_result, "build_logs": logs}
+            return {"status": "success", "build_logs": logs}
 
         except Exception as e:
             print("exception in run", e)
@@ -357,7 +359,7 @@ class CodeService:
                 cpu=4,
                 memory=2048,
                 workdir="/repo",
-                timeout=config.TIMEOUTS["BUILD"],
+                # timeout=config.TIMEOUTS["BUILD"],
             )
 
             print("[code_service] Installing dependencies in base sandbox")
@@ -457,9 +459,9 @@ class CodeService:
             print(f"[code_service] {error_msg}")
             self.db.add_log(self.job_id, "backend", error_msg)
 
+
 def run_with_timeout_and_retries(target, args=(), kwargs={}, max_retries=3, retry_delay=15, timeout=120):
     """Run a target function with timeout handling and retries using multiprocessing."""
-    import multiprocessing
     from queue import Empty
     import time
 
@@ -478,40 +480,56 @@ def run_with_timeout_and_retries(target, args=(), kwargs={}, max_retries=3, retr
             kwargs=kwargs,
             daemon=True
         )
-        process.start()
 
         try:
+            process.start()
             process.join(timeout=timeout)
 
+            # Check if process is still running (timeout occurred)
             if process.is_alive():
                 process.terminate()
-                time.sleep(1)
+                time.sleep(1)  # Give process time to terminate
                 if process.is_alive():
                     process.kill()
-                    process.join()
-                raise TimeoutError(f"Process timed out after {timeout} seconds")
+                process.join(1)  # Wait briefly for resources to clean up
 
-            result_type, result_data = queue.get_nowait()
-            if result_type == 'success':
-                return result_data
-            else:
-                raise result_data  # Re-raise the exception
+                if attempt < max_retries - 1:
+                    print(f"Timeout attempt {attempt+1}/{max_retries}, retrying in {retry_delay}s...")
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    raise TimeoutError(f"Process timed out after {timeout} seconds")
 
-        except TimeoutError:
-            if attempt < max_retries - 1:
-                print(f"Timeout attempt {attempt+1}/{max_retries}, retrying in {retry_delay}s...")
-                time.sleep(retry_delay)
-                continue
-            raise
-        except Empty:
-            raise RuntimeError("Process failed to return any result")
+            # Process completed within timeout, check for result
+            try:
+                result_type, result_data = queue.get(block=False)
+                if result_type == 'success':
+                    return result_data
+                else:  # result_type == 'error'
+                    if attempt < max_retries - 1:
+                        print(f"Error: {str(result_data)}, retrying in {retry_delay}s...")
+                        time.sleep(retry_delay)
+                        continue
+                    else:
+                        raise result_data  # Re-raise the exception on final attempt
+            except Empty:
+                if attempt < max_retries - 1:
+                    print(f"Process completed but returned no result, retrying in {retry_delay}s...")
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    raise RuntimeError("Process failed to return any result")
+
         except Exception as e:
+            # Handle any other exceptions that aren't already caught
             if attempt < max_retries - 1:
-                print(f"Error: {str(e)}, retrying in {retry_delay}s...")
+                print(f"Unexpected error: {str(e)}, retrying in {retry_delay}s...")
                 time.sleep(retry_delay)
                 continue
-            raise
+            else:
+                raise
 
+    # This should never be reached due to the exception handling above
     raise RuntimeError(f"Failed after {max_retries} attempts")
 
 

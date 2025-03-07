@@ -219,16 +219,26 @@ class VercelBuildService:
                 if status in ['success', 'error']:
                     print(f'======================================================\nbuild {build_id} changed to status {status} - no need to keep polling')
                     self.db.update_build(str(build_id), build)
-                    self.save_build_logs_for_build(build, str(build_id))
-                    data = build.get('data', {})
-                    commit_message = data.get('meta', {}).get('githubCommitMessage', '')
-                    if commit_message is SETUP_COMPLETE_COMMIT_MESSAGE:
+                    self.save_build_logs_for_build(build['vercel_build_id'], str(build_id))
+                    if status == 'success':
+                        data = build.get('data', {})
                         project = self._get_project()
-                        send_notification(
-                            fid=project.get('fid_owner'),
-                            title=f"@maschine created your frame {project.get('name', '')}",
-                            body='your frame is ready'
-                        )
+                        commit_message = data.get('meta', {}).get('githubCommitMessage', '')
+                        if commit_message is SETUP_COMPLETE_COMMIT_MESSAGE:
+                            send_notification(
+                                fid=project.get('fid_owner'),
+                                title=f"@maschine created your frame {project.get('name', '')}",
+                                body='your frame is ready'
+                            )
+                        elif project.status != 'pending':
+                            # project is pending if initial setup wasn't completed yet
+                            send_notification(
+                                fid=project.get('fid_owner'),
+                                title=f"@maschine updated your frame {project.get('name', '')}",
+                                body='your frame is ready'
+                            )
+
+
                     return build
 
             except Exception as e:
@@ -244,12 +254,7 @@ class VercelBuildService:
         # self.db.add_build_log(build_id, "vercel", timeout_msg)
         return {"status": "failed", "error": timeout_msg}
 
-    def save_build_logs_for_build(self, build, build_id: str):
-        vercel_build_id = build.get("vercel_build_id")
-        if not vercel_build_id:
-            print("No Vercel build ID found in build data")
-            return
-
+    def save_build_logs_for_build(self, vercel_build_id: str, build_id: str):
         headers = {"Authorization": f"Bearer {self.vercel_token}"}
         params = {
             "teamId": self.team_id,
