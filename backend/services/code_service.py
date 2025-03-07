@@ -125,7 +125,6 @@ class CodeService:
                 try:
                     # Run for timeout seconds per attempt
                     result = None  # Use list to store result from thread
-                    exception = []
 
                     def run_aider_wrapper(queue, prompt):
                         try:
@@ -141,7 +140,7 @@ class CodeService:
                         daemon=True
                     )
                     process.start()
-                    
+
                     # Wait with timeout
                     process.join(timeout=timeout)
 
@@ -149,7 +148,7 @@ class CodeService:
                         # Try to terminate gracefully first
                         process.terminate()
                         time.sleep(1)  # Give it moment to shutdown
-                        
+
                         if process.is_alive():
                             print("Process still alive after terminate - using kill()")
                             process.kill()
