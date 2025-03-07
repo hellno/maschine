@@ -17,7 +17,7 @@ MODAL_POLL_BUILD_FUNCTION_NAME = "poll_build_status"
 
 TIMEOUTS = {
     "CODE_UPDATE": 1200,  # 20 mins
-    "PROJECT_SETUP": 3600,  # 1 hour
+    "PROJECT_SETUP": 7200,  # 2 hours
     "BUILD": 600,  # 10 mins
 }
 
