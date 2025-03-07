@@ -30,9 +30,53 @@ DEFAULT_PROJECT_FILES = [
 READONLY_FILES = [
     "prompt_plan.md",
     "llm_docs/frames.md",
-    # "plan.md",
-    # "spec.md",
+    "spec.md",
 ]
+
+def parse_sandbox_process(process, prefix="") -> tuple[list, int]:
+    """Safely parse stdout/stderr from a sandbox process using Modal's StreamReader."""
+    logs = []
+    exit_code = -1
+
+    try:
+        # Handle stdout - check if bytes need decoding
+        for line in process.stdout:
+            try:
+                if isinstance(line, bytes):  # Handle both str and bytes
+                    decoded = line.decode("utf-8", "ignore").strip()
+                else:
+                    decoded = str(line).strip()  # Convert to string if needed
+                logs.append(decoded)
+                # print(f"[{prefix}] {decoded}")
+            except UnicodeDecodeError as ude:
+                error_msg = f"Decode error: {str(ude)}"
+                logs.append(error_msg)
+                print(f"[{prefix} ERR] {error_msg}")
+
+        # Handle stderr the same way
+        for line in process.stderr:
+            try:
+                if isinstance(line, bytes):
+                    decoded = line.decode("utf-8", "ignore").strip()
+                else:
+                    decoded = str(line).strip()
+                logs.append(decoded)
+                # print(f"[{prefix} ERR] {decoded}")
+            except UnicodeDecodeError as ude:
+                error_msg = f"Decode error: {str(ude)}"
+                logs.append(error_msg)
+                print(f"[{prefix} ERR] {error_msg}")
+
+        # Get exit code after reading all output
+        exit_code = process.wait()
+
+    except Exception as e:
+        error_msg = f"Process handling failed: {str(e)}"
+        logs.append(error_msg)
+        print(f"[{prefix} CRITICAL] {error_msg}")
+
+    return logs, exit_code
+
 
 
 class CodeService:
@@ -101,7 +145,7 @@ class CodeService:
 
                     aider_result = result[0]
                     break
-                except TimeoutError as e:
+                except TimeoutError:
                     error_msg = f"Timeout after {timeout} seconds (attempt {attempt+1}/{max_retries})"
                     print(f"[code_service] {error_msg}")
 
@@ -121,7 +165,11 @@ class CodeService:
                         return {"status": "error", "error": error_msg}
 
             print(f"[code_service] Aider result (truncated): {aider_result[:250]}")
-            _handle_pnpm_commands(aider_result, self.sandbox)
+            handle_package_install_commands(
+                aider_result,
+                self.sandbox,
+                parse_sandbox_process
+            )
             has_errors, logs = self._run_build_in_sandbox()
 
             if has_errors:
@@ -187,7 +235,7 @@ class CodeService:
         try:
             # Execute cat command to read file
             process = self.sandbox.exec("cat", filename)
-            logs, exit_code = self.parse_sandbox_process(process)
+            logs, exit_code = parse_sandbox_process(process)
 
             if exit_code == 0:
                 return "\n".join(logs)
@@ -239,7 +287,7 @@ class CodeService:
 
         print("[code_service] Running install command")
         process = self.sandbox.exec("pnpm", "install")
-        logs, exit_code = self.parse_sandbox_process(process)
+        logs, exit_code = parse_sandbox_process(process)
         return exit_code
 
     def get_git_repo_status(self) -> Tuple[bool, bool]:
@@ -248,7 +296,7 @@ class CodeService:
             return False, False
 
         git_status = self.sandbox.exec("git", "status")
-        status_logs, _ = self.parse_sandbox_process(git_status)
+        status_logs, _ = parse_sandbox_process(git_status)
         print("[build] Current git status:", status_logs)
         no_new_commits = 'Your branch is up to date'
         no_pending_changes = 'nothing to commit'
@@ -272,17 +320,17 @@ class CodeService:
                 return False, "No new commits or pending changes"
 
             git_log = self.sandbox.exec("git", "log", "-1", "--oneline")
-            log_lines, _ = self.parse_sandbox_process(git_log)
+            log_lines, _ = parse_sandbox_process(git_log)
             logs.extend(log_lines)
             print("[build] Latest commit:", log_lines)
 
             install_process = self.sandbox.exec("pnpm", "install")
-            install_logs, install_code = self.parse_sandbox_process(install_process)
+            install_logs, install_code = parse_sandbox_process(install_process)
             logs.extend(install_logs)
 
             print("[build] Running build command")
             build_process = self.sandbox.exec("pnpm", "build")
-            build_logs, build_returncode = self.parse_sandbox_process(build_process)
+            build_logs, build_returncode = parse_sandbox_process(build_process)
             logs.extend(build_logs)
 
             has_error_in_logs = build_returncode == 1 or any(
@@ -331,12 +379,8 @@ class CodeService:
             process = base_sandbox.exec(
                 "pnpm",
                 "install",
-                "--loglevel",
-                "debug",
-                "--reporter",
-                "ndjson",
             )
-            install_logs, exit_code = self.parse_sandbox_process(
+            install_logs, exit_code = parse_sandbox_process(
                 process, prefix="base install"
             )
             # print(
@@ -382,50 +426,6 @@ class CodeService:
         self.sandbox.set_tags({"project_id": self.project_id, "job_id": self.job_id})
         self._run_install_in_sandbox()
         print("[code_service] Sandbox created")
-
-    def parse_sandbox_process(self, process, prefix="") -> tuple[list, int]:
-        """Safely parse stdout/stderr from a sandbox process using Modal's StreamReader."""
-        logs = []
-        exit_code = -1
-
-        try:
-            # Handle stdout - check if bytes need decoding
-            for line in process.stdout:
-                try:
-                    if isinstance(line, bytes):  # Handle both str and bytes
-                        decoded = line.decode("utf-8", "ignore").strip()
-                    else:
-                        decoded = str(line).strip()  # Convert to string if needed
-                    logs.append(decoded)
-                    # print(f"[{prefix}] {decoded}")
-                except UnicodeDecodeError as ude:
-                    error_msg = f"Decode error: {str(ude)}"
-                    logs.append(error_msg)
-                    print(f"[{prefix} ERR] {error_msg}")
-
-            # Handle stderr the same way
-            for line in process.stderr:
-                try:
-                    if isinstance(line, bytes):
-                        decoded = line.decode("utf-8", "ignore").strip()
-                    else:
-                        decoded = str(line).strip()
-                    logs.append(decoded)
-                    # print(f"[{prefix} ERR] {decoded}")
-                except UnicodeDecodeError as ude:
-                    error_msg = f"Decode error: {str(ude)}"
-                    logs.append(error_msg)
-                    print(f"[{prefix} ERR] {error_msg}")
-
-            # Get exit code after reading all output
-            exit_code = process.wait()
-
-        except Exception as e:
-            error_msg = f"Process handling failed: {str(e)}"
-            logs.append(error_msg)
-            print(f"[{prefix} CRITICAL] {error_msg}")
-
-        return logs, exit_code
 
     def _create_aider_coder(self) -> Coder:
         """Create and configure the Aider coder instance."""
@@ -499,15 +499,3 @@ def clean_log_lines(logs: list[str]) -> list[str]:
         and not line.startswith("warning")
         and not any(url in line for url in phrases_to_skip)
     ]
-
-
-def _handle_pnpm_commands(
-    aider_result: str,
-    sandbox: modal.Sandbox,
-) -> None:
-    """Parse and execute pnpm/npm install commands from Aider output"""
-    handle_package_install_commands(
-        aider_result, 
-        sandbox,
-        CodeService.parse_sandbox_process
-    )

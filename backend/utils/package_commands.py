@@ -8,9 +8,11 @@ def handle_package_install_commands(
 ) -> None:
     """Parse and execute pnpm/npm install commands from Aider output"""
 
+    # ai! create a separate test file that runs through these
     # Match both formats:
-    # 1. ```bash pnpm add package-name```
+    # 1. ```bash npm install package-name```
     # 2. pnpm add package-name (at the beginning of a line)
+    # 3. pnpm add p1 p2 p3
     # Supports multiple packages and optional flags
 
     pattern = r"(?:```.*?[\s\n]*)?(pnpm add|npm install)\s+((?:--\S+\s+)*[^\n`]*)(?:```)?"
@@ -21,7 +23,7 @@ def handle_package_install_commands(
     )
 
     for match in matches:
-        command = match.group(1).lower()
+        # command = match.group(1).lower()
         packages = match.group(2).strip()
         if not packages:
             continue
@@ -34,7 +36,7 @@ def handle_package_install_commands(
             logs, exit_code = parse_process(install_proc)
 
             if exit_code != 0:
-                print(f"[code_service] pnpm add failed with code {exit_code}")
+                print(f"pnpm add failed with code {exit_code}")
                 print("Installation logs:", "\n".join(logs))
 
         except Exception as e:
