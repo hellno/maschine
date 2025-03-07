@@ -219,6 +219,7 @@ class VercelBuildService:
                 if status in ['success', 'error']:
                     print(f'======================================================\nbuild {build_id} changed to status {status} - no need to keep polling')
                     self.db.update_build(str(build_id), build)
+                    self.save_build_logs_for_build(build)
                     data = build.get('data', {})
                     commit_message = data.get('meta', {}).get('githubCommitMessage', '')
                     if commit_message is SETUP_COMPLETE_COMMIT_MESSAGE:
@@ -242,3 +243,19 @@ class VercelBuildService:
         # self.db.update_build_status(build_id, "failed", timeout_msg)
         # self.db.add_build_log(build_id, "vercel", timeout_msg)
         return {"status": "failed", "error": timeout_msg}
+
+    def save_build_logs_for_build(self, build):
+        # {'vercel_build_id': 'dpl_2CR2Zu8otuuNJKD6tQv34AbnfqD5' }
+        # ai! fetch vercel api to get build logs
+        # save in our DB in build_logs table: text (str column) and build_id (our internal uuid4 build id, not vercel)
+        # Get deployment events​#Copy link to "Get deployment events"
+        # Get the build logs of a deployment by deployment ID and build ID. It can work as an infinite stream of logs or as a JSON endpoint depending on the input parameters.
+        # follow: 0 (disable live events, only return the logs)
+
+        # Path Parameters
+        # idOrUrl
+        # string
+        # required
+        # The unique identifier or hostname of the deployment.
+        # fetch('https://api.vercel.com/v3/deployments/{idOrUrl}/events')
+        pass
