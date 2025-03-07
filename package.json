@@ -44,6 +44,7 @@
     "qs": "^6.14.0",
     "react": "19.0.0-rc-66855b96-20241106",
     "react-dom": "19.0.0-rc-66855b96-20241106",
+    "react-hotkeys-hook": "^4.6.1",
     "stpv2": "link:@withfabric/protocol-sdks/stpv2",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",

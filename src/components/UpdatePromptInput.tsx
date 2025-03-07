@@ -4,6 +4,7 @@ import { Button } from "./ui/button";
 import { Info, LoaderCircle } from "lucide-react";
 import { Project, UserContext } from "~/lib/types";
 import { useEffect, useRef, useState } from "react";
+import { useHotkeys } from "react-hotkeys-hook";
 
 interface UpdatePromptInputProps {
   project: Project;
@@ -26,6 +27,16 @@ function UpdatePromptInput({
 }: UpdatePromptInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [charCount, setCharCount] = useState(0);
+  const { hasAnyJobsPending, latestJob, latestBuild } = project;
+
+  useHotkeys("Meta+Enter", handleSubmitUpdate, {
+    enableOnFormTags: true,
+    enabled:
+      updatePrompt.trim().length > 0 &&
+      !isSubmitting &&
+      userContext &&
+      !hasAnyJobsPending,
+  });
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -35,8 +46,6 @@ function UpdatePromptInput({
     }
     setCharCount(updatePrompt.length);
   }, [updatePrompt]);
-
-  const { hasAnyJobsPending, latestJob, latestBuild } = project;
 
   const hasBuildErrors =
     latestJob?.status === "failed" || latestBuild?.status === "error";

@@ -8,6 +8,7 @@ import { Button } from "~/components/ui/button";
 import { useFrameSDK } from "~/hooks/useFrameSDK";
 import { useProjects } from "~/hooks/useProjects";
 import { useRouter } from "next/navigation";
+import { useHotkeys } from "react-hotkeys-hook";
 
 const promptTemplates = [
   {
@@ -81,6 +82,19 @@ const Page = () => {
       setFlowState("enteringPrompt");
     }
   }, [inputValue, wordCount, context?.user, createProject]);
+
+  useHotkeys(
+    "Meta+Enter",
+    handleCreateProject,
+    {
+      enableOnFormTags: true,
+      enabled:
+        wordCount >= MIN_WORD_COUNT ||
+        flowState !== "pending" ||
+        !createProject.isPending,
+    },
+    [handleCreateProject],
+  );
 
   useEffect(() => {
     if ((flowState === "pending" || flowState === "success") && newProjectId) {
