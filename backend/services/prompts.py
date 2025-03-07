@@ -1,4 +1,4 @@
-from backend.services import prompts
+from idlelib import undo
 CLARIFY_INTENT_PROMPT = """
 ## Extract User Intent
 Distill the core functionality request into clear technical requirements.
@@ -60,17 +60,19 @@ Create a detailed specification document with these sections:
 3. FRAMES v2 IMPLEMENTATION
     - Interactive canvas elements
     - User input handling (not limited to buttons)
-    - Saving/sharing capabilities
+    - Saving/sharing capabilities via Frames v2 SDK
 
 5. MOBILE CONSIDERATIONS
     - Responsive layout techniques
     - Touch interaction patterns
 
 4. CONSTRAINTS COMPLIANCE
-   - Confirm: No database requirements
-   - Confirm: No smart contract deployments
-   - Confirm: No third-party integrations beyond those mentioned in context
-   - Confirm: No unnecessary complexity or enterprise-level features
+    - Miniapp context: localstorage is available on each device without sync across devices
+    - No database requirements, no migrations, no custom DB
+    - No smart contract deployments
+    - No third-party integrations beyond those mentioned in context
+    - No unnecessary complexity or enterprise-level features
+    - No need for QA or testing, this is a prototype. 90/10 impact to effort.
 
 respond with markdown format with a focus on the spec, no code snippets needed here.
 """
@@ -97,10 +99,10 @@ Based on this specification:
 
 - Describe what will be built
 - List technical components/APIs needed
-- Identify potential challenges
 - Consider mobile-specific behaviors
 - We have an existing nextjs typescript template with common UI components. Remember to customize title and components of the template
 - Constraints: No database or custom smart contracts to deploy
+- no need for QA or testing, this is a prototype. 90/10 impact to effort.
 - CRITICAL: Frames v2 provides full HTML/CSS/Typescript capabilities with no button limits
 
 Create a list of prompts that will be used to generate code for the application.
@@ -118,7 +120,8 @@ Create an actionable todo list that I can use as a checklist.
 
 1. Each task is concrete and implementable
 2. Tasks are ordered by dependency (foundation first)
-3. Try to aim for up to 20 tasks while making sure that the whole application will be built when all tasks are completed
+3. Try to aim for up to 20 tasks. Make sure that the whole application will be built when all tasks are completed
+4. Don't repeat yourself and don't add new tasks or unnecessary complexity
 
 Format each task as:
 - [ ] Task description with component affected and user outcome
