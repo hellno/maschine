@@ -3,7 +3,6 @@ import modal
 import time
 import threading
 import multiprocessing
-from queue import Empty
 from typing import Optional, Tuple
 import git
 from aider.coders import Coder
@@ -119,53 +118,17 @@ class CodeService:
             max_retries = 3
             retry_delay = 15  # seconds between retries
             timeout = 120  # seconds for each attempt
-            aider_result = ''
 
             for attempt in range(max_retries):
                 try:
                     # Run for timeout seconds per attempt
-                    result = None  # Use list to store result from thread
-
-                    def run_aider_wrapper(queue, prompt):
-                        try:
-                            result = coder.run(prompt)
-                            queue.put(('success', result))
-                        except Exception as e:
-                            queue.put(('error', e))
-
-                    queue = multiprocessing.Queue()
-                    process = multiprocessing.Process(
-                        target=run_aider_wrapper,
-                        args=(queue, prompt),
-                        daemon=True
+                    aider_result = run_with_timeout_and_retries(
+                        target=coder.run,
+                        args=(prompt,),
+                        max_retries=1,  # Individual attempts handled by outer loop
+                        retry_delay=retry_delay,
+                        timeout=timeout
                     )
-                    process.start()
-
-                    # Wait with timeout
-                    process.join(timeout=timeout)
-
-                    if process.is_alive():
-                        # Try to terminate gracefully first
-                        process.terminate()
-                        time.sleep(1)  # Give it moment to shutdown
-
-                        if process.is_alive():
-                            print("Process still alive after terminate - using kill()")
-                            process.kill()
-                            process.join()
-
-                        raise TimeoutError(f"coder.run timed out after {timeout} seconds")
-
-                    # Get result from queue
-                    try:
-                        result_type, result_data = queue.get_nowait()
-                        if result_type == 'error':
-                            raise result_data
-                        aider_result = result_data
-                    except Empty:
-                        raise RuntimeError("Aider process failed to return any result")
-
-                    aider_result = result
                     break
                 except TimeoutError:
                     error_msg = f"Timeout after {timeout} seconds (attempt {attempt+1}/{max_retries})"
@@ -493,6 +456,64 @@ class CodeService:
             error_msg = f"Failed to start build polling: {str(e)}"
             print(f"[code_service] {error_msg}")
             self.db.add_log(self.job_id, "backend", error_msg)
+
+def run_with_timeout_and_retries(target, args=(), kwargs={}, max_retries=3, retry_delay=15, timeout=120):
+    """Run a target function with timeout handling and retries using multiprocessing."""
+    import multiprocessing
+    from queue import Empty
+    import time
+
+    def target_wrapper(queue, *args, **kwargs):
+        try:
+            result = target(*args, **kwargs)
+            queue.put(('success', result))
+        except Exception as e:
+            queue.put(('error', e))
+
+    for attempt in range(max_retries):
+        queue = multiprocessing.Queue()
+        process = multiprocessing.Process(
+            target=target_wrapper,
+            args=(queue,) + args,
+            kwargs=kwargs,
+            daemon=True
+        )
+        process.start()
+
+        try:
+            process.join(timeout=timeout)
+
+            if process.is_alive():
+                process.terminate()
+                time.sleep(1)
+                if process.is_alive():
+                    process.kill()
+                    process.join()
+                raise TimeoutError(f"Process timed out after {timeout} seconds")
+
+            result_type, result_data = queue.get_nowait()
+            if result_type == 'success':
+                return result_data
+            else:
+                raise result_data  # Re-raise the exception
+
+        except TimeoutError:
+            if attempt < max_retries - 1:
+                print(f"Timeout attempt {attempt+1}/{max_retries}, retrying in {retry_delay}s...")
+                time.sleep(retry_delay)
+                continue
+            raise
+        except Empty:
+            raise RuntimeError("Process failed to return any result")
+        except Exception as e:
+            if attempt < max_retries - 1:
+                print(f"Error: {str(e)}, retrying in {retry_delay}s...")
+                time.sleep(retry_delay)
+                continue
+            raise
+
+    raise RuntimeError(f"Failed after {max_retries} attempts")
+
 
 def get_error_fix_prompt_from_logs(logs: str) -> str:
     """Extract a prompt from build logs to fix errors."""
