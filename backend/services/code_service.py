@@ -122,15 +122,18 @@ class CodeService:
             for attempt in range(max_retries):
                 try:
                     # Run for timeout seconds per attempt
-                    result = [None]  # Use list to store result from thread
+                    result = None  # Use list to store result from thread
                     exception = []
 
                     def run_aider():
                         try:
-                            result[0] = coder.run(prompt)
+                            result = coder.run(prompt)
                         except Exception as e:
                             exception.append(e)
 
+                    # ai! replace thread with multiprocessing.Process
+                    # if timeout is reached add a process.terminate if this doesn't work move on to process.kill
+                    # I don't want parallel processing, I just want to have a solid timeout with shutting down when timeout is reached
                     thread = threading.Thread(target=run_aider)
                     thread.start()
                     thread.join(timeout=timeout)
@@ -143,7 +146,7 @@ class CodeService:
                         # Re-raise the exception caught in the thread
                         raise exception[0]
 
-                    aider_result = result[0]
+                    aider_result = result
                     break
                 except TimeoutError:
                     error_msg = f"Timeout after {timeout} seconds (attempt {attempt+1}/{max_retries})"
