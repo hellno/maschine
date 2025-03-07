@@ -219,7 +219,7 @@ class VercelBuildService:
                 if status in ['success', 'error']:
                     print(f'======================================================\nbuild {build_id} changed to status {status} - no need to keep polling')
                     self.db.update_build(str(build_id), build)
-                    self.save_build_logs_for_build(build)
+                    self.save_build_logs_for_build(build, str(build_id))
                     data = build.get('data', {})
                     commit_message = data.get('meta', {}).get('githubCommitMessage', '')
                     if commit_message is SETUP_COMPLETE_COMMIT_MESSAGE:
@@ -244,18 +244,43 @@ class VercelBuildService:
         # self.db.add_build_log(build_id, "vercel", timeout_msg)
         return {"status": "failed", "error": timeout_msg}
 
-    def save_build_logs_for_build(self, build):
-        # {'vercel_build_id': 'dpl_2CR2Zu8otuuNJKD6tQv34AbnfqD5' }
-        # ai! fetch vercel api to get build logs
-        # save in our DB in build_logs table: text (str column) and build_id (our internal uuid4 build id, not vercel)
-        # Get deployment events​#Copy link to "Get deployment events"
-        # Get the build logs of a deployment by deployment ID and build ID. It can work as an infinite stream of logs or as a JSON endpoint depending on the input parameters.
-        # follow: 0 (disable live events, only return the logs)
+    def save_build_logs_for_build(self, build, build_id: str):
+        vercel_build_id = build.get("vercel_build_id")
+        if not vercel_build_id:
+            print("No Vercel build ID found in build data")
+            return
 
-        # Path Parameters
-        # idOrUrl
-        # string
-        # required
-        # The unique identifier or hostname of the deployment.
-        # fetch('https://api.vercel.com/v3/deployments/{idOrUrl}/events')
-        pass
+        headers = {"Authorization": f"Bearer {self.vercel_token}"}
+        params = {
+            "teamId": self.team_id,
+            "follow": "0"  # Get logs as JSON
+        }
+
+        try:
+            response = requests.get(
+                f"https://api.vercel.com/v3/deployments/{vercel_build_id}/events",
+                headers=headers,
+                params=params
+            )
+            response.raise_for_status()
+            events = response.json()
+
+            log_entries = []
+            for event in events:
+                text = event.get("payload", {}).get("text", "")
+                if text:
+                    log_entries.append(text.strip())
+
+            if log_entries:
+                logs_text = "\n".join(log_entries)
+                self.db.update_build(build_id, {
+                    "data": {
+                        "logs": logs_text
+                    }
+                })
+                print(f"Saved {len(log_entries)} log entries for build {build_id}")
+            else:
+                print("No log entries found")
+
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching Vercel build logs: {str(e)}")
