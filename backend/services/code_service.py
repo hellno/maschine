@@ -2,6 +2,8 @@ import os
 import modal
 import time
 import threading
+import multiprocessing
+from queue import Empty
 from typing import Optional, Tuple
 import git
 from aider.coders import Coder
@@ -125,26 +127,44 @@ class CodeService:
                     result = None  # Use list to store result from thread
                     exception = []
 
-                    def run_aider():
+                    def run_aider_wrapper(queue, prompt):
                         try:
                             result = coder.run(prompt)
+                            queue.put(('success', result))
                         except Exception as e:
-                            exception.append(e)
+                            queue.put(('error', e))
 
-                    # ai! replace thread with multiprocessing.Process
-                    # if timeout is reached add a process.terminate if this doesn't work move on to process.kill
-                    # I don't want parallel processing, I just want to have a solid timeout with shutting down when timeout is reached
-                    thread = threading.Thread(target=run_aider)
-                    thread.start()
-                    thread.join(timeout=timeout)
+                    queue = multiprocessing.Queue()
+                    process = multiprocessing.Process(
+                        target=run_aider_wrapper,
+                        args=(queue, prompt),
+                        daemon=True
+                    )
+                    process.start()
+                    
+                    # Wait with timeout
+                    process.join(timeout=timeout)
 
-                    if thread.is_alive():
-                        # Thread is still running after timeout
+                    if process.is_alive():
+                        # Try to terminate gracefully first
+                        process.terminate()
+                        time.sleep(1)  # Give it moment to shutdown
+                        
+                        if process.is_alive():
+                            print("Process still alive after terminate - using kill()")
+                            process.kill()
+                            process.join()
+
                         raise TimeoutError(f"coder.run timed out after {timeout} seconds")
 
-                    if exception:
-                        # Re-raise the exception caught in the thread
-                        raise exception[0]
+                    # Get result from queue
+                    try:
+                        result_type, result_data = queue.get_nowait()
+                        if result_type == 'error':
+                            raise result_data
+                        aider_result = result_data
+                    except Empty:
+                        raise RuntimeError("Aider process failed to return any result")
 
                     aider_result = result
                     break
