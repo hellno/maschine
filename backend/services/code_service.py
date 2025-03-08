@@ -23,7 +23,7 @@ from backend.exceptions import (
     CodeServiceError, SandboxError, SandboxCreationError, SandboxTerminationError,
     GitError, GitCloneError, GitPushError,
     BuildError, InstallError, CompileError,
-    AiderTimeoutError, AiderExecutionError
+    AiderError, AiderTimeoutError, AiderExecutionError
 )
 
 
