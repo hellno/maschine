@@ -132,6 +132,10 @@ class AiderRunner:
                 queue.put(('error', e))
 
         for attempt in range(max_retries):
+            # Increase timeout for each retry attempt (exponential backoff)
+            current_timeout = timeout * (1 + attempt * 0.5)  # 1x, 1.5x, 2x original timeout
+            print(f"[aider_runner] Attempt {attempt+1}/{max_retries} with timeout {int(current_timeout)}s")
+            
             queue = multiprocessing.Queue()
             process = multiprocessing.Process(
                 target=target_wrapper,
@@ -141,14 +145,16 @@ class AiderRunner:
             process.start()
 
             try:
-                process.join(timeout=timeout)
+                process.join(timeout=current_timeout)
 
                 if process.is_alive():
+                    print(f"[aider_runner] Process still alive after {int(current_timeout)}s, terminating...")
                     process.terminate()
                     time.sleep(1)
                     if process.is_alive():
+                        print("[aider_runner] Process not responding to terminate, killing forcefully")
                         process.kill()
-                    raise AiderTimeoutError(self.job_id, self.project_id, timeout)
+                    raise AiderTimeoutError(self.job_id, self.project_id, int(current_timeout))
 
                 result_type, result_data = queue.get_nowait()
                 if result_type == 'success':
@@ -156,12 +162,14 @@ class AiderRunner:
                 raise result_data
 
             except AiderTimeoutError:
-                print(f'aider timed out on job {self.job_id} in project {self.project_id}: attempt {attempt}')
+                print(f'aider timed out on job {self.job_id} in project {self.project_id}: attempt {attempt+1}, timeout was {int(current_timeout)}s')
                 if attempt < max_retries - 1:
+                    print(f"[aider_runner] Waiting {retry_delay}s before next attempt")
                     time.sleep(retry_delay)
                     continue
                 raise
             except Empty:
+                print(f"[aider_runner] Process completed but returned no result on attempt {attempt+1}")
                 if attempt < max_retries - 1:
                     time.sleep(retry_delay)
                     continue
@@ -170,6 +178,7 @@ class AiderRunner:
                     RuntimeError("Process returned no result")
                 )
             except Exception as e:
+                print(f"[aider_runner] Error on attempt {attempt+1}: {type(e).__name__}: {str(e)}")
                 if attempt < max_retries - 1:
                     time.sleep(retry_delay)
                     continue
