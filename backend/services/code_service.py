@@ -491,30 +491,30 @@ class CodeService:
                     process, prefix="base install"
                 )
                 print("[code_service] base install process completed with exit code:", exit_code)
-                
+
                 # Check if we got a valid exit code
                 if exit_code == -1:
                     print("[code_service] Warning: Could not determine exit code, proceeding with caution")
                 elif exit_code != 0:
                     logs_str = "\n".join(install_logs[:50]) + "..." if len(install_logs) > 50 else "\n".join(install_logs)
                     raise InstallError(self.job_id, self.project_id, Exception(f"Exit code: {exit_code}, Logs: {logs_str}"))
-                    
+
             except UnicodeDecodeError as e:
                 print(f"[code_service] Unicode decode error during install: {e}")
                 # Try a simpler install command as a fallback
                 fallback_logs = ["Encountered encoding issue, using fallback install method"]
                 try:
                     print("[code_service] Trying fallback install method")
-                    process = base_sandbox.exec("bash", "-c", "cd /repo && pnpm install")
+                    process = base_sandbox.exec("bash", "-c", "pnpm install")
                     fb_logs, fb_code = parse_sandbox_process(process, prefix="fallback install")
                     fallback_logs.extend(fb_logs)
                     if fb_code != 0:
-                        raise InstallError(self.job_id, self.project_id, 
+                        raise InstallError(self.job_id, self.project_id,
                             Exception(f"Fallback install failed with code {fb_code}"))
                 except Exception as fb_e:
-                    raise InstallError(self.job_id, self.project_id, 
+                    raise InstallError(self.job_id, self.project_id,
                         Exception(f"Fallback install failed: {str(fb_e)}"))
-            
+
             print("[code_service] Creating filesystem snapshot")
             image = base_sandbox.snapshot_filesystem()
             return image

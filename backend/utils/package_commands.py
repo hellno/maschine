@@ -70,14 +70,6 @@ def handle_package_install_commands(
     parse_process
 ) -> None:
     """Parse and execute pnpm/npm install commands from Aider output"""
-
-    # ai! create a separate test file that runs through these
-    # Match both formats:
-    # 1. ```bash npm install package-name```
-    # 2. pnpm add package-name (at the beginning of a line)
-    # 3. pnpm add p1 p2 p3
-    # Supports multiple packages and optional flags
-
     pattern = r"(?:```.*?[\s\n]*)?(pnpm add|npm install)\s+((?:--\S+\s+)*[^\n`]*)(?:```)?"
     matches = list(re.finditer(pattern, aider_result, re.MULTILINE | re.IGNORECASE))
 
@@ -92,7 +84,7 @@ def handle_package_install_commands(
             continue
 
         try:
-            print(f"[code_service] Installing packages: {packages}")
+            print(f"[code_service] Installing packages {len(packages)}: {packages}")
             install_proc = sandbox.exec("pnpm", "add", *packages.split())
 
             # Use the parsing function passed as parameter
