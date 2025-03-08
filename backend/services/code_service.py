@@ -1,7 +1,6 @@
 import os
 import modal
 import time
-import threading
 import multiprocessing
 import requests
 from typing import Optional, Tuple
@@ -339,7 +338,7 @@ class CodeService:
         if not self.sandbox:
             print('error getting git repo status, sandbox not initialized')
             return False, False
-            
+
         build_runner = BuildRunner(self.project_id, self.db, self.job_id)
         return build_runner._get_git_repo_status(self.sandbox)
 
@@ -349,15 +348,15 @@ class CodeService:
         """Run build commands in an isolated Modal sandbox."""
         try:
             self._create_sandbox(repo_dir=self.repo_dir)
-            
+
             build_runner = BuildRunner(self.project_id, self.db, self.job_id)
             has_error_in_logs, logs_str = build_runner.run_build_in_sandbox(self.sandbox)
-            
+
             print(f'terminate_after_build {terminate_after_build} manual_sandbox_termination {self.manual_sandbox_termination}')
             if terminate_after_build and not self.manual_sandbox_termination:
                 print("[code_service] Terminating sandbox after build")
                 self.terminate_sandbox()
-                
+
             return has_error_in_logs, logs_str
 
         except (CompileError, InstallError, SandboxError):
@@ -488,7 +487,7 @@ class CodeService:
         build_id = self.db.create_build(
             self.project_id, commit_hash, status="submitted"
         )
-        
+
         build_runner = BuildRunner(self.project_id, self.db, self.job_id)
         build_runner.start_build_polling(build_id, commit_hash)
 
@@ -587,5 +586,3 @@ def run_with_timeout_and_retries(target, args=(), kwargs={}, max_retries=3, retr
         raise CodeServiceError(f"Failed after {max_retries} attempts", job_id, project_id)
     else:
         raise RuntimeError(f"Failed after {max_retries} attempts")
-
-
