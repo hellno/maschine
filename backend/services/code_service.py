@@ -201,7 +201,16 @@ class CodeService:
 
         try:
             logs = self._get_build_logs()
-
+            
+            # Check for specific package.json errors
+            if self._is_package_json_error(logs):
+                return self._fix_package_json_error(logs)
+            
+            # Check for outdated lockfile error
+            if self._is_outdated_lockfile_error(logs):
+                return self._fix_outdated_lockfile()
+            
+            # Fall back to general error fixing
             aider_runner = AiderRunner(
                 job_id=self.job_id,
                 project_id=self.project_id,
@@ -397,6 +406,96 @@ class CodeService:
                 self.project_id,
                 e
             )
+
+    def _is_package_json_error(self, logs: str) -> bool:
+        """Check if logs contain package.json related errors"""
+        error_patterns = [
+            "ERR_PNPM_INVALID_PACKAGE_JSON",
+            "Invalid package.json",
+            "Unexpected token in JSON",
+            "Cannot find module",
+            "npm ERR! code ENOENT",
+            "npm ERR! missing script"
+        ]
+        return any(pattern in logs for pattern in error_patterns)
+
+    def _is_outdated_lockfile_error(self, logs: str) -> bool:
+        """Check if logs contain outdated lockfile error"""
+        return "ERR_PNPM_OUTDATED_LOCKFILE" in logs
+
+    def _fix_package_json_error(self, logs: str) -> bool:
+        """Use Aider to fix package.json errors"""
+        self.db.add_log(self.job_id, "system", "Attempting to fix package.json errors")
+        print("[code_service] Attempting to fix package.json errors")
+        
+        aider_runner = AiderRunner(
+            job_id=self.job_id,
+            project_id=self.project_id,
+            user_context=self.user_context
+        )
+        
+        # Create targeted prompt for package.json fix
+        fix_prompt = (
+            "The build failed with package.json errors:\n\n"
+            f"{logs[:1500]}\n\n"
+            "Please fix the package.json file. Check for:\n"
+            "1. Invalid JSON syntax\n"
+            "2. Missing or incompatible dependencies\n"
+            "3. Incorrect script definitions\n"
+            "4. Version conflicts\n\n"
+            "Focus ONLY on the package.json file and make minimal changes to fix the issues."
+        )
+        
+        coder = self._create_aider_coder()
+        fix_result = aider_runner.run_aider(coder, fix_prompt)
+        
+        # Run build again to check if errors were fixed
+        has_errors, new_logs = self._run_build_in_sandbox(terminate_after_build=True)
+        
+        if has_errors:
+            if self._is_outdated_lockfile_error(new_logs):
+                # If we fixed package.json but now have lockfile issues
+                return self._fix_outdated_lockfile()
+            return False
+        
+        return True
+
+    def _fix_outdated_lockfile(self) -> bool:
+        """Fix outdated lockfile by regenerating it"""
+        self.db.add_log(self.job_id, "system", "Fixing outdated lockfile")
+        print("[code_service] Regenerating pnpm-lock.yaml file")
+        
+        if not self.sandbox:
+            self._create_sandbox(repo_dir=self.repo_dir)
+        
+        try:
+            # Run pnpm install without frozen lockfile to update it
+            process = self.sandbox.exec("pnpm", "install", "--no-frozen-lockfile")
+            logs, exit_code = parse_sandbox_process(process, prefix="lockfile-update")
+            
+            if exit_code != 0:
+                self.db.add_log(self.job_id, "build", "Failed to update lockfile")
+                print("[code_service] Failed to update lockfile")
+                return False
+            
+            # Copy the updated lockfile from sandbox to local repo
+            updated_lockfile = self._read_file_from_sandbox("pnpm-lock.yaml")
+            if updated_lockfile:
+                with open(os.path.join(self.repo_dir, "pnpm-lock.yaml"), "w") as f:
+                    f.write(updated_lockfile)
+            
+            # Commit and push the updated lockfile
+            self._create_commit("Update pnpm-lock.yaml to match package.json")
+            
+            # Verify build works now
+            has_errors, _ = self._run_build_in_sandbox(terminate_after_build=True)
+            return not has_errors
+        
+        except Exception as e:
+            error_msg = f"Error updating lockfile: {str(e)}"
+            self.db.add_log(self.job_id, "system", error_msg)
+            print(f"[code_service] {error_msg}")
+            return False
 
     def _sync_git_changes(self):
         """Sync any pending git changes with the remote repository."""
