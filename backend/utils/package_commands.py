@@ -7,41 +7,60 @@ def parse_sandbox_process(process, prefix="") -> tuple[list, int]:
     exit_code = -1
 
     try:
-        # Handle stdout - check if bytes need decoding
+        # Handle stdout with more robust error handling
         for line in process.stdout:
             try:
-                if isinstance(line, bytes):  # Handle both str and bytes
-                    decoded = line.decode("utf-8", "ignore").strip()
+                if isinstance(line, bytes):
+                    # Use 'replace' instead of 'ignore' to handle bad bytes
+                    decoded = line.decode("utf-8", "replace").strip()
                 else:
-                    decoded = str(line).strip()  # Convert to string if needed
+                    decoded = str(line).strip()
                 logs.append(decoded)
-                # print(f"[{prefix}] {decoded}")
+                print(f"[{prefix}] {decoded}")
             except UnicodeDecodeError as ude:
                 error_msg = f"Decode error: {str(ude)}"
                 logs.append(error_msg)
                 print(f"[{prefix} ERR] {error_msg}")
+            except Exception as e:
+                error_msg = f"Unexpected error processing stdout: {str(e)}"
+                logs.append(error_msg)
+                print(f"[{prefix} ERR] {error_msg}")
 
-        # Handle stderr the same way
+        # Handle stderr with more robust error handling
         for line in process.stderr:
             try:
                 if isinstance(line, bytes):
-                    decoded = line.decode("utf-8", "ignore").strip()
+                    # Use 'replace' instead of 'ignore' to handle bad bytes
+                    decoded = line.decode("utf-8", "replace").strip()
                 else:
                     decoded = str(line).strip()
                 logs.append(decoded)
-                # print(f"[{prefix} ERR] {decoded}")
+                print(f"[{prefix} ERR] {decoded}")
             except UnicodeDecodeError as ude:
                 error_msg = f"Decode error: {str(ude)}"
+                logs.append(error_msg)
+                print(f"[{prefix} ERR] {error_msg}")
+            except Exception as e:
+                error_msg = f"Unexpected error processing stderr: {str(e)}"
                 logs.append(error_msg)
                 print(f"[{prefix} ERR] {error_msg}")
 
         # Get exit code after reading all output
-        exit_code = process.wait()
+        try:
+            exit_code = process.wait()
+        except Exception as e:
+            error_msg = f"Error getting exit code: {str(e)}"
+            logs.append(error_msg)
+            print(f"[{prefix} ERR] {error_msg}")
 
     except Exception as e:
         error_msg = f"Process handling failed: {str(e)}"
         logs.append(error_msg)
         print(f"[{prefix} CRITICAL] {error_msg}")
+
+    if not logs:
+        # Add a placeholder if logs are empty to prevent further issues
+        logs = ["No output captured from process"]
 
     return logs, exit_code
 
