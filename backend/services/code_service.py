@@ -602,25 +602,37 @@ class CodeService:
 
                     # Check if this is a package version error
                     if any("ERR_PNPM_NO_MATCHING_VERSION" in log for log in install_logs):
+                        from backend.utils.package_commands import extract_invalid_package_info, fix_invalid_package_versions
+                        
                         logs_combined = "\n".join(install_logs)
-                        pkg_name, requested_version, latest_version = extract_invalid_package_info(logs_combined)
-
-                        if pkg_name:
-                            print(f"[code_service] Detected invalid package version: {pkg_name}@{requested_version}")
-                            self.db.add_log(
-                                self.job_id,
-                                "system",
-                                f"Fixing invalid package version: {pkg_name}@{requested_version} → {latest_version or '0.1.0'}"
-                            )
-
-                            # Fix the package version
-                            if fix_invalid_package_version(repo_dir, pkg_name, latest_version):
+                        package_info_list = extract_invalid_package_info(logs_combined)
+                        
+                        if package_info_list:
+                            # Log all packages that need fixing
+                            pkg_names = [info[0] for info in package_info_list]
+                            print(f"[code_service] Detected {len(pkg_names)} invalid package versions: {', '.join(pkg_names)}")
+                            
+                            for pkg_name, requested_version, latest_version in package_info_list:
+                                self.db.add_log(
+                                    self.job_id,
+                                    "system", 
+                                    f"Fixing invalid package version: {pkg_name}@{requested_version} → {latest_version or '0.1.0'}"
+                                )
+                            
+                            # Fix all package versions at once
+                            fixed_packages = fix_invalid_package_versions(repo_dir, package_info_list)
+                            
+                            if fixed_packages:
                                 # Commit the change
-                                self._create_commit(f"Fix invalid version for {pkg_name}")
-
+                                if len(fixed_packages) == 1:
+                                    commit_msg = f"Fix invalid version for {fixed_packages[0]}"
+                                else:
+                                    commit_msg = f"Fix invalid versions for {len(fixed_packages)} packages"
+                                self._create_commit(commit_msg)
+                                
                                 # Retry with the fixed package.json
                                 print("[code_service] Retrying with fixed package.json")
-
+                                
                                 # Terminate the current sandbox
                                 if base_sandbox:
                                     try:
@@ -628,7 +640,7 @@ class CodeService:
                                     except Exception as e:
                                         print(f"[code_service] Failed to terminate sandbox: {str(e)}")
                                     base_sandbox = None
-
+                                
                                 # Create a new sandbox and retry
                                 base_sandbox = modal.Sandbox.create(
                                     app=app,
@@ -637,16 +649,31 @@ class CodeService:
                                     memory=2048,
                                     workdir="/repo",
                                 )
-
-                                # Retry installation
+                                
+                                # Try installation again, this might also have errors
                                 process = base_sandbox.exec("pnpm", "install")
                                 retry_logs, retry_exit_code = parse_sandbox_process(process, prefix="retry install")
-
+                                
                                 if retry_exit_code == 0:
                                     print("[code_service] Retry installation succeeded")
                                     # Continue with snapshot creation
                                     image = base_sandbox.snapshot_filesystem()
                                     return image
+                                elif any("ERR_PNPM_NO_MATCHING_VERSION" in log for log in retry_logs):
+                                    # We might need another round of fixes
+                                    logs_combined = "\n".join(retry_logs)
+                                    print("[code_service] Still have package version issues, attempting another fix")
+                                    
+                                    # Call the function recursively to handle the new errors
+                                    # This is cleaner than duplicating the fix logic
+                                    if base_sandbox:
+                                        try:
+                                            base_sandbox.terminate()
+                                        except Exception as e:
+                                            print(f"[code_service] Failed to terminate sandbox: {str(e)}")
+                                    
+                                    # Try again with the same function - this will detect and fix the remaining issues
+                                    return self._create_base_image_with_deps(repo_dir)
 
                     # If we couldn't fix or retry failed, raise the original error
                     raise InstallError(self.job_id, self.project_id, Exception(f"Exit code: {exit_code}, Logs: {logs_str}"))
