@@ -6,6 +6,7 @@ from typing import Optional, Dict, Literal
 from backend.integrations.db import Database
 from backend.config import SETUP_COMPLETE_COMMIT_MESSAGE
 from backend.integrations.farcaster_notifications import send_notification
+from backend.exceptions import VercelAPIError, VercelBuildPollingError
 
 status_map = {
     "BUILDING": "building",
@@ -82,6 +83,7 @@ class VercelBuildService:
 
         except requests.exceptions.RequestException as e:
             print(f"Vercel API error: {str(e)}")
+            # Don't raise here to maintain backward compatibility, but log the error properly
             return {"status": "error", "error": str(e)}
 
     def _parse_deployment(self, deployment: Dict) -> Dict:
@@ -241,6 +243,9 @@ class VercelBuildService:
 
                     return build
 
+            except requests.exceptions.RequestException as e:
+                error_msg = f"Vercel API request error: {str(e)}"
+                print(f"[vercel_build_service] {build_id} {error_msg}")
             except Exception as e:
                 error_msg = f"Polling error: {str(e)}"
                 print(f"[vercel_build_service] {build_id} {error_msg}")

@@ -185,14 +185,42 @@ class CodeService:
             self.db.update_job_status(self.job_id, "completed")
             return {"status": "success", "build_logs": logs}
 
+        except (AiderTimeoutError, AiderExecutionError) as e:
+            error_msg = f"Aider execution failed: {str(e)}"
+            print(f"[code_service] {error_msg}")
+            self.db.add_log(self.job_id, "aider", error_msg)
+            self.db.update_job_status(self.job_id, "failed", error_msg)
+            self.terminate_sandbox()
+            raise
+        except (InstallError, CompileError, BuildError) as e:
+            error_msg = f"Build process failed: {str(e)}"
+            print(f"[code_service] {error_msg}")
+            self.db.add_log(self.job_id, "build", error_msg)
+            self.db.update_job_status(self.job_id, "failed", error_msg)
+            self.terminate_sandbox()
+            raise
+        except GitError as e:
+            error_msg = f"Git operation failed: {str(e)}"
+            print(f"[code_service] {error_msg}")
+            self.db.add_log(self.job_id, "git", error_msg)
+            self.db.update_job_status(self.job_id, "failed", error_msg)
+            self.terminate_sandbox()
+            raise
+        except SandboxError as e:
+            error_msg = f"Sandbox operation failed: {str(e)}"
+            print(f"[code_service] {error_msg}")
+            self.db.add_log(self.job_id, "sandbox", error_msg)
+            self.db.update_job_status(self.job_id, "failed", error_msg)
+            self.terminate_sandbox()
+            raise
         except Exception as e:
-            print("exception in run", e)
-            error_msg = f"aider run failed: {str(e)}"
+            # Fallback for any other exceptions
+            error_msg = f"Unexpected error during code generation: {str(e)}"
             print(f"[code_service] {error_msg}")
             self.db.add_log(self.job_id, "backend", error_msg)
             self.db.update_job_status(self.job_id, "failed", error_msg)
             self.terminate_sandbox()
-            raise
+            raise CodeServiceError(error_msg, self.job_id, self.project_id, e)
 
     def terminate_sandbox(self):
         """Safely terminate the sandbox if it exists."""
@@ -373,12 +401,14 @@ class CodeService:
                 
             return has_error_in_logs, logs_str
 
-        except CompileError:
+        except (CompileError, InstallError, SandboxError):
+            # Already using specific error types, just re-raise
             raise
-        except InstallError:
-            raise
-        except SandboxError:
-            raise
+        except requests.exceptions.RequestException as e:
+            error_msg = f"Network error during build: {str(e)}"
+            self.db.add_log(self.job_id, "build", error_msg)
+            self.db.update_job_status(self.job_id, "failed", error_msg)
+            raise BuildError(self.job_id, self.project_id, e)
         except Exception as e:
             error_msg = f"Build failed: {str(e)}"
             self.db.add_log(self.job_id, "build", error_msg)
@@ -467,18 +497,23 @@ class CodeService:
 
     def _create_aider_coder(self) -> Coder:
         """Create and configure the Aider coder instance."""
-        fnames = [os.path.join(self.repo_dir, f) for f in DEFAULT_PROJECT_FILES]
-        read_only_fnames = READONLY_FILES
+        try:
+            fnames = [os.path.join(self.repo_dir, f) for f in DEFAULT_PROJECT_FILES]
+            read_only_fnames = READONLY_FILES
 
-        io = InputOutput(yes=True, root=self.repo_dir)
-        model = Model(**config.AIDER_CONFIG["MODEL"])
-        return Coder.create(
-            io=io,
-            fnames=fnames,
-            main_model=model,
-            read_only_fnames=read_only_fnames,
-            **config.AIDER_CONFIG["CODER"],
-        )
+            io = InputOutput(yes=True, root=self.repo_dir)
+            model = Model(**config.AIDER_CONFIG["MODEL"])
+            return Coder.create(
+                io=io,
+                fnames=fnames,
+                main_model=model,
+                read_only_fnames=read_only_fnames,
+                **config.AIDER_CONFIG["CODER"],
+            )
+        except Exception as e:
+            error_msg = f"Failed to create Aider coder: {str(e)}"
+            print(f"[code_service] {error_msg}")
+            raise AiderError(error_msg, self.job_id, self.project_id, e)
 
     def _get_latest_commit_sha(self) -> str:
         repo = git.Repo(path=self.repo_dir)
@@ -538,9 +573,11 @@ def run_with_timeout_and_retries(target, args=(), kwargs={}, max_retries=3, retr
 
             # Check if process is still running (timeout occurred)
             if process.is_alive():
+                print(f"Process still running after {timeout}s timeout, terminating...")
                 process.terminate()
                 time.sleep(1)  # Give process time to terminate
                 if process.is_alive():
+                    print("Process still alive after terminate(), using kill()")
                     process.kill()
                 process.join(1)  # Wait briefly for resources to clean up
 
@@ -550,8 +587,10 @@ def run_with_timeout_and_retries(target, args=(), kwargs={}, max_retries=3, retr
                     continue
                 else:
                     if job_id and project_id:
+                        print(f"Final timeout for job {job_id}, raising AiderTimeoutError")
                         raise AiderTimeoutError(job_id, project_id, timeout)
                     else:
+                        print(f"Final timeout, raising TimeoutError")
                         raise TimeoutError(f"Process timed out after {timeout} seconds")
 
             # Process completed within timeout, check for result

@@ -120,3 +120,28 @@ class AiderExecutionError(AiderError):
             project_id,
             original_exception
         )
+
+class VercelBuildError(CodeServiceError):
+    """Base exception for Vercel build-related errors"""
+    pass
+
+class VercelAPIError(VercelBuildError):
+    """Error communicating with Vercel API"""
+    def __init__(self, job_id: Optional[str], project_id: str, original_exception: Exception):
+        super().__init__(
+            "Failed to communicate with Vercel API",
+            job_id,
+            project_id,
+            original_exception
+        )
+
+class VercelBuildPollingError(VercelBuildError):
+    """Error during build status polling"""
+    def __init__(self, build_id: str, project_id: str, original_exception: Exception):
+        super().__init__(
+            f"Build status polling failed for build {build_id}",
+            None,  # job_id not applicable
+            project_id,
+            original_exception
+        )
+        self.build_id = build_id
