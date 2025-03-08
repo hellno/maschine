@@ -17,7 +17,7 @@ from backend.integrations.github_api import (
 
 from backend.types import UserContext
 from backend.services.aider_runner import AiderRunner
-from backend.utils.package_commands import handle_package_install_commands
+from backend.utils.package_commands import handle_package_install_commands, parse_sandbox_process
 from backend.services.build_runner import BuildRunner
 from backend.exceptions import (
     CodeServiceError, SandboxError, SandboxCreationError, SandboxTerminationError,
@@ -27,49 +27,6 @@ from backend.exceptions import (
 )
 
 
-def parse_sandbox_process(process, prefix="") -> tuple[list, int]:
-    """Safely parse stdout/stderr from a sandbox process using Modal's StreamReader."""
-    logs = []
-    exit_code = -1
-
-    try:
-        # Handle stdout - check if bytes need decoding
-        for line in process.stdout:
-            try:
-                if isinstance(line, bytes):  # Handle both str and bytes
-                    decoded = line.decode("utf-8", "ignore").strip()
-                else:
-                    decoded = str(line).strip()  # Convert to string if needed
-                logs.append(decoded)
-                # print(f"[{prefix}] {decoded}")
-            except UnicodeDecodeError as ude:
-                error_msg = f"Decode error: {str(ude)}"
-                logs.append(error_msg)
-                print(f"[{prefix} ERR] {error_msg}")
-
-        # Handle stderr the same way
-        for line in process.stderr:
-            try:
-                if isinstance(line, bytes):
-                    decoded = line.decode("utf-8", "ignore").strip()
-                else:
-                    decoded = str(line).strip()
-                logs.append(decoded)
-                # print(f"[{prefix} ERR] {decoded}")
-            except UnicodeDecodeError as ude:
-                error_msg = f"Decode error: {str(ude)}"
-                logs.append(error_msg)
-                print(f"[{prefix} ERR] {error_msg}")
-
-        # Get exit code after reading all output
-        exit_code = process.wait()
-
-    except Exception as e:
-        error_msg = f"Process handling failed: {str(e)}"
-        logs.append(error_msg)
-        print(f"[{prefix} CRITICAL] {error_msg}")
-
-    return logs, exit_code
 
 
 
