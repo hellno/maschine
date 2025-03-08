@@ -20,6 +20,12 @@ import tempfile
 from backend.types import UserContext
 from backend.services.context_enhancer import CodeContextEnhancer
 from backend.utils.package_commands import handle_package_install_commands
+from backend.exceptions import (
+    CodeServiceError, SandboxError, SandboxCreationError, SandboxTerminationError,
+    GitError, GitCloneError, GitPushError,
+    BuildError, InstallError, CompileError,
+    AiderError, AiderTimeoutError, AiderExecutionError
+)
 
 DEFAULT_PROJECT_FILES = [
     "src/components/Frame.tsx",
@@ -197,7 +203,17 @@ class CodeService:
                 self.sandbox = None
                 print("[code_service] Sandbox terminated")
             except Exception as e:
-                print(f"Error terminating sandbox job id {self.job_id}: {str(e)}")
+                error_msg = f"Error terminating sandbox job id {self.job_id}: {str(e)}"
+                print(error_msg)
+                if hasattr(self, 'job_id') and hasattr(self, 'project_id'):
+                    raise SandboxTerminationError(self.job_id, self.project_id, e)
+                else:
+                    raise SandboxError(
+                        "Failed to terminate sandbox",
+                        getattr(self, 'job_id', None),
+                        getattr(self, 'project_id', None),
+                        e
+                    )
 
     def _enhance_prompt_with_context(self, prompt: str) -> str:
         try:
@@ -240,13 +256,23 @@ class CodeService:
         self.db = Database()
         self.repo_dir = tempfile.mkdtemp()
 
-        project = self.db.get_project(self.project_id)
-        repo_url = project["repo_url"]
-        repo = clone_repo_url_to_dir(repo_url, self.repo_dir)
-        configure_git_user_for_repo(repo)
+        try:
+            project = self.db.get_project(self.project_id)
+            repo_url = project["repo_url"]
+            repo = clone_repo_url_to_dir(repo_url, self.repo_dir)
+            configure_git_user_for_repo(repo)
 
-        self.is_setup = True
-        print("[code_service] CodeService setup complete")
+            self.is_setup = True
+            print("[code_service] CodeService setup complete")
+        except git.GitCommandError as e:
+            raise GitCloneError(self.job_id, self.project_id, e)
+        except Exception as e:
+            raise CodeServiceError(
+                "Failed to set up code service",
+                self.job_id,
+                self.project_id,
+                e
+            )
 
     def _sync_git_changes(self):
         """Sync any pending git changes with the remote repository."""
@@ -261,6 +287,7 @@ class CodeService:
             repo.git.push("origin", "main")
         except git.GitCommandError as e:
             print(f"[code_service] sync git changes failed: {str(e)}")
+            raise GitPushError(self.job_id, self.project_id, e)
 
     def _create_commit(self, message: str):
         repo = git.Repo(path=self.repo_dir)
@@ -315,6 +342,10 @@ class CodeService:
             install_logs, install_code = parse_sandbox_process(install_process)
             logs.extend(install_logs)
 
+            if install_code != 0:
+                logs_str = "\n".join(clean_log_lines(logs))
+                raise InstallError(self.job_id, self.project_id, Exception(f"Install failed with code {install_code}: {logs_str}"))
+
             print("[build] Running build command")
             build_process = self.sandbox.exec("pnpm", "build")
             build_logs, build_returncode = parse_sandbox_process(build_process)
@@ -336,13 +367,23 @@ class CodeService:
             if terminate_after_build and not self.manual_sandbox_termination:
                 print("[code_service] Terminating sandbox after build")
                 self.terminate_sandbox()
+                
+            if has_error_in_logs and build_returncode != 0:
+                raise CompileError(self.job_id, self.project_id, logs_str)
+                
             return has_error_in_logs, logs_str
 
+        except CompileError:
+            raise
+        except InstallError:
+            raise
+        except SandboxError:
+            raise
         except Exception as e:
             error_msg = f"Build failed: {str(e)}"
             self.db.add_log(self.job_id, "build", error_msg)
             self.db.update_job_status(self.job_id, "failed", error_msg)
-            return {"status": "error", "error": error_msg}
+            raise BuildError(self.job_id, self.project_id, e)
 
     def _create_base_image_with_deps(self, repo_dir: str) -> modal.Image:
         """Create a base image with dependencies installed."""
@@ -379,40 +420,50 @@ class CodeService:
             print("[code_service] base install process completed")
 
             if exit_code != 0:
-                raise Exception("Base dependency installation failed")
+                logs_str = "\n".join(install_logs)
+                raise InstallError(self.job_id, self.project_id, Exception(f"Exit code: {exit_code}, Logs: {logs_str}"))
 
             print("[code_service] Creating filesystem snapshot")
             image = base_sandbox.snapshot_filesystem()
             return image
 
+        except InstallError:
+            raise
         except Exception as e:
             print(f"[code_service] Base image creation failed: {str(e)}")
-            raise
+            raise SandboxCreationError(self.job_id, self.project_id, e)
         finally:
             if base_sandbox:
                 print("[code_service] Cleaning up base sandbox")
-                base_sandbox.terminate()
+                try:
+                    base_sandbox.terminate()
+                except Exception as e:
+                    print(f"[code_service] Failed to terminate base sandbox: {str(e)}")
 
     def _create_sandbox(self, repo_dir: str):
         """Create a sandbox using the cached base image if available."""
-        app = modal.App.lookup(config.APP_NAME)
+        try:
+            app = modal.App.lookup(config.APP_NAME)
 
-        if not self.base_image_with_deps:
-            self.base_image_with_deps = self._create_base_image_with_deps(repo_dir)
+            if not self.base_image_with_deps:
+                self.base_image_with_deps = self._create_base_image_with_deps(repo_dir)
 
-        self.sandbox = modal.Sandbox.create(
-            app=app,
-            image=self.base_image_with_deps.add_local_dir(
-                repo_dir, remote_path="/repo"
-            ),
-            cpu=2,
-            memory=1024,
-            workdir="/repo",
-            # timeout=config.TIMEOUTS["BUILD"],
-        )
-        self.sandbox.set_tags({"project_id": self.project_id, "job_id": self.job_id})
-        self._run_install_in_sandbox()
-        print("[code_service] Sandbox created")
+            self.sandbox = modal.Sandbox.create(
+                app=app,
+                image=self.base_image_with_deps.add_local_dir(
+                    repo_dir, remote_path="/repo"
+                ),
+                cpu=2,
+                memory=1024,
+                workdir="/repo",
+                # timeout=config.TIMEOUTS["BUILD"],
+            )
+            self.sandbox.set_tags({"project_id": self.project_id, "job_id": self.job_id})
+            self._run_install_in_sandbox()
+            print("[code_service] Sandbox created")
+        except Exception as e:
+            print(f"[code_service] Failed to create sandbox: {str(e)}")
+            raise SandboxCreationError(self.job_id, self.project_id, e)
 
     def _create_aider_coder(self) -> Coder:
         """Create and configure the Aider coder instance."""
@@ -460,7 +511,7 @@ class CodeService:
             self.db.add_log(self.job_id, "backend", error_msg)
 
 
-def run_with_timeout_and_retries(target, args=(), kwargs={}, max_retries=3, retry_delay=15, timeout=120):
+def run_with_timeout_and_retries(target, args=(), kwargs={}, max_retries=3, retry_delay=15, timeout=120, job_id=None, project_id=None):
     """Run a target function with timeout handling and retries using multiprocessing."""
     from queue import Empty
     import time
@@ -498,7 +549,10 @@ def run_with_timeout_and_retries(target, args=(), kwargs={}, max_retries=3, retr
                     time.sleep(retry_delay)
                     continue
                 else:
-                    raise TimeoutError(f"Process timed out after {timeout} seconds")
+                    if job_id and project_id:
+                        raise AiderTimeoutError(job_id, project_id, timeout)
+                    else:
+                        raise TimeoutError(f"Process timed out after {timeout} seconds")
 
             # Process completed within timeout, check for result
             try:
@@ -511,15 +565,25 @@ def run_with_timeout_and_retries(target, args=(), kwargs={}, max_retries=3, retr
                         time.sleep(retry_delay)
                         continue
                     else:
-                        raise result_data  # Re-raise the exception on final attempt
+                        if job_id and project_id:
+                            raise AiderExecutionError(job_id, project_id, result_data)
+                        else:
+                            raise result_data  # Re-raise the exception on final attempt
             except Empty:
                 if attempt < max_retries - 1:
                     print(f"Process completed but returned no result, retrying in {retry_delay}s...")
                     time.sleep(retry_delay)
                     continue
                 else:
-                    raise RuntimeError("Process failed to return any result")
+                    if job_id and project_id:
+                        raise AiderExecutionError(job_id, project_id, RuntimeError("Process failed to return any result"))
+                    else:
+                        raise RuntimeError("Process failed to return any result")
 
+        except AiderTimeoutError:
+            raise
+        except AiderExecutionError:
+            raise
         except Exception as e:
             # Handle any other exceptions that aren't already caught
             if attempt < max_retries - 1:
@@ -527,10 +591,16 @@ def run_with_timeout_and_retries(target, args=(), kwargs={}, max_retries=3, retr
                 time.sleep(retry_delay)
                 continue
             else:
-                raise
+                if job_id and project_id:
+                    raise CodeServiceError(f"Unexpected error during execution", job_id, project_id, e)
+                else:
+                    raise
 
     # This should never be reached due to the exception handling above
-    raise RuntimeError(f"Failed after {max_retries} attempts")
+    if job_id and project_id:
+        raise CodeServiceError(f"Failed after {max_retries} attempts", job_id, project_id)
+    else:
+        raise RuntimeError(f"Failed after {max_retries} attempts")
 
 
 def get_error_fix_prompt_from_logs(logs: str) -> str:
