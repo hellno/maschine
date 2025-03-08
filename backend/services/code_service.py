@@ -21,6 +21,7 @@ import tempfile
 from backend.types import UserContext
 from backend.services.context_enhancer import CodeContextEnhancer
 from backend.utils.package_commands import handle_package_install_commands
+from backend.services.build_runner import BuildRunner
 from backend.exceptions import (
     CodeServiceError, SandboxError, SandboxCreationError, SandboxTerminationError,
     GitError, GitCloneError, GitPushError,
@@ -166,7 +167,8 @@ class CodeService:
             has_errors, logs = self._run_build_in_sandbox()
 
             if has_errors:
-                error_fix_prompt = get_error_fix_prompt_from_logs(logs)
+                build_runner = BuildRunner(self.project_id, self.db, self.job_id)
+                error_fix_prompt = build_runner.generate_error_fix_prompt(logs)
                 print("[code_service] Running Aider again to fix build errors")
 
                 aider_result = coder.run(error_fix_prompt)
@@ -337,16 +339,9 @@ class CodeService:
         if not self.sandbox:
             print('error getting git repo status, sandbox not initialized')
             return False, False
-
-        git_status = self.sandbox.exec("git", "status")
-        status_logs, _ = parse_sandbox_process(git_status)
-        print("[build] Current git status:", status_logs)
-        no_new_commits = 'Your branch is up to date'
-        no_pending_changes = 'nothing to commit'
-        has_new_commits = no_new_commits not in status_logs
-        has_pending_changes = no_pending_changes not in status_logs
-
-        return has_new_commits, has_pending_changes
+            
+        build_runner = BuildRunner(self.project_id, self.db, self.job_id)
+        return build_runner._get_git_repo_status(self.sandbox)
 
     def _run_build_in_sandbox(
         self, terminate_after_build: bool = False
@@ -354,51 +349,14 @@ class CodeService:
         """Run build commands in an isolated Modal sandbox."""
         try:
             self._create_sandbox(repo_dir=self.repo_dir)
-
-            logs = []
-
-            has_new_commits, has_pending_changes = self.get_git_repo_status()
-            if not has_new_commits and not has_pending_changes:
-                print("[build] No new commits or pending changes. skipping to build again")
-                return False, "No new commits or pending changes"
-
-            git_log = self.sandbox.exec("git", "log", "-1", "--oneline")
-            log_lines, _ = parse_sandbox_process(git_log)
-            logs.extend(log_lines)
-            print("[build] Latest commit:", log_lines)
-
-            install_process = self.sandbox.exec("pnpm", "install")
-            install_logs, install_code = parse_sandbox_process(install_process)
-            logs.extend(install_logs)
-
-            if install_code != 0:
-                logs_str = "\n".join(clean_log_lines(logs))
-                raise InstallError(self.job_id, self.project_id, Exception(f"Install failed with code {install_code}: {logs_str}"))
-
-            print("[build] Running build command")
-            build_process = self.sandbox.exec("pnpm", "build")
-            build_logs, build_returncode = parse_sandbox_process(build_process)
-            logs.extend(build_logs)
-
-            has_error_in_logs = build_returncode == 1 or any(
-                "error" in line.lower()
-                or "failed" in line.lower()
-                or "exited with 1" in line.lower()
-                for line in logs
-            )
-
-            logs_cleaned = clean_log_lines(logs)
-            logs_str = "\n".join(logs_cleaned)
-            print(
-                f"sandbox results: has_error_in_logs {has_error_in_logs} build return_code {build_returncode} logs_str {logs_str} "
-            )
+            
+            build_runner = BuildRunner(self.project_id, self.db, self.job_id)
+            has_error_in_logs, logs_str = build_runner.run_build_in_sandbox(self.sandbox)
+            
             print(f'terminate_after_build {terminate_after_build} manual_sandbox_termination {self.manual_sandbox_termination}')
             if terminate_after_build and not self.manual_sandbox_termination:
                 print("[code_service] Terminating sandbox after build")
                 self.terminate_sandbox()
-                
-            if has_error_in_logs and build_returncode != 0:
-                raise CompileError(self.job_id, self.project_id, logs_str)
                 
             return has_error_in_logs, logs_str
 
@@ -530,21 +488,9 @@ class CodeService:
         build_id = self.db.create_build(
             self.project_id, commit_hash, status="submitted"
         )
-        self._start_build_polling(build_id, commit_hash)
-
-    def _start_build_polling(self, build_id: str, commit_hash: str):
-        """Start asynchronous polling for build status"""
-        try:
-            print(f"[code_service] Starting build polling for build {build_id}")
-            # Start an asynchronous function to poll the build status
-            poll_build_status_spawn = modal.Function.from_name(config.APP_NAME, f"{config.MODAL_POLL_BUILD_FUNCTION_NAME}_spawn")
-            poll_build_status_spawn.spawn(project_id=self.project_id, build_id=build_id, commit_hash=commit_hash)
-            print(f"[code_service] Build polling started for {build_id} with commit {commit_hash}")
-
-        except Exception as e:
-            error_msg = f"Failed to start build polling: {str(e)}"
-            print(f"[code_service] {error_msg}")
-            self.db.add_log(self.job_id, "backend", error_msg)
+        
+        build_runner = BuildRunner(self.project_id, self.db, self.job_id)
+        build_runner.start_build_polling(build_id, commit_hash)
 
 
 def run_with_timeout_and_retries(target, args=(), kwargs={}, max_retries=3, retry_delay=15, timeout=120, job_id=None, project_id=None):
@@ -643,30 +589,3 @@ def run_with_timeout_and_retries(target, args=(), kwargs={}, max_retries=3, retr
         raise RuntimeError(f"Failed after {max_retries} attempts")
 
 
-def get_error_fix_prompt_from_logs(logs: str) -> str:
-    """Extract a prompt from build logs to fix errors."""
-    return f"""
-    The previous changes caused build errors. Please fix them.
-    Here are the build logs showing the errors:
-
-    {logs}
-
-    Please analyze these errors and make the necessary corrections to fix the build.
-    """
-
-
-def clean_log_lines(logs: list[str]) -> list[str]:
-    """Clean up log lines for display."""
-    phrases_to_skip = [
-        "nextjs.org/telemetry",
-        "vercel.com/docs/analytics",
-        "[Upstash Redis]",
-        "metadataBase property in metadata export"
-    ]
-    return [
-        line
-        for line in logs
-        if line
-        and not line.startswith("warning")
-        and not any(url in line for url in phrases_to_skip)
-    ]
