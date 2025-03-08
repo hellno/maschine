@@ -2,6 +2,7 @@ import re
 import modal
 import json
 import os
+from packaging.version import Version
 
 def parse_sandbox_process(process, prefix="") -> tuple[list, int]:
     """Safely parse stdout/stderr from a sandbox process using Modal's StreamReader."""
@@ -159,7 +160,7 @@ def fix_invalid_package_versions(repo_dir: str, package_info_list: list[tuple[st
         
         made_changes = False
         
-        for pkg_name, _, latest_version in package_info_list:
+        for pkg_name, requested_version, latest_version in package_info_list:
             for dep_type in ['dependencies', 'devDependencies']:
                 if dep_type in package_data and pkg_name in package_data[dep_type]:
                     old_version = package_data[dep_type][pkg_name]
