@@ -1,13 +1,12 @@
 import os
 import modal
 import time
-import multiprocessing
 import requests
 from typing import Optional, Tuple
 import git
 from aider.coders import Coder
-from aider.models import Model
-from aider.io import InputOutput
+import tempfile
+
 from backend import config
 from backend.modal import base_image
 from backend.integrations.db import Database
@@ -15,10 +14,9 @@ from backend.integrations.github_api import (
     clone_repo_url_to_dir,
     configure_git_user_for_repo,
 )
-import tempfile
 
 from backend.types import UserContext
-from backend.services.context_enhancer import CodeContextEnhancer
+from backend.services.aider_runner import AiderRunner
 from backend.utils.package_commands import handle_package_install_commands
 from backend.services.build_runner import BuildRunner
 from backend.exceptions import (
@@ -28,18 +26,6 @@ from backend.exceptions import (
     AiderError, AiderTimeoutError, AiderExecutionError
 )
 
-DEFAULT_PROJECT_FILES = [
-    "src/components/Frame.tsx",
-    "src/lib/constants.ts",
-    "src/app/opengraph-image.tsx",
-    "todo.md",
-]
-
-READONLY_FILES = [
-    "prompt_plan.md",
-    "llm_docs/frames.md",
-    "spec.md",
-]
 
 def parse_sandbox_process(process, prefix="") -> tuple[list, int]:
     """Safely parse stdout/stderr from a sandbox process using Modal's StreamReader."""
@@ -114,63 +100,42 @@ class CodeService:
             raise ValueError("Database not initialized")
 
         try:
+            aider_runner = AiderRunner(
+                job_id=self.job_id,
+                project_id=self.project_id,
+                user_context=self.user_context
+            )
             coder = self._create_aider_coder()
 
             print(f"[code_service] Running Aider with prompt: {prompt}")
             self.db.update_job_status(self.job_id, "running")
+            
             if auto_enhance_context:
-                prompt = self._enhance_prompt_with_context(prompt)
+                prompt = aider_runner.enhance_prompt_with_context(prompt)
 
-            # Retry logic with 3 attempts
-            max_retries = 3
-            retry_delay = 15  # seconds between retries
-            timeout = 120  # seconds for each attempt
-
-            for attempt in range(max_retries):
-                try:
-                    # Run for timeout seconds per attempt
-                    aider_result = run_with_timeout_and_retries(
-                        target=coder.run,
-                        args=(prompt,),
-                        max_retries=1,  # Individual attempts handled by outer loop
-                        retry_delay=retry_delay,
-                        timeout=timeout
-                    )
-                    handle_package_install_commands(
-                        aider_result,
-                        self.sandbox,
-                        parse_sandbox_process
-                    )
-                    print(f"[code_service] Aider result (truncated): {aider_result[:250]}")
-                    break
-                except TimeoutError:
-                    error_msg = f"Timeout after {timeout} seconds (attempt {attempt+1}/{max_retries})"
-                    print(f"[code_service] {error_msg}")
-
-                    if attempt < max_retries - 1:
-                        print(f"Waiting {retry_delay}s before retry...")
-                        time.sleep(retry_delay)
-                except Exception as e:
-                    if attempt < max_retries - 1:
-                        print(f"Attempt {attempt+1} failed, retrying in {retry_delay} seconds...")
-                        time.sleep(retry_delay)
-                    else:
-                        error_msg = f"Failed after {max_retries} attempts: {str(e)}"
-                        print(f"[code_service] {error_msg}")
-                        self.db.add_log(self.job_id, "backend", error_msg)
-                        self.db.update_job_status(self.job_id, "failed", error_msg)
-                        self.terminate_sandbox()
-                        return {"status": "error", "error": error_msg}
+            # Using AiderRunner to handle retries and timeouts
+            aider_result = aider_runner.run_aider(coder, prompt)
+            handle_package_install_commands(
+                aider_result,
+                self.sandbox,
+                parse_sandbox_process
+            )
+            print(f"[code_service] Aider result (truncated): {aider_result[:250]}")
 
 
             has_errors, logs = self._run_build_in_sandbox()
 
             if has_errors:
                 build_runner = BuildRunner(self.project_id, self.db, self.job_id)
-                error_fix_prompt = build_runner.generate_error_fix_prompt(logs)
+                aider_runner = AiderRunner(
+                    job_id=self.job_id,
+                    project_id=self.project_id,
+                    user_context=self.user_context
+                )
+                error_fix_prompt = aider_runner.generate_fix_for_errors(logs)
                 print("[code_service] Running Aider again to fix build errors")
 
-                aider_result = coder.run(error_fix_prompt)
+                aider_result = aider_runner.run_aider(coder, error_fix_prompt)
                 if aider_result:
                     print(
                         f"[code_service] Fix attempt result (truncated): {aider_result[:250]}"
@@ -245,13 +210,7 @@ class CodeService:
                         e
                     )
 
-    def _enhance_prompt_with_context(self, prompt: str) -> str:
-        try:
-            context = CodeContextEnhancer().get_relevant_context(prompt)
-            return f"additional context {context}\n\nprompt {prompt}"
-        except Exception as e:
-            print(f"[code_service] Context enhancement failed: {str(e)}")
-        return prompt
+    # Context enhancement now handled by AiderRunner
 
     def _add_file_to_repo_dir(self, filename: str, content: str) -> None:
         context_file = os.path.join(self.repo_dir, filename)
@@ -455,23 +414,12 @@ class CodeService:
 
     def _create_aider_coder(self) -> Coder:
         """Create and configure the Aider coder instance."""
-        try:
-            fnames = [os.path.join(self.repo_dir, f) for f in DEFAULT_PROJECT_FILES]
-            read_only_fnames = READONLY_FILES
-
-            io = InputOutput(yes=True, root=self.repo_dir)
-            model = Model(**config.AIDER_CONFIG["MODEL"])
-            return Coder.create(
-                io=io,
-                fnames=fnames,
-                main_model=model,
-                read_only_fnames=read_only_fnames,
-                **config.AIDER_CONFIG["CODER"],
-            )
-        except Exception as e:
-            error_msg = f"Failed to create Aider coder: {str(e)}"
-            print(f"[code_service] {error_msg}")
-            raise AiderError(error_msg, self.job_id, self.project_id, e)
+        aider_runner = AiderRunner(
+            job_id=self.job_id,
+            project_id=self.project_id,
+            user_context=self.user_context
+        )
+        return aider_runner.create_aider_coder(self.repo_dir)
 
     def _get_latest_commit_sha(self) -> str:
         repo = git.Repo(path=self.repo_dir)
@@ -492,97 +440,4 @@ class CodeService:
         build_runner.start_build_polling(build_id, commit_hash)
 
 
-def run_with_timeout_and_retries(target, args=(), kwargs={}, max_retries=3, retry_delay=15, timeout=120, job_id=None, project_id=None):
-    """Run a target function with timeout handling and retries using multiprocessing."""
-    from queue import Empty
-    import time
-
-    def target_wrapper(queue, *args, **kwargs):
-        try:
-            result = target(*args, **kwargs)
-            queue.put(('success', result))
-        except Exception as e:
-            queue.put(('error', e))
-
-    for attempt in range(max_retries):
-        queue = multiprocessing.Queue()
-        process = multiprocessing.Process(
-            target=target_wrapper,
-            args=(queue,) + args,
-            kwargs=kwargs,
-            daemon=True
-        )
-
-        try:
-            process.start()
-            process.join(timeout=timeout)
-
-            # Check if process is still running (timeout occurred)
-            if process.is_alive():
-                print(f"Process still running after {timeout}s timeout, terminating...")
-                process.terminate()
-                time.sleep(1)  # Give process time to terminate
-                if process.is_alive():
-                    print("Process still alive after terminate(), using kill()")
-                    process.kill()
-                process.join(1)  # Wait briefly for resources to clean up
-
-                if attempt < max_retries - 1:
-                    print(f"Timeout attempt {attempt+1}/{max_retries}, retrying in {retry_delay}s...")
-                    time.sleep(retry_delay)
-                    continue
-                else:
-                    if job_id and project_id:
-                        print(f"Final timeout for job {job_id}, raising AiderTimeoutError")
-                        raise AiderTimeoutError(job_id, project_id, timeout)
-                    else:
-                        print(f"Final timeout, raising TimeoutError")
-                        raise TimeoutError(f"Process timed out after {timeout} seconds")
-
-            # Process completed within timeout, check for result
-            try:
-                result_type, result_data = queue.get(block=False)
-                if result_type == 'success':
-                    return result_data
-                else:  # result_type == 'error'
-                    if attempt < max_retries - 1:
-                        print(f"Error: {str(result_data)}, retrying in {retry_delay}s...")
-                        time.sleep(retry_delay)
-                        continue
-                    else:
-                        if job_id and project_id:
-                            raise AiderExecutionError(job_id, project_id, result_data)
-                        else:
-                            raise result_data  # Re-raise the exception on final attempt
-            except Empty:
-                if attempt < max_retries - 1:
-                    print(f"Process completed but returned no result, retrying in {retry_delay}s...")
-                    time.sleep(retry_delay)
-                    continue
-                else:
-                    if job_id and project_id:
-                        raise AiderExecutionError(job_id, project_id, RuntimeError("Process failed to return any result"))
-                    else:
-                        raise RuntimeError("Process failed to return any result")
-
-        except AiderTimeoutError:
-            raise
-        except AiderExecutionError:
-            raise
-        except Exception as e:
-            # Handle any other exceptions that aren't already caught
-            if attempt < max_retries - 1:
-                print(f"Unexpected error: {str(e)}, retrying in {retry_delay}s...")
-                time.sleep(retry_delay)
-                continue
-            else:
-                if job_id and project_id:
-                    raise CodeServiceError(f"Unexpected error during execution", job_id, project_id, e)
-                else:
-                    raise
-
-    # This should never be reached due to the exception handling above
-    if job_id and project_id:
-        raise CodeServiceError(f"Failed after {max_retries} attempts", job_id, project_id)
-    else:
-        raise RuntimeError(f"Failed after {max_retries} attempts")
+# Timeout and retry handling moved to AiderRunner class
