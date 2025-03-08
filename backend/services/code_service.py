@@ -3,6 +3,7 @@ import modal
 import time
 import threading
 import multiprocessing
+import requests
 from typing import Optional, Tuple
 import git
 from aider.coders import Coder
