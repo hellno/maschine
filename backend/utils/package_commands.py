@@ -78,6 +78,12 @@ def handle_package_install_commands(
         print("[code_service] Error: Cannot install packages - sandbox is None")
         return
 
+    # Add debug logging to show relevant part of aider output containing commands
+    if len(aider_result) > 500:
+        print(f"[package_commands] Analyzing aider output (truncated): {aider_result[:500]}...")
+    else:
+        print(f"[package_commands] Analyzing aider output: {aider_result}")
+    
     pattern = r"(?:```.*?[\s\n]*)?(pnpm add|npm install)\s+((?:--\S+\s+)*[^\n`]*)(?:```)?"
     matches = list(re.finditer(pattern, aider_result, re.MULTILINE | re.IGNORECASE))
 
@@ -116,8 +122,8 @@ def extract_invalid_package_info(error_message: str) -> list[tuple[str, str, str
     """
     invalid_packages = []
     
-    # Find all package version errors in the log
-    name_version_matches = re.finditer(r'No matching version found for ([^\s@]+)@\^?(\d+\.\d+\.\d+)', error_message)
+    # Find all package version errors in the log - including scoped packages like @namespace/package
+    name_version_matches = re.finditer(r'No matching version found for ((?:@[\w-]+/)?[\w-]+)@\^?([\d.]+)', error_message)
     
     for match in name_version_matches:
         pkg_name, requested_version = match.groups()
@@ -160,7 +166,18 @@ def fix_invalid_package_versions(repo_dir: str, package_info_list: list[tuple[st
                     
                     # Use latest version if provided, otherwise use a conservative version
                     if latest_version:
-                        package_data[dep_type][pkg_name] = f"^{latest_version}"
+                        try:
+                            # Only use latest version if it's newer than requested version
+                            if not requested_version or Version(latest_version) >= Version(requested_version):
+                                package_data[dep_type][pkg_name] = f"^{latest_version}"
+                                print(f"[package_commands] Using latest version {latest_version} for {pkg_name}")
+                            else:
+                                print(f"[package_commands] Warning: Latest version {latest_version} is older than requested {requested_version} for {pkg_name}")
+                                package_data[dep_type][pkg_name] = f"^{requested_version}"
+                        except ValueError:
+                            # If version parsing fails, use the latest version anyway
+                            package_data[dep_type][pkg_name] = f"^{latest_version}"
+                            print(f"[package_commands] Using latest version {latest_version} for {pkg_name} (couldn't compare versions)")
                     else:
                         package_data[dep_type][pkg_name] = "^0.1.0"
                     

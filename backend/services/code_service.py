@@ -5,6 +5,7 @@ from typing import Optional, Tuple
 import git
 from aider.coders import Coder
 import tempfile
+from packaging.version import Version, parse as parse_version
 
 from backend import config
 from backend.modal import base_image
@@ -713,6 +714,13 @@ class CodeService:
 
     def _create_sandbox(self, repo_dir: str):
         """Create a sandbox using the cached base image if available."""
+        # Validate package.json exists before proceeding
+        package_json_path = os.path.join(repo_dir, "package.json")
+        if not os.path.exists(package_json_path):
+            error_msg = f"Missing package.json in {repo_dir}"
+            print(f"[code_service] {error_msg}")
+            raise SandboxCreationError(self.job_id, self.project_id, Exception(error_msg))
+        
         try:
             app = modal.App.lookup(config.APP_NAME)
 
