@@ -106,30 +106,80 @@ def handle_package_install_commands(
             error_msg = f"Error installing packages {packages}: {e}"
             print(f"[code_service] {error_msg}")
 
-def extract_invalid_package_info(error_message: str) -> tuple[str, str, str]:
+def extract_invalid_package_info(error_message: str) -> list[tuple[str, str, str]]:
     """
-    Extract package name, requested version and available version from an ERR_PNPM_NO_MATCHING_VERSION error
+    Extract all package names, requested versions and available versions from ERR_PNPM_NO_MATCHING_VERSION errors
     
     Returns:
-        Tuple of (package_name, requested_version, latest_available_version)
-        If parsing fails, returns empty strings
+        List of tuples, each containing (package_name, requested_version, latest_available_version)
+        Empty list if no matches found
     """
-    # Match pattern for: No matching version found for package@^x.y.z
-    name_version_match = re.search(r'No matching version found for ([^\s@]+)@\^?(\d+\.\d+\.\d+)', error_message)
+    invalid_packages = []
     
-    # Match pattern for: The latest release of package is "x.y.z"
-    latest_match = re.search(r'The latest release of [^\s]+ is "([^"]+)"', error_message)
+    # Find all package version errors in the log
+    name_version_matches = re.finditer(r'No matching version found for ([^\s@]+)@\^?(\d+\.\d+\.\d+)', error_message)
     
-    if name_version_match:
-        pkg_name, requested_version = name_version_match.groups()
+    for match in name_version_matches:
+        pkg_name, requested_version = match.groups()
+        
+        # Try to find the latest version for this specific package
+        latest_match = re.search(rf'The latest release of {re.escape(pkg_name)} is "([^"]+)"', error_message)
         latest_version = latest_match.group(1) if latest_match else ""
-        return pkg_name, requested_version, latest_version
+        
+        invalid_packages.append((pkg_name, requested_version, latest_version))
     
-    return "", "", ""
+    return invalid_packages
+
+def fix_invalid_package_versions(repo_dir: str, package_info_list: list[tuple[str, str, str]]) -> list[str]:
+    """
+    Fix multiple invalid package versions in package.json
+    
+    Args:
+        repo_dir: Repository directory containing package.json
+        package_info_list: List of tuples (pkg_name, requested_version, latest_version)
+        
+    Returns:
+        List of package names that were fixed
+    """
+    package_json_path = os.path.join(repo_dir, "package.json")
+    if not os.path.exists(package_json_path):
+        return []
+    
+    fixed_packages = []
+    
+    try:
+        with open(package_json_path, 'r') as f:
+            package_data = json.load(f)
+        
+        made_changes = False
+        
+        for pkg_name, _, latest_version in package_info_list:
+            for dep_type in ['dependencies', 'devDependencies']:
+                if dep_type in package_data and pkg_name in package_data[dep_type]:
+                    old_version = package_data[dep_type][pkg_name]
+                    
+                    # Use latest version if provided, otherwise use a conservative version
+                    if latest_version:
+                        package_data[dep_type][pkg_name] = f"^{latest_version}"
+                    else:
+                        package_data[dep_type][pkg_name] = "^0.1.0"
+                    
+                    print(f"[package_commands] Fixed {pkg_name} version from {old_version} to {package_data[dep_type][pkg_name]}")
+                    fixed_packages.append(pkg_name)
+                    made_changes = True
+        
+        if made_changes:
+            with open(package_json_path, 'w') as f:
+                json.dump(package_data, f, indent=2)
+    
+    except Exception as e:
+        print(f"[package_commands] Error fixing package versions: {str(e)}")
+    
+    return fixed_packages
 
 def fix_invalid_package_version(repo_dir: str, pkg_name: str, latest_version: str = "") -> bool:
     """
-    Fix an invalid package version in package.json
+    Fix a single invalid package version in package.json
     
     Args:
         repo_dir: Repository directory containing package.json
@@ -139,34 +189,5 @@ def fix_invalid_package_version(repo_dir: str, pkg_name: str, latest_version: st
     Returns:
         True if fixed, False otherwise
     """
-    package_json_path = os.path.join(repo_dir, "package.json")
-    if not os.path.exists(package_json_path):
-        return False
-    
-    try:
-        with open(package_json_path, 'r') as f:
-            package_data = json.load(f)
-        
-        fixed = False
-        for dep_type in ['dependencies', 'devDependencies']:
-            if dep_type in package_data and pkg_name in package_data[dep_type]:
-                old_version = package_data[dep_type][pkg_name]
-                
-                # Use latest version if provided, otherwise use a conservative version
-                if latest_version:
-                    package_data[dep_type][pkg_name] = f"^{latest_version}"
-                else:
-                    package_data[dep_type][pkg_name] = "^0.1.0"
-                
-                print(f"[package_commands] Fixed {pkg_name} version from {old_version} to {package_data[dep_type][pkg_name]}")
-                fixed = True
-        
-        if fixed:
-            with open(package_json_path, 'w') as f:
-                json.dump(package_data, f, indent=2)
-            return True
-    
-    except Exception as e:
-        print(f"[package_commands] Error fixing package version: {str(e)}")
-    
-    return False
+    fixed_packages = fix_invalid_package_versions(repo_dir, [(pkg_name, "", latest_version)])
+    return len(fixed_packages) > 0
