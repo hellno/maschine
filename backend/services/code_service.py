@@ -600,6 +600,58 @@ class CodeService:
                     print("[code_service] Warning: Could not determine exit code, proceeding with caution")
                 elif exit_code != 0:
                     logs_str = "\n".join(install_logs[:50]) + "..." if len(install_logs) > 50 else "\n".join(install_logs)
+                
+                    # Check if this is a package version error
+                    if any("ERR_PNPM_NO_MATCHING_VERSION" in log for log in install_logs):
+                        from backend.utils.package_commands import extract_invalid_package_info, fix_invalid_package_version
+                    
+                        logs_combined = "\n".join(install_logs)
+                        pkg_name, requested_version, latest_version = extract_invalid_package_info(logs_combined)
+                    
+                        if pkg_name:
+                            print(f"[code_service] Detected invalid package version: {pkg_name}@{requested_version}")
+                            self.db.add_log(
+                                self.job_id,
+                                "system", 
+                                f"Fixing invalid package version: {pkg_name}@{requested_version} → {latest_version or '0.1.0'}"
+                            )
+                        
+                            # Fix the package version
+                            if fix_invalid_package_version(repo_dir, pkg_name, latest_version):
+                                # Commit the change
+                                self._create_commit(f"Fix invalid version for {pkg_name}")
+                            
+                                # Retry with the fixed package.json
+                                print("[code_service] Retrying with fixed package.json")
+                            
+                                # Terminate the current sandbox
+                                if base_sandbox:
+                                    try:
+                                        base_sandbox.terminate()
+                                    except Exception as e:
+                                        print(f"[code_service] Failed to terminate sandbox: {str(e)}")
+                                    base_sandbox = None
+                            
+                                # Create a new sandbox and retry
+                                base_sandbox = modal.Sandbox.create(
+                                    app=app,
+                                    image=base_image.add_local_dir(repo_dir, remote_path="/repo"),
+                                    cpu=4,
+                                    memory=2048,
+                                    workdir="/repo",
+                                )
+                            
+                                # Retry installation
+                                process = base_sandbox.exec("pnpm", "install")
+                                retry_logs, retry_exit_code = parse_sandbox_process(process, prefix="retry install")
+                            
+                                if retry_exit_code == 0:
+                                    print("[code_service] Retry installation succeeded")
+                                    # Continue with snapshot creation
+                                    image = base_sandbox.snapshot_filesystem()
+                                    return image
+                
+                    # If we couldn't fix or retry failed, raise the original error
                     raise InstallError(self.job_id, self.project_id, Exception(f"Exit code: {exit_code}, Logs: {logs_str}"))
 
             except UnicodeDecodeError as e:
