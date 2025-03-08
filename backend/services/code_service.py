@@ -1,6 +1,5 @@
 import os
 import modal
-import time
 import requests
 from typing import Optional, Tuple
 import git
@@ -17,7 +16,7 @@ from backend.integrations.github_api import (
 
 from backend.types import UserContext
 from backend.services.aider_runner import AiderRunner
-from backend.utils.package_commands import handle_package_install_commands, parse_sandbox_process
+from backend.utils.package_commands import handle_package_install_commands, parse_sandbox_process, extract_invalid_package_info, fix_invalid_package_version
 from backend.services.build_runner import BuildRunner
 from backend.exceptions import (
     CodeServiceError, SandboxError, SandboxCreationError, SandboxTerminationError,
@@ -201,15 +200,15 @@ class CodeService:
 
         try:
             logs = self._get_build_logs()
-            
+
             # Check for specific package.json errors
             if self._is_package_json_error(logs):
                 return self._fix_package_json_error(logs)
-            
+
             # Check for outdated lockfile error
             if self._is_outdated_lockfile_error(logs):
                 return self._fix_outdated_lockfile()
-            
+
             # Fall back to general error fixing
             aider_runner = AiderRunner(
                 job_id=self.job_id,
@@ -427,13 +426,13 @@ class CodeService:
         """Use Aider to fix package.json errors"""
         self.db.add_log(self.job_id, "system", "Attempting to fix package.json errors")
         print("[code_service] Attempting to fix package.json errors")
-        
+
         aider_runner = AiderRunner(
             job_id=self.job_id,
             project_id=self.project_id,
             user_context=self.user_context
         )
-        
+
         # Create targeted prompt for package.json fix
         fix_prompt = (
             "The build failed with package.json errors:\n\n"
@@ -445,52 +444,52 @@ class CodeService:
             "4. Version conflicts\n\n"
             "Focus ONLY on the package.json file and make minimal changes to fix the issues."
         )
-        
+
         coder = self._create_aider_coder()
         fix_result = aider_runner.run_aider(coder, fix_prompt)
-        
+
         # Run build again to check if errors were fixed
         has_errors, new_logs = self._run_build_in_sandbox(terminate_after_build=True)
-        
+
         if has_errors:
             if self._is_outdated_lockfile_error(new_logs):
                 # If we fixed package.json but now have lockfile issues
                 return self._fix_outdated_lockfile()
             return False
-        
+
         return True
 
     def _fix_outdated_lockfile(self) -> bool:
         """Fix outdated lockfile by regenerating it"""
         self.db.add_log(self.job_id, "system", "Fixing outdated lockfile")
         print("[code_service] Regenerating pnpm-lock.yaml file")
-        
+
         if not self.sandbox:
             self._create_sandbox(repo_dir=self.repo_dir)
-        
+
         try:
             # Run pnpm install without frozen lockfile to update it
             process = self.sandbox.exec("pnpm", "install", "--no-frozen-lockfile")
             logs, exit_code = parse_sandbox_process(process, prefix="lockfile-update")
-            
+
             if exit_code != 0:
                 self.db.add_log(self.job_id, "build", "Failed to update lockfile")
                 print("[code_service] Failed to update lockfile")
                 return False
-            
+
             # Copy the updated lockfile from sandbox to local repo
             updated_lockfile = self._read_file_from_sandbox("pnpm-lock.yaml")
             if updated_lockfile:
                 with open(os.path.join(self.repo_dir, "pnpm-lock.yaml"), "w") as f:
                     f.write(updated_lockfile)
-            
+
             # Commit and push the updated lockfile
             self._create_commit("Update pnpm-lock.yaml to match package.json")
-            
+
             # Verify build works now
             has_errors, _ = self._run_build_in_sandbox(terminate_after_build=True)
             return not has_errors
-        
+
         except Exception as e:
             error_msg = f"Error updating lockfile: {str(e)}"
             self.db.add_log(self.job_id, "system", error_msg)
@@ -600,30 +599,28 @@ class CodeService:
                     print("[code_service] Warning: Could not determine exit code, proceeding with caution")
                 elif exit_code != 0:
                     logs_str = "\n".join(install_logs[:50]) + "..." if len(install_logs) > 50 else "\n".join(install_logs)
-                
+
                     # Check if this is a package version error
                     if any("ERR_PNPM_NO_MATCHING_VERSION" in log for log in install_logs):
-                        from backend.utils.package_commands import extract_invalid_package_info, fix_invalid_package_version
-                    
                         logs_combined = "\n".join(install_logs)
                         pkg_name, requested_version, latest_version = extract_invalid_package_info(logs_combined)
-                    
+
                         if pkg_name:
                             print(f"[code_service] Detected invalid package version: {pkg_name}@{requested_version}")
                             self.db.add_log(
                                 self.job_id,
-                                "system", 
+                                "system",
                                 f"Fixing invalid package version: {pkg_name}@{requested_version} → {latest_version or '0.1.0'}"
                             )
-                        
+
                             # Fix the package version
                             if fix_invalid_package_version(repo_dir, pkg_name, latest_version):
                                 # Commit the change
                                 self._create_commit(f"Fix invalid version for {pkg_name}")
-                            
+
                                 # Retry with the fixed package.json
                                 print("[code_service] Retrying with fixed package.json")
-                            
+
                                 # Terminate the current sandbox
                                 if base_sandbox:
                                     try:
@@ -631,7 +628,7 @@ class CodeService:
                                     except Exception as e:
                                         print(f"[code_service] Failed to terminate sandbox: {str(e)}")
                                     base_sandbox = None
-                            
+
                                 # Create a new sandbox and retry
                                 base_sandbox = modal.Sandbox.create(
                                     app=app,
@@ -640,17 +637,17 @@ class CodeService:
                                     memory=2048,
                                     workdir="/repo",
                                 )
-                            
+
                                 # Retry installation
                                 process = base_sandbox.exec("pnpm", "install")
                                 retry_logs, retry_exit_code = parse_sandbox_process(process, prefix="retry install")
-                            
+
                                 if retry_exit_code == 0:
                                     print("[code_service] Retry installation succeeded")
                                     # Continue with snapshot creation
                                     image = base_sandbox.snapshot_filesystem()
                                     return image
-                
+
                     # If we couldn't fix or retry failed, raise the original error
                     raise InstallError(self.job_id, self.project_id, Exception(f"Exit code: {exit_code}, Logs: {logs_str}"))
 
