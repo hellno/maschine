@@ -156,6 +156,11 @@ class CodeService:
         self.db.add_log(self.job_id, "system", "Checking for package installs")
         print("[code_service] Checking for package install commands")
         try:
+            # Ensure sandbox exists before installing packages
+            if not self.sandbox:
+                print("[code_service] Creating sandbox for package installation")
+                self._create_sandbox(repo_dir=self.repo_dir)
+                
             handle_package_install_commands(
                 aider_result,
                 self.sandbox,
