@@ -49,7 +49,7 @@ def send_prompt_to_reasoning_model(prompt: str, system_prompt: Optional[str] = N
         messages=messages,
     )
     content = response.choices[0].message.content.strip()
-
+    print(f'reasoning model response: {content}')
     if "<think>" not in content or "</think>" not in content:
         return content, ""
 
@@ -157,7 +157,9 @@ def generate_search_queries_from_user_input(
 
         # llm_content = response.choices[0].message.content.strip()
         print("Model response for search queries prompt:", llm_content)
+
         llm_content = llm_content.replace("`", "").strip()
+        llm_content = llm_content.replace("Refined search queries:", "").replace('[]', '').strip()
         queries = [q.lstrip("-").strip() for q in llm_content.split("\n") if q]
         queries = [q for q in queries if q]
         queries = [re.sub(r'^\d+\.\s+', '', q) for q in queries]

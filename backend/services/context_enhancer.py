@@ -70,7 +70,7 @@ class CodeContextEnhancer:
                 print("No relevant context found.")
                 return None
 
-            print(f"context pieces: {len(unique_texts)}")
+            print(f"context pieces: {len(unique_texts)}: {list(filename_to_context.keys())}")
             context = "\n\n".join(unique_texts)
             print("context length:", len(context))
             return context

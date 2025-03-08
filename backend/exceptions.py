@@ -33,7 +33,7 @@ class SandboxCreationError(SandboxError):
     """Failed to create sandbox environment"""
     def __init__(self, job_id: str, project_id: str, original_exception: Exception):
         super().__init__(
-            "Failed to create sandbox environment",
+            "SandboxCreationError Failed to create sandbox environment",
             job_id,
             project_id,
             original_exception

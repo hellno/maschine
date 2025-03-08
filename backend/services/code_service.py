@@ -137,11 +137,9 @@ class CodeService:
 
             if enhance_context:
                 prompt = aider_runner.enhance_prompt_with_context(prompt)
-                self.db.add_log(self.job_id, "aider", "Enhanced prompt with context")
 
             print(f"[code_service] Running Aider with prompt: {prompt}")
             result = aider_runner.run_aider(coder, prompt)
-            self.db.add_log(self.job_id, "aider", f"Completed code generation, generated {len(result)} characters")
             return result
 
         except AiderTimeoutError as e:
@@ -160,7 +158,7 @@ class CodeService:
             if not self.sandbox:
                 print("[code_service] Creating sandbox for package installation")
                 self._create_sandbox(repo_dir=self.repo_dir)
-                
+
             handle_package_install_commands(
                 aider_result,
                 self.sandbox,
@@ -280,20 +278,21 @@ class CodeService:
         error_type = type(error).__name__
         error_msg = f"{error_type}: {str(error)}"
 
-        print(f"[code_service] {error_msg}")
-        category = "error"
+        print(f"[code_service] (known error) {error_msg}")
 
-        if isinstance(error, AiderError):
-            category = "aider"
-        elif isinstance(error, BuildError):
-            category = "build"
-        elif isinstance(error, GitError):
-            category = "git"
-        elif isinstance(error, SandboxError):
-            category = "sandbox"
+        # category = "error"
+        # if isinstance(error, AiderError):
+        #     category = "aider"
+        # elif isinstance(error, BuildError):
+        #     category = "build"
+        # elif isinstance(error, GitError):
+        #     category = "git"
+        # elif isinstance(error, SandboxError):
+        #     category = "sandbox"
+        # self.db.add_log(self.job_id, category, error_msg)
 
-        self.db.add_log(self.job_id, category, error_msg)
         self.db.update_job_status(self.job_id, "failed", error_msg)
+        self._sync_git_changes()
         self.terminate_sandbox()
 
         # Return error information instead of raising
@@ -306,8 +305,8 @@ class CodeService:
     def _handle_unexpected_error(self, error: Exception) -> dict:
         """Fallback handler for unexpected exceptions."""
         error_msg = f"Unexpected error during code generation: {str(error)}"
-        print(f"[code_service] {error_msg}")
-        self.db.add_log(self.job_id, "backend", error_msg)
+        print(f"[code_service] (unexpected) {error_msg}")
+        # self.db.add_log(self.job_id, "backend", error_msg)
         self.db.update_job_status(self.job_id, "failed", error_msg)
         self.terminate_sandbox()
 

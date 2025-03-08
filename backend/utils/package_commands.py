@@ -54,7 +54,7 @@ def parse_sandbox_process(process, prefix="") -> tuple[list, int]:
             print(f"[{prefix} ERR] {error_msg}")
 
     except Exception as e:
-        error_msg = f"Process handling failed: {str(e)}"
+        error_msg = f"Process handling failed. exit code: {exit_code} error: {str(e)}"
         logs.append(error_msg)
         print(f"[{prefix} CRITICAL] {error_msg}")
 
@@ -90,7 +90,7 @@ def handle_package_install_commands(
             continue
 
         try:
-            print(f"[code_service] Installing packages {len(packages)}: {packages}")
+            print(f"[code_service] Installing packages {len(packages.split())}: {packages}")
             install_proc = sandbox.exec("pnpm", "add", *packages.split())
 
             # Use the parsing function passed as parameter

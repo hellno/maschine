@@ -28,7 +28,7 @@ READONLY_FILES = [
 
 class AiderRunner:
     """Orchestrates Aider code generation with enhanced error handling"""
-    
+
     def __init__(
         self,
         job_id: str,
@@ -62,15 +62,15 @@ class AiderRunner:
     def run_aider(self, coder: Coder, prompt: str, timeout: int = 120) -> str:
         """
         Execute Aider with proper timeout and retry handling
-        
+
         Args:
             coder: Configured Aider instance
             prompt: Code generation prompt
             timeout: Seconds before timing out
-            
+
         Returns:
             Aider result string
-            
+
         Raises:
             AiderTimeoutError: If process exceeds timeout
             AiderExecutionError: For execution failures
@@ -156,6 +156,7 @@ class AiderRunner:
                 raise result_data
 
             except AiderTimeoutError:
+                print(f'aider timed out on job {self.job_id} in project {self.project_id}: attempt {attempt}')
                 if attempt < max_retries - 1:
                     time.sleep(retry_delay)
                     continue
@@ -165,7 +166,7 @@ class AiderRunner:
                     time.sleep(retry_delay)
                     continue
                 raise AiderExecutionError(
-                    self.job_id, self.project_id, 
+                    self.job_id, self.project_id,
                     RuntimeError("Process returned no result")
                 )
             except Exception as e:
