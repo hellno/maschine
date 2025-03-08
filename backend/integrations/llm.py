@@ -107,7 +107,8 @@ QUERY_GEN_STR = """\
 You are a technical query refinement assistant.
 You are analyzing a request to build a Farcaster Frames v2 application.
 You generate technical search queries — one per line — that will help retrieve relevant documentation.
-If no technical details are present, do not generate any queries. Don't give an explanation if you generate no queries, just return an empty list.
+If no technical details are present, do not generate any queries.
+Don't give an explanation if you generate no queries, just return an empty list.
 
 IMPORTANT: Frames v2 offers a full HTML/CSS/JS canvas.
 
@@ -135,7 +136,8 @@ def generate_search_queries_from_user_input(
     try:
         prompt = f"""Original user input: {user_input}
         Generate technical search queries — one per line — that will help retrieve relevant documentation.
-        Don't give an explanation if you generate no queries, just return an empty list.
+        Up to 3 queries should be generated.
+        If you generate no queries because no technical details are provided, just return an empty list.
         Refined search queries:
         """
         llm_content, _ = send_prompt_to_reasoning_model(prompt, system_prompt=QUERY_GEN_STR)
