@@ -292,8 +292,12 @@ class CodeService:
         self.db.update_job_status(self.job_id, "failed", error_msg)
         self.terminate_sandbox()
         
-        # Re-raise the error after handling to maintain consistent exception flow
-        raise error
+        # Return error information instead of raising
+        return {
+            "status": "error",
+            "error_type": error_type,
+            "message": error_msg
+        }
         
     def _handle_unexpected_error(self, error: Exception) -> dict:
         """Fallback handler for unexpected exceptions."""
@@ -303,8 +307,12 @@ class CodeService:
         self.db.update_job_status(self.job_id, "failed", error_msg)
         self.terminate_sandbox()
         
-        # Create and raise a CodeServiceError that wraps the original exception
-        raise CodeServiceError(error_msg, self.job_id, self.project_id, error)
+        # Return error information instead of raising
+        return {
+            "status": "error",
+            "error_type": "UnexpectedError",
+            "message": error_msg
+        }
 
     def _get_build_logs(self) -> str:
         """Retrieve and format build logs for error analysis."""

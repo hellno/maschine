@@ -231,6 +231,11 @@ class Database:
             .execute()
         )
         return result.data if result else None
+        
+    def get_latest_build(self, project_id: str):
+        """Get the latest build for a project"""
+        builds = self.get_builds_by_project(project_id)
+        return builds[0] if builds else None
 
     def update_build(self, build_id: str, update_data: dict):
         """Update build"""
