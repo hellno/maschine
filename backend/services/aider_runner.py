@@ -118,7 +118,7 @@ class AiderRunner:
         args=(),
         max_retries: int = 3,
         retry_delay: int = 15,
-        timeout: int = 240
+        timeout: int = 180
     ) -> str:
         """Internal retry handler with process management"""
         import multiprocessing
@@ -135,7 +135,7 @@ class AiderRunner:
             # Increase timeout for each retry attempt (exponential backoff)
             current_timeout = timeout * (1 + attempt * 0.5)  # 1x, 1.5x, 2x original timeout
             print(f"[aider_runner] Attempt {attempt+1}/{max_retries} with timeout {int(current_timeout)}s")
-            
+
             queue = multiprocessing.Queue()
             process = multiprocessing.Process(
                 target=target_wrapper,
