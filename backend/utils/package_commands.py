@@ -70,6 +70,12 @@ def handle_package_install_commands(
     parse_process
 ) -> None:
     """Parse and execute pnpm/npm install commands from Aider output"""
+
+    # Add safety check for sandbox
+    if sandbox is None:
+        print("[code_service] Error: Cannot install packages - sandbox is None")
+        return
+
     pattern = r"(?:```.*?[\s\n]*)?(pnpm add|npm install)\s+((?:--\S+\s+)*[^\n`]*)(?:```)?"
     matches = list(re.finditer(pattern, aider_result, re.MULTILINE | re.IGNORECASE))
 
