@@ -23,7 +23,7 @@ from backend.exceptions import (
     CodeServiceError, SandboxError, SandboxCreationError, SandboxTerminationError,
     GitError, GitCloneError, GitPushError,
     BuildError, InstallError, CompileError,
-    AiderError, AiderTimeoutError, AiderExecutionError
+    AiderTimeoutError, AiderExecutionError
 )
 
 
@@ -109,7 +109,7 @@ class CodeService:
 
             print(f"[code_service] Running Aider with prompt: {prompt}")
             self.db.update_job_status(self.job_id, "running")
-            
+
             if auto_enhance_context:
                 prompt = aider_runner.enhance_prompt_with_context(prompt)
 
