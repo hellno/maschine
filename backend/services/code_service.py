@@ -95,99 +95,61 @@ class CodeService:
         self._setup()
 
     def run(self, prompt: str, auto_enhance_context: bool = True) -> dict:
-        """Run the Aider coder with the given prompt."""
-        if not self.db:
-            raise ValueError("Database not initialized")
-
+        """Run the Aider coder with the given prompt.
+        
+        Orchestrates the full process of code generation, building, and deployment:
+        1. Validates setup and initializes logging
+        2. Runs Aider code generation with context enhancement if requested
+        3. Installs any packages mentioned in Aider output
+        4. Builds the project and attempts to fix any build errors
+        5. Syncs changes to Git and triggers a deployment build
+        
+        Args:
+            prompt: The user prompt to process
+            auto_enhance_context: Whether to automatically enhance the prompt with context
+            
+        Returns:
+            Dictionary with status and build logs
+            
+        Raises:
+            Various custom exceptions for different error conditions
+        """
         try:
-            aider_runner = AiderRunner(
-                job_id=self.job_id,
-                project_id=self.project_id,
-                user_context=self.user_context
-            )
-            coder = self._create_aider_coder()
-
-            print(f"[code_service] Running Aider with prompt: {prompt}")
-            self.db.update_job_status(self.job_id, "running")
-
-            if auto_enhance_context:
-                prompt = aider_runner.enhance_prompt_with_context(prompt)
-
-            # Using AiderRunner to handle retries and timeouts
-            aider_result = aider_runner.run_aider(coder, prompt)
-            handle_package_install_commands(
-                aider_result,
-                self.sandbox,
-                parse_sandbox_process
-            )
-            print(f"[code_service] Aider result (truncated): {aider_result[:250]}")
-
-
-            has_errors, logs = self._run_build_in_sandbox()
-
-            if has_errors:
-                build_runner = BuildRunner(self.project_id, self.db, self.job_id)
-                aider_runner = AiderRunner(
-                    job_id=self.job_id,
-                    project_id=self.project_id,
-                    user_context=self.user_context
-                )
-                error_fix_prompt = aider_runner.generate_fix_for_errors(logs)
-                print("[code_service] Running Aider again to fix build errors")
-
-                aider_result = aider_runner.run_aider(coder, error_fix_prompt)
-                if aider_result:
-                    print(
-                        f"[code_service] Fix attempt result (truncated): {aider_result[:250]}"
-                )
-
-                has_errors, logs = self._run_build_in_sandbox(
-                    terminate_after_build=True
-                )
-                if has_errors:
-                    print("[code_service] Build errors persist after fix attempt")
-
-            self._sync_git_changes()
-            self._create_build_and_poll_status_async()
-            self.db.update_job_status(self.job_id, "completed")
-            return {"status": "success", "build_logs": logs}
-
+            # Initial validation and setup
+            self._validate_setup()
+            self._log_start(prompt)
+            
+            # Run Aider to generate code changes
+            aider_result = self._run_aider_process(prompt, auto_enhance_context)
+            
+            # Process any package installations from Aider output
+            self._handle_package_installs(aider_result)
+            
+            # Run initial build to check for errors
+            build_success = self._execute_build()
+            
+            # If build failed, attempt to fix errors
+            if not build_success:
+                fixed = self._attempt_build_error_fix(aider_result)
+                if not fixed:
+                    self.db.add_log(self.job_id, "build", "Failed to fix build errors after multiple attempts")
+            
+            # Finalize changes and trigger deployment
+            self._finalize_successful_run()
+            
+            # Complete job and return success response
+            return self._build_success_response()
+            
         except (AiderTimeoutError, AiderExecutionError) as e:
-            error_msg = f"Aider execution failed: {str(e)}"
-            print(f"[code_service] {error_msg}")
-            self.db.add_log(self.job_id, "aider", error_msg)
-            self.db.update_job_status(self.job_id, "failed", error_msg)
-            self.terminate_sandbox()
-            raise
+            return self._handle_known_error(e)
         except (InstallError, CompileError, BuildError) as e:
-            error_msg = f"Build process failed: {str(e)}"
-            print(f"[code_service] {error_msg}")
-            self.db.add_log(self.job_id, "build", error_msg)
-            self.db.update_job_status(self.job_id, "failed", error_msg)
-            self.terminate_sandbox()
-            raise
+            return self._handle_known_error(e)
         except GitError as e:
-            error_msg = f"Git operation failed: {str(e)}"
-            print(f"[code_service] {error_msg}")
-            self.db.add_log(self.job_id, "git", error_msg)
-            self.db.update_job_status(self.job_id, "failed", error_msg)
-            self.terminate_sandbox()
-            raise
+            return self._handle_known_error(e)
         except SandboxError as e:
-            error_msg = f"Sandbox operation failed: {str(e)}"
-            print(f"[code_service] {error_msg}")
-            self.db.add_log(self.job_id, "sandbox", error_msg)
-            self.db.update_job_status(self.job_id, "failed", error_msg)
-            self.terminate_sandbox()
-            raise
+            return self._handle_known_error(e)
         except Exception as e:
-            # Fallback for any other exceptions
-            error_msg = f"Unexpected error during code generation: {str(e)}"
-            print(f"[code_service] {error_msg}")
-            self.db.add_log(self.job_id, "backend", error_msg)
-            self.db.update_job_status(self.job_id, "failed", error_msg)
-            self.terminate_sandbox()
-            raise CodeServiceError(error_msg, self.job_id, self.project_id, e)
+            return self._handle_unexpected_error(e)
 
     def _validate_setup(self):
         """Ensure required components are initialized."""
@@ -202,6 +164,7 @@ class CodeService:
         """Log initial process startup."""
         self.db.update_job_status(self.job_id, "running")
         self.db.add_log(self.job_id, "system", f"Starting code generation with prompt: {prompt[:200]}...")
+        print(f"[code_service] Starting code generation with prompt: {prompt[:200]}...")
 
     def _run_aider_process(self, prompt: str, enhance_context: bool) -> str:
         """Execute Aider with enhanced context and retries."""
@@ -217,9 +180,13 @@ class CodeService:
             
             if enhance_context:
                 prompt = aider_runner.enhance_prompt_with_context(prompt)
+                self.db.add_log(self.job_id, "aider", "Enhanced prompt with context")
 
             print(f"[code_service] Running Aider with prompt: {prompt}")
-            return aider_runner.run_aider(coder, prompt)
+            result = aider_runner.run_aider(coder, prompt)
+            self.db.add_log(self.job_id, "aider", f"Completed code generation, generated {len(result)} characters")
+            print(f"[code_service] Aider result (truncated): {result[:250]}")
+            return result
         
         except AiderTimeoutError as e:
             self.db.add_log(self.job_id, "aider", f"Timeout after {e.timeout}s")
@@ -231,36 +198,49 @@ class CodeService:
     def _handle_package_installs(self, aider_result: str):
         """Process package installation commands from Aider output."""
         self.db.add_log(self.job_id, "system", "Checking for package installs")
+        print("[code_service] Checking for package install commands")
         try:
             handle_package_install_commands(
                 aider_result,
                 self.sandbox,
                 parse_sandbox_process
             )
-            print(f"[code_service] Aider result (truncated): {aider_result[:250]}")
+            self.db.add_log(self.job_id, "system", "Package installation completed")
+            print("[code_service] Package installation completed")
         except Exception as e:
-            self.db.add_log(self.job_id, "system", f"Package install failed: {str(e)}")
+            error_msg = f"Package installation failed: {str(e)}"
+            self.db.add_log(self.job_id, "system", error_msg)
+            print(f"[code_service] {error_msg}")
             raise InstallError(self.job_id, self.project_id, e)
 
     def _execute_build(self) -> bool:
         """Run build process and return success status."""
         self.db.add_log(self.job_id, "build", "Starting initial build")
+        print("[code_service] Starting initial build")
         try:
             has_errors, logs = self._run_build_in_sandbox()
             
             if has_errors:
-                self.db.add_log(self.job_id, "build", f"Build failed with errors: {logs[:500]}...")
+                error_msg = f"Build failed with errors: {logs[:500]}..."
+                self.db.add_log(self.job_id, "build", error_msg)
+                print(f"[code_service] {error_msg}")
                 return False
+            
+            self.db.add_log(self.job_id, "build", "Build completed successfully")
+            print("[code_service] Build completed successfully")
             return True
         except (InstallError, CompileError) as e:
-            self.db.add_log(self.job_id, "build", f"Build error: {str(e)}")
+            error_msg = f"Build error: {str(e)}"
+            self.db.add_log(self.job_id, "build", error_msg)
+            print(f"[code_service] {error_msg}")
             return False
 
     def _attempt_build_error_fix(self, aider_result: str) -> bool:
         """Attempt to fix build errors using Aider."""
-        self.db.add_log(self.job_id, "system", "Attempting build error fix")
+        self.db.add_log(self.job_id, "system", "Attempting to fix build errors")
+        print("[code_service] Attempting to fix build errors")
+        
         try:
-            build_runner = BuildRunner(self.project_id, self.db, self.job_id)
             logs = self._get_build_logs()
             
             aider_runner = AiderRunner(
@@ -268,37 +248,67 @@ class CodeService:
                 project_id=self.project_id,
                 user_context=self.user_context
             )
+            
             fix_prompt = aider_runner.generate_fix_for_errors(logs)
-            print("[code_service] Running Aider again to fix build errors")
+            self.db.add_log(self.job_id, "aider", "Generated error fix prompt")
+            print("[code_service] Generated error fix prompt and running Aider again")
             
             coder = self._create_aider_coder()
-            aider_result = aider_runner.run_aider(coder, fix_prompt)
+            fix_result = aider_runner.run_aider(coder, fix_prompt)
             
-            if aider_result:
-                print(f"[code_service] Fix attempt result (truncated): {aider_result[:250]}")
+            if fix_result:
+                self.db.add_log(self.job_id, "aider", f"Generated fix, length: {len(fix_result)}")
+                print(f"[code_service] Fix attempt result (truncated): {fix_result[:250]}")
                 
+                # Process any package installations from fix
+                self._handle_package_installs(fix_result)
+                
+            # Run build again to see if errors were fixed
             has_errors, logs = self._run_build_in_sandbox(terminate_after_build=True)
+            
             if has_errors:
+                self.db.add_log(self.job_id, "build", "Build errors persist after fix attempt")
                 print("[code_service] Build errors persist after fix attempt")
                 return False
+                
+            self.db.add_log(self.job_id, "build", "Build errors successfully fixed")
+            print("[code_service] Build errors successfully fixed")
             return True
+            
         except AiderError as e:
-            self.db.add_log(self.job_id, "system", f"Fix attempt failed: {str(e)}")
+            error_msg = f"Fix attempt failed: {str(e)}"
+            self.db.add_log(self.job_id, "system", error_msg)
+            print(f"[code_service] {error_msg}")
             return False
 
     def _finalize_successful_run(self):
         """Handle successful execution flow."""
         self.db.add_log(self.job_id, "system", "Finalizing successful run")
+        print("[code_service] Finalizing successful run")
+        
         try:
+            # Sync changes to git repository
+            self.db.add_log(self.job_id, "git", "Syncing code changes to git repository")
+            print("[code_service] Syncing code changes to git repository")
             self._sync_git_changes()
+            
+            # Create build and start async polling
+            self.db.add_log(self.job_id, "system", "Creating build and starting deployment")
+            print("[code_service] Creating build and starting deployment")
             self._create_build_and_poll_status_async()
+            
         except GitError as e:
-            self.db.add_log(self.job_id, "git", f"Final sync failed: {str(e)}")
+            error_msg = f"Final git sync failed: {str(e)}"
+            self.db.add_log(self.job_id, "git", error_msg)
+            print(f"[code_service] {error_msg}")
             raise
 
     def _build_success_response(self) -> dict:
         """Generate final success response."""
         self.db.update_job_status(self.job_id, "completed")
+        self.db.add_log(self.job_id, "system", "Code service process completed successfully")
+        print("[code_service] Code service process completed successfully")
+        
         return {
             "status": "success",
             "message": "Code generation and build completed successfully"
@@ -325,12 +335,9 @@ class CodeService:
         self.db.update_job_status(self.job_id, "failed", error_msg)
         self.terminate_sandbox()
         
-        return {
-            "status": "error",
-            "error_type": error_type,
-            "message": error_msg
-        }
-
+        # Re-raise the error after handling to maintain consistent exception flow
+        raise error
+        
     def _handle_unexpected_error(self, error: Exception) -> dict:
         """Fallback handler for unexpected exceptions."""
         error_msg = f"Unexpected error during code generation: {str(error)}"
@@ -339,6 +346,7 @@ class CodeService:
         self.db.update_job_status(self.job_id, "failed", error_msg)
         self.terminate_sandbox()
         
+        # Create and raise a CodeServiceError that wraps the original exception
         raise CodeServiceError(error_msg, self.job_id, self.project_id, error)
 
     def _get_build_logs(self) -> str:
