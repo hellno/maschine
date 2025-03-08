@@ -118,7 +118,7 @@ class AiderRunner:
         args=(),
         max_retries: int = 3,
         retry_delay: int = 15,
-        timeout: int = 120
+        timeout: int = 240
     ) -> str:
         """Internal retry handler with process management"""
         import multiprocessing
