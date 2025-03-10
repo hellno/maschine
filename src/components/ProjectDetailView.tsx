@@ -12,6 +12,15 @@ import {
   EllipsisVertical,
 } from "lucide-react";
 import { Button } from "./ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "./ui/dialog";
 import sdk from "@farcaster/frame-sdk";
 import { Log, Project } from "~/lib/types";
 import Link from "next/link";
@@ -29,6 +38,7 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { Label } from "./ui/label";
+import { useProjects } from "~/hooks/useProjects";
 
 const styles = {
   card: "bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700",
@@ -57,13 +67,13 @@ interface ProjectDetailViewProps {
 
 function ProjectInfoCard({
   project,
-  // onHandleDeploy,
   isSubmitting,
 }: {
   project: Project;
-  // onHandleDeploy: () => void;
   isSubmitting: boolean;
 }) {
+  const { context } = useFrameSDK();
+  const { removeProject } = useProjects(context?.user?.fid);
   const handleCopyUrl = async () => {
     if (project.frontend_url) {
       try {
@@ -180,6 +190,52 @@ function ProjectInfoCard({
         >
           <Copy className="w-4 h-4 mr-2" />
           Copy URL
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={(e) => e.preventDefault()} // Prevent immediate action
+          className="transition-colors hover:bg-red-100 dark:hover:bg-red-900 text-red-600 dark:text-red-400"
+        >
+          <Dialog>
+            <DialogTrigger className="w-full text-left flex items-center">
+              <CircleXIcon className="w-4 h-4 mr-2" />
+              Remove
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Remove {project.name}?</DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to remove this project? This action
+                  cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    document.dispatchEvent(
+                      new KeyboardEvent("keydown", { key: "Escape" }),
+                    )
+                  }
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={!project?.id || removeProject.isPending}
+                  onClick={() => {
+                    if (removeProject && project?.id) {
+                      removeProject.mutate(project.id);
+                    }
+                  }}
+                >
+                  {removeProject.isPending ? (
+                    <LoaderCircle className="w-4 h-4 animate-spin mr-2" />
+                  ) : null}
+                  Yes, remove it!
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         {project.repo_url && (
