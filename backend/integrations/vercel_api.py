@@ -6,7 +6,7 @@ from typing import Optional
 
 VERCEL_CONFIG = {
     "FRAMEWORK": "nextjs",
-    "INSTALL_CMD": "pnpm install",
+    "INSTALL_CMD": "pnpm install --no-frozen-lockfile",
     "BUILD_CMD": "pnpm build",
     "OUTPUT_DIR": ".next",
 }
