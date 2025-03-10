@@ -39,7 +39,6 @@ import {
 } from "./ui/dropdown-menu";
 import { Label } from "./ui/label";
 import { useProjects } from "~/hooks/useProjects";
-import { useRouter } from "next/navigation";
 
 const styles = {
   card: "bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700",
@@ -73,7 +72,6 @@ function ProjectInfoCard({
   project: Project;
   isSubmitting: boolean;
 }) {
-  const router = useRouter();
   const { context } = useFrameSDK();
   const { removeProject } = useProjects(context?.user?.fid);
   const handleCopyUrl = async () => {
